@@ -64,6 +64,12 @@
             <version>2.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.github.grantwest.eventually</groupId>
+            <artifactId>hamcrest-eventually-matchers</artifactId>
+            <version>0.0.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
