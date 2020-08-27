@@ -25,46 +25,40 @@ public class TopicMappingTest {
     void GIVEN_mapping_as_json_string_WHEN_updateMapping_THEN_mapping_updated_successfully() throws Exception {
         TopicMapping mapping = new TopicMapping();
         mapping.updateMapping("[\n"
-                + "  {\"MqttTopic\": \"mqtt/topic\", \"MappedTopic\": \"/test/cloud/topic\", \"Type\": \"IotCore\"},\n"
-                + "  {\"MqttTopic\": \"mqtt/topic2\", \"MappedTopic\": \"/test/pubsub/topic\", \"Type\": \"Pubsub\"},\n"
-                + "  {\"MqttTopic\": \"mqtt/topic3\", \"MappedTopic\": \"/test/cloud/topic2\", \"Type\": \"IotCore\"}\n"
+                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
+                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
+                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]");
         List<TopicMapping.MappingEntry> expectedMapping = new ArrayList<>();
-        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic", "/test/cloud/topic",
-                TopicMapping.MappedTopicType.IotCore));
-        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic2", "/test/pubsub/topic",
-                TopicMapping.MappedTopicType.Pubsub));
-        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic3", "/test/cloud/topic2",
-                TopicMapping.MappedTopicType.IotCore));
+        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                "/test/cloud" + "/topic", TopicMapping.TopicType.IotCore));
+        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                "/test/pubsub/topic", TopicMapping.TopicType.Pubsub));
+        expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.LocalMqtt,
+                "/test/cloud/topic2", TopicMapping.TopicType.IotCore));
 
         assertArrayEquals(expectedMapping.toArray(), mapping.getMapping().toArray());
-
-        List<TopicMapping.MappingEntry> iotCoreMapping =
-                mapping.getMappingsOfType(TopicMapping.MappedTopicType.IotCore);
-        List<TopicMapping.MappingEntry> expectedIoTCoreMapping = new ArrayList<>();
-        expectedIoTCoreMapping.add(new TopicMapping.MappingEntry("mqtt/topic", "/test/cloud/topic",
-                TopicMapping.MappedTopicType.IotCore));
-        expectedIoTCoreMapping.add(new TopicMapping.MappingEntry("mqtt/topic3", "/test/cloud/topic2",
-                TopicMapping.MappedTopicType.IotCore));
-        assertArrayEquals(expectedIoTCoreMapping.toArray(), iotCoreMapping.toArray());
-
-        List<TopicMapping.MappingEntry> pubsubMapping = mapping.getMappingsOfType(TopicMapping.MappedTopicType.Pubsub);
-        List<TopicMapping.MappingEntry> expectedPubsubMapping = new ArrayList<>();
-        expectedPubsubMapping.add(new TopicMapping.MappingEntry("mqtt/topic2", "/test/pubsub/topic",
-                TopicMapping.MappedTopicType.Pubsub));
-        assertArrayEquals(expectedPubsubMapping.toArray(), pubsubMapping.toArray());
     }
 
     @Test
     void GIVEN_invalid_mapping_as_json_string_WHEN_updateMapping_THEN_mapping_not_updated() throws Exception {
         TopicMapping mapping = new TopicMapping();
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
+        // Updating with invalid mapping (Providing type as Pubsub-Invalid)
         Assertions.assertThrows(JsonProcessingException.class, () -> mapping.updateMapping("[\n"
-                + "  {\"MqttTopic\": \"mqtt/topic\", \"MappedTopic\": \"/test/cloud/topic\", \"Type\": \"IotCore\"},\n"
-                + "  {\"MqttTopic\": \"mqtt/topic2\", \"MappedTopic\": \"/test/pubsub/topic\", \"Type\": "
-                + "\"Pubsub-Invalid\"},\n"
-                + "  {\"MqttTopic\": \"mqtt/topic3\", \"MappedTopic\": \"/test/cloud/topic2\", \"Type\": \"IotCore\"}\n"
+                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
+                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
+                + "\"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub-Invalid\"},\n"
+                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]"));
+        assertThat(mapping.getMapping().size(), is(equalTo(0)));
+    }
+
+    @Test
+    void GIVEN_null_mapping_as_json_string_WHEN_updateMapping_THEN_NPE_thrown() throws Exception {
+        TopicMapping mapping = new TopicMapping();
+        assertThat(mapping.getMapping().size(), is(equalTo(0)));
+        Assertions.assertThrows(NullPointerException.class, () -> mapping.updateMapping(null));
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
     }
 }

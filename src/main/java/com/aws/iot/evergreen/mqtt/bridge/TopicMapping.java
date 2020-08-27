@@ -18,7 +18,6 @@ import lombok.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Topic mappings from mqtt topic to other topics (iot core or pub sub).
@@ -29,10 +28,10 @@ public class TopicMapping {
     private List<MappingEntry> mapping = new ArrayList<>();
 
     /**
-     * Type of the mapped topic.
+     * Type of the topic.
      */
-    public enum MappedTopicType {
-        IotCore, Pubsub
+    public enum TopicType {
+        IotCore, Pubsub, LocalMqtt
     }
 
     /**
@@ -43,14 +42,17 @@ public class TopicMapping {
     @EqualsAndHashCode
     public static class MappingEntry {
         @Getter
-        @JsonProperty("MqttTopic")
-        private String mqttTopic;
+        @JsonProperty("SourceTopic")
+        private String sourceTopic;
         @Getter
-        @JsonProperty("MappedTopic")
-        private String mappedTopic;
+        @JsonProperty("SourceTopicType")
+        private TopicType sourceTopicType;
         @Getter
-        @JsonProperty("Type")
-        private MappedTopicType type;
+        @JsonProperty("DestTopic")
+        private String destTopic;
+        @Getter
+        @JsonProperty("DestTopicType")
+        private TopicType destTopicType;
     }
 
     /**
@@ -63,16 +65,7 @@ public class TopicMapping {
         final TypeReference<ArrayList<MappingEntry>> typeRef = new TypeReference<ArrayList<MappingEntry>>() {
         };
         mapping = SerializerFactory.getJsonObjectMapper().readValue(mappingAsJson, typeRef);
-        // TODO: Check for duplicates?
-    }
-
-    /**
-     * Get mappings of mqtt topic <-> topic of provided {@link MappedTopicType} type.
-     *
-     * @param type {@link MappedTopicType}
-     * @return topic mapping
-     */
-    public List<MappingEntry> getMappingsOfType(MappedTopicType type) {
-        return mapping.stream().filter(entry -> entry.type.equals(type)).collect(Collectors.toList());
+        // TODO: Check for duplicates, General validation + unit tests. Topic strings need to be validated (allowed
+        //  filter?, etc)
     }
 }
