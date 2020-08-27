@@ -9,4 +9,3 @@ manifests:
   - lifecycle:
     artifacts:
       - uri: s3://gg-dev-artifacts/$componentName/$platform/$version/aws.greengrass.mqtt.bridge.jar
-        algorithm: SHA-256
