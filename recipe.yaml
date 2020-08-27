@@ -1,17 +1,12 @@
 ---
-RecipeTemplateVersion: '2020-01-25'
-ComponentName: aws.greengrass.mqtt.broker.bridge
-Description: AWS Greengrass MQTT Broker Bridge
-Publisher: AWS
-Version: '0.0.0'
-ComponentType: plugin
-Lifecycle:
-Platforms:
-  - linux
-  - ubuntu
-  - debian
-  - fedora
-  - raspbian
-Artifacts:
-  all:
-    - Uri: s3://gg-dev-artifacts/$componentName/$platform/$version/aws.greengrass.mqtt.broker.bridge.jar
+templateVersion: '2020-01-25'
+componentName: aws.greengrass.mqtt.bridge
+description: AWS Greengrass MQTT Bridge
+publisher: AWS
+version: '0.0.0'
+componentType: plugin
+manifests:
+  - lifecycle:
+    artifacts:
+      - uri: s3://gg-dev-artifacts/$componentName/$platform/$version/aws.greengrass.mqtt.bridge.jar
+        algorithm: SHA-256

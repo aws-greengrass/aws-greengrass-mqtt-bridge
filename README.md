@@ -1,6 +1,6 @@
-## AWS Greengrass MQTT Broker Bridge
+## AWS Greengrass MQTT Bridge
 
-MQTT Broker Bridge is a Greengrass component that manages the communications between MQTT broker and the rest of Evergreen system, specifically PubSub and MQTT Proxy.
+MQTT Bridge is a Greengrass component that manages the communications between MQTT broker and the rest of Evergreen system, specifically PubSub and MQTT Proxy.
 
 ## Security
 
