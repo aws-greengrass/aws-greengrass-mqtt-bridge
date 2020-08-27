@@ -1,0 +1,12 @@
+services:
+  aws.greengrass.mqtt.bridge:
+    parameters:
+      mqttTopicMapping: '[
+                                 {"MqttTopic": "topic/to/iotCore", "MappedTopic": "/test/cloud/topic", "Type": "IotCore"},
+                                 {"MqttTopic": "topic/to/pubsub", "MappedTopic": "/test/pubsub/topic", "Type": "Pubsub"},
+                                 {"MqttTopic": "topic/to/iotCore/2", "MappedTopic": "/test/cloud/topic2", "Type":
+                                 "IotCore"}
+                               ]'
+  main:
+    dependencies:
+      - aws.greengrass.mqtt.bridge
