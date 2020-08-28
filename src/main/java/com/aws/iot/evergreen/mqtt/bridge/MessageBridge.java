@@ -7,9 +7,9 @@ package com.aws.iot.evergreen.mqtt.bridge;
 
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @NoArgsConstructor
 public class MessageBridge {
-    private Map<TopicMapping.TopicType, List<MessageListener>> listeners = new ConcurrentHashMap<>();
+    private Map<TopicMapping.TopicType, Set<MessageListener>> listeners = new ConcurrentHashMap<>();
 
     /**
      * Add a listener to listen to messages of type sourceType.
@@ -31,7 +31,7 @@ public class MessageBridge {
     public void addListener(MessageListener listener, TopicMapping.TopicType sourceType) {
         listeners.compute(sourceType, (topicType, messageListeners) -> {
             if (messageListeners == null) {
-                List<MessageListener> newMessageListeners = new ArrayList<>();
+                Set<MessageListener> newMessageListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
                 newMessageListeners.add(listener);
                 return newMessageListeners;
             } else {
@@ -64,7 +64,7 @@ public class MessageBridge {
      * @param sourceType type of source
      */
     public void notifyMessage(Message msg, TopicMapping.TopicType sourceType) {
-        List<MessageListener> messageListeners = listeners.get(sourceType);
+        Set<MessageListener> messageListeners = listeners.get(sourceType);
         if (messageListeners != null) {
             messageListeners.forEach(listener -> listener.onMessage(sourceType, msg));
         }
@@ -73,7 +73,7 @@ public class MessageBridge {
     /**
      * Listener to be notified of messages.
      */
-    interface MessageListener {
+    public interface MessageListener {
         void onMessage(TopicMapping.TopicType sourceType, Message msg);
     }
 }
