@@ -4,13 +4,15 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
+import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClientException;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.io.IOException;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -19,17 +21,23 @@ public class MQTTBridge extends EvergreenService {
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
+    private final MessageBridge messageBridge;
+    private final Topics topics;
+    private MQTTClient mqttClient;
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
     /**
      * Ctr for MQTTBridge.
-     * @param topics topic
-     * @param topicMapping mapping of mqtt topics to iotCore/pubsub topics
+     *
+     * @param topics        topics passed by by the kernel
+     * @param topicMapping  mapping of mqtt topics to iotCore/pubsub topics
+     * @param messageBridge message bridge to route the messages
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping) {
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
         super(topics);
         this.topicMapping = topicMapping;
+        this.topics = topics;
 
         topics.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("{}")
                 .subscribe((why, newv) -> {
@@ -40,20 +48,37 @@ public class MQTTBridge extends EvergreenService {
                             return;
                         }
                         topicMapping.updateMapping(mapping);
-                    } catch (JsonProcessingException e) {
+                    } catch (IOException e) {
                         logger.atError("Invalid topic mapping").kv("TopicMapping", Coerce.toString(newv)).log();
                         // Currently, kernel spills all exceptions in std err which junit consider failures
                         serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
                     }
                 });
+
+        this.messageBridge = messageBridge;
+        try {
+            this.mqttClient = new MQTTClient(topics, topicMapping, messageBridge);
+        } catch (MQTTClientException e) {
+            serviceErrored(e);
+        }
     }
 
     @Override
     public void startup() {
+        try {
+            this.mqttClient = new MQTTClient(topics, topicMapping, messageBridge);
+            mqttClient.start();
+        } catch (MQTTClientException e) {
+            serviceErrored(e);
+            return;
+        }
         reportState(State.RUNNING);
     }
 
     @Override
     public void shutdown() {
+        if (mqttClient != null) {
+            mqttClient.stop();
+        }
     }
 }

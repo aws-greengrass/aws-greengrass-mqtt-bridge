@@ -8,6 +8,10 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
+import io.moquette.BrokerConstants;
+import io.moquette.broker.Server;
+import io.moquette.broker.config.IConfig;
+import io.moquette.broker.config.MemoryConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +20,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -33,18 +39,24 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
 
     private Kernel kernel;
     private GlobalStateChangeListener listener;
+    private Server broker;
 
     @TempDir
     Path rootDir;
 
     @BeforeEach
-    void setup() {
+    void setup() throws IOException {
         kernel = new Kernel();
+        IConfig defaultConfig = new MemoryConfig(new Properties());
+        defaultConfig.setProperty(BrokerConstants.PORT_PROPERTY_NAME, "8883");
+        broker = new Server();
+        broker.startServer(defaultConfig);
     }
 
     @AfterEach
     void cleanup() {
         kernel.shutdown();
+        broker.stopServer();
     }
 
     private void startKernelWithConfig(String configFileName) throws InterruptedException {

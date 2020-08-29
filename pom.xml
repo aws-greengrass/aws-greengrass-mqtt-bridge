@@ -13,6 +13,16 @@
             <name>Kernel Snapshot</name>
             <url>https://d10d248laylpoq.cloudfront.net</url>
         </repository>
+        <repository>
+            <id>bintray</id>
+            <url>https://jcenter.bintray.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
     </repositories>
     <dependencies>
         <dependency>
@@ -20,6 +30,11 @@
             <artifactId>evergreen-kernel</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.paho</groupId>
+            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+            <version>[1.2.5,)</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
@@ -33,6 +48,27 @@
             <artifactId>lombok</artifactId>
             <version>1.18.10</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.moquette</groupId>
+            <artifactId>moquette-broker</artifactId>
+            <version>0.12.1</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- This dependency is also shadowed in kernel because I import moquette for testing.
+        Have to import it explicitly here-->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.30</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- This dependency is also shadowed in kernel because I import moquette for testing.
+        Have to import it explicitly here-->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.11.2</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

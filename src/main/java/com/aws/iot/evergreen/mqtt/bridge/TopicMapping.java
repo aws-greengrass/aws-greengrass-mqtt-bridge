@@ -7,25 +7,27 @@ package com.aws.iot.evergreen.mqtt.bridge;
 
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Topic mappings from mqtt topic to other topics (iot core or pub sub).
  */
 @NoArgsConstructor
 public class TopicMapping {
-    @Getter(AccessLevel.PACKAGE)
+    @Getter
     private List<MappingEntry> mapping = new ArrayList<>();
+
+    private List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Type of the topic.
@@ -55,17 +57,27 @@ public class TopicMapping {
         private TopicType destTopicType;
     }
 
+    @FunctionalInterface
+    public interface UpdateListener {
+        void onUpdate();
+    }
+
     /**
      * Update the topic mapping by parsing the mapping given as json.
      *
      * @param mappingAsJson mapping as a json string
-     * @throws JsonProcessingException if unable to parse the string
+     * @throws IOException if unable to parse the string
      */
-    public void updateMapping(@NonNull String mappingAsJson) throws JsonProcessingException {
+    public void updateMapping(@NonNull String mappingAsJson) throws IOException {
         final TypeReference<ArrayList<MappingEntry>> typeRef = new TypeReference<ArrayList<MappingEntry>>() {
         };
         mapping = SerializerFactory.getJsonObjectMapper().readValue(mappingAsJson, typeRef);
         // TODO: Check for duplicates, General validation + unit tests. Topic strings need to be validated (allowed
         //  filter?, etc)
+        updateListeners.forEach(UpdateListener::onUpdate);
+    }
+
+    public void listenToUpdates(UpdateListener listener) {
+        updateListeners.add(listener);
     }
 }
