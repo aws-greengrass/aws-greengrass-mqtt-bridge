@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,7 @@ import java.util.function.Consumer;
 
 import static com.aws.iot.evergreen.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class PubSubClientTest {
@@ -41,8 +43,8 @@ public class PubSubClientTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         pubSubIPCAgent = new PubSubIPCAgent(executor);
         messageBridge = new MessageBridge();
-        pubSubClient = new PubSubClient(messageBridge, pubSubIPCAgent);
         mapping = new TopicMapping();
+        pubSubClient = new PubSubClient(messageBridge, mapping, pubSubIPCAgent);
     }
 
     @Test
@@ -52,7 +54,7 @@ public class PubSubClientTest {
                 + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"test/pubsub/topic2\", \"DestTopicType\": \"Pubsub\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"test/cloud/topic3\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]");
-        pubSubClient.updateRoutingConfig(mapping);
+        pubSubClient.start();
 
         Map<String, List<String>> expectedPubSubToMqtt = new HashMap<String, List<String>>() {{
             put("test/pubsub/topic", new ArrayList<>(Arrays.asList("mqtt/topic")));
@@ -70,13 +72,15 @@ public class PubSubClientTest {
                 + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"test/pubsub/topic4\", \"DestTopicType\": \"Pubsub\"},\n"
                 + "  {\"SourceTopic\": \"test/pubsub/topic5\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": \"mqtt/topic5\", \"DestTopicType\": \"LocalMqtt\"}\n"
                 + "]");
-        pubSubClient.updateRoutingConfig(mapping);
+        pubSubClient.updateRoutingConfigAndSubscriptions();
         expectedPubSubToMqtt.get("test/pubsub/topic").add("mqtt/topic1");
         expectedPubSubToMqtt.put("test/pubsub/topic5", new ArrayList<>(Arrays.asList("mqtt/topic5")));
         expectedMqttToPubSub.remove("mqtt/topic2");
         expectedMqttToPubSub.put("mqtt/topic4", new ArrayList<>(Arrays.asList("test/pubsub/topic4")));
         assertEquals(expectedMqttToPubSub, pubSubClient.getRouteMqttToPubSub());
         assertEquals(expectedPubSubToMqtt, pubSubClient.getRoutePubSubToMqtt());
+
+        pubSubClient.stop();
     }
 
     @Test
@@ -86,7 +90,7 @@ public class PubSubClientTest {
                 + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"test/pubsub/topic2\", \"DestTopicType\": \"Pubsub\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"test/cloud/topic3\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]");
-        pubSubClient.updateRoutingConfig(mapping);
+        pubSubClient.start();
 
         //test LocalMqtt -> Pubsub message flow
         Pair<CompletableFuture<Void>, Consumer<MessagePublishedEvent>> cb = asyncAssertOnConsumer((m) -> {
@@ -101,19 +105,19 @@ public class PubSubClientTest {
         cb.getLeft().get(1, TimeUnit.SECONDS);
 
         //test Pubsub -> LocalMqtt message flow
-        final String[] publishedMsg = {""};
-        final String[] publishedTopic = {""};
+        CountDownLatch listenerRan = new CountDownLatch(1);
         MessageBridge.MessageListener listener = (sourceType, msg) -> {
-            publishedMsg[0] = new String(msg.getPayload(), StandardCharsets.UTF_8);
-            publishedTopic[0] = msg.getTopic();
+            assertEquals("some message", new String(msg.getPayload(), StandardCharsets.UTF_8));
+            assertEquals("mqtt/topic", msg.getTopic());
+            listenerRan.countDown();
         };
         messageBridge.addListener(listener, TopicMapping.TopicType.Pubsub);
 
         PubSubPublishRequest publishRequest = PubSubPublishRequest.builder().topic("test/pubsub/topic")
                 .payload("some message".getBytes(StandardCharsets.UTF_8)).build();
         pubSubIPCAgent.publish(publishRequest);
-        Thread.sleep(1000);
-        assertEquals("some message", publishedMsg[0]);
-        assertEquals("mqtt/topic", publishedTopic[0]);
+        assertTrue(listenerRan.await(1, TimeUnit.SECONDS));
+
+        pubSubClient.stop();
     }
 }

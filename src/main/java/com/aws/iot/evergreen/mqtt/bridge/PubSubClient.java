@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class PubSubClient {
     @Getter(AccessLevel.PACKAGE)
@@ -26,27 +27,50 @@ public class PubSubClient {
 
     private final MessageBridge messageBridge;
 
+    private final TopicMapping topicMapping;
+
+    private final MessageBridge.MessageListener mqttListener = (sourceType, msg) -> forwardToPubSub(msg);
+
+    private final Consumer<MessagePublishedEvent> pubSubCallback = this::forwardToMqtt;
+
     /**
      * Constructor for PubSubClient.
      *
      * @param messageBridge  MessageBridge instance to listen and notify
+     * @param topicMapping   topic mapping
      * @param pubSubIPCAgent for interacting with PubSub
      */
-    public PubSubClient(MessageBridge messageBridge, PubSubIPCAgent pubSubIPCAgent) {
+    public PubSubClient(MessageBridge messageBridge, TopicMapping topicMapping, PubSubIPCAgent pubSubIPCAgent) {
         this.messageBridge = messageBridge;
+        this.topicMapping = topicMapping;
         this.pubSubIPCAgent = pubSubIPCAgent;
-        this.messageBridge.addListener((sourceType, msg) -> forwardToPubSub(msg), TopicMapping.TopicType.LocalMqtt);
     }
 
     /**
-     * Update routing maps and PubSub subscriptions.
-     *
-     * @param topicMapping topic mapping
+     * set up listener, route maps and subscriptions.
      */
-    public void updateRoutingConfig(TopicMapping topicMapping) {
+    public void start() {
+        messageBridge.addListener(mqttListener, TopicMapping.TopicType.LocalMqtt);
+        updateRoutingConfigAndSubscriptions();
+    }
+
+    /**
+     * tear down listener, route maps and subscriptions.
+     */
+    public void stop() {
+        messageBridge.removeListener(mqttListener, TopicMapping.TopicType.LocalMqtt);
+        for (String pubSubTopic: routePubSubToMqtt.keySet()) {
+            unsubscribeFromPubSub(pubSubTopic);
+        }
+        routePubSubToMqtt.clear();
+        routeMqttToPubSub.clear();
+    }
+
+    synchronized void updateRoutingConfigAndSubscriptions() {
         Set<String> prevPubSubTopics = new HashSet<>(routePubSubToMqtt.keySet());
 
-        updateRouteMaps(topicMapping);
+        routeMqttToPubSub = getRouteMap(TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.Pubsub);
+        routePubSubToMqtt = getRouteMap(TopicMapping.TopicType.Pubsub, TopicMapping.TopicType.LocalMqtt);
 
         //Subscribe to newly added topics and unsubscribe from removed topics
         Set<String> currPubSubTopics = routePubSubToMqtt.keySet();
@@ -61,29 +85,17 @@ public class PubSubClient {
         }
     }
 
-    private void updateRouteMaps(TopicMapping topicMapping) {
-        //TODO: Construct route maps differentially
-        routePubSubToMqtt = new HashMap<>();
-        routeMqttToPubSub = new HashMap<>();
+    private Map<String, List<String>> getRouteMap(TopicMapping.TopicType sourceType, TopicMapping.TopicType destType) {
+        Map<String, List<String>> routeMap = new HashMap<>();
 
         for (TopicMapping.MappingEntry entry: topicMapping.getMapping()) {
-            switch (entry.getSourceTopicType()) {
-                case LocalMqtt:
-                    if (entry.getDestTopicType() == TopicMapping.TopicType.Pubsub) {
-                        routeMqttToPubSub.computeIfAbsent(
-                                entry.getSourceTopic(), k -> new ArrayList<>()).add(entry.getDestTopic());
-                    }
-                    break;
-
-                case Pubsub:
-                    routePubSubToMqtt.computeIfAbsent(
-                            entry.getSourceTopic(), k -> new ArrayList<>()).add(entry.getDestTopic());
-                    break;
-
-                default:
-                    break;
+            if (entry.getSourceTopicType() == sourceType && entry.getDestTopicType() == destType) {
+                routeMap.computeIfAbsent(
+                        entry.getSourceTopic(), k -> new ArrayList<>()).add(entry.getDestTopic());
             }
         }
+
+        return routeMap;
     }
 
     private void forwardToPubSub(Message message) {
@@ -102,12 +114,12 @@ public class PubSubClient {
 
     private void subscribeToPubSub(String topic) {
         PubSubSubscribeRequest subscribeRequest = PubSubSubscribeRequest.builder().topic(topic).build();
-        pubSubIPCAgent.subscribe(subscribeRequest, this::forwardToMqtt);
+        pubSubIPCAgent.subscribe(subscribeRequest, pubSubCallback);
     }
 
     private void unsubscribeFromPubSub(String topic) {
         PubSubUnsubscribeRequest unsubscribeRequest = PubSubUnsubscribeRequest.builder().topic(topic).build();
-        pubSubIPCAgent.unsubscribe(unsubscribeRequest, this::forwardToMqtt);
+        pubSubIPCAgent.unsubscribe(unsubscribeRequest, pubSubCallback);
     }
 
     private void forwardToMqtt(MessagePublishedEvent message) {
