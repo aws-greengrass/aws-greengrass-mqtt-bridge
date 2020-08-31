@@ -15,8 +15,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -56,14 +58,12 @@ public class PubSubClientTest {
                 + "]");
         pubSubClient.start();
 
-        Map<String, List<String>> expectedPubSubToMqtt = new HashMap<String, List<String>>() {{
-            put("test/pubsub/topic", new ArrayList<>(Arrays.asList("mqtt/topic")));
-        }};
+        Set<String> expectedPubSubTopics = new HashSet<>(Arrays.asList("test/pubsub/topic"));
         Map<String, List<String>> expectedMqttToPubSub = new HashMap<String, List<String>>() {{
             put("mqtt/topic2", new ArrayList<>(Arrays.asList("test/pubsub/topic2")));
         }};
         assertEquals(expectedMqttToPubSub, pubSubClient.getRouteMqttToPubSub());
-        assertEquals(expectedPubSubToMqtt, pubSubClient.getRoutePubSubToMqtt());
+        assertEquals(expectedPubSubTopics, pubSubClient.getPubSubTopics());
 
         //modify mapping and test again
         mapping.updateMapping("[\n"
@@ -73,12 +73,11 @@ public class PubSubClientTest {
                 + "  {\"SourceTopic\": \"test/pubsub/topic5\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": \"mqtt/topic5\", \"DestTopicType\": \"LocalMqtt\"}\n"
                 + "]");
         pubSubClient.updateRoutingConfigAndSubscriptions();
-        expectedPubSubToMqtt.get("test/pubsub/topic").add("mqtt/topic1");
-        expectedPubSubToMqtt.put("test/pubsub/topic5", new ArrayList<>(Arrays.asList("mqtt/topic5")));
+        expectedPubSubTopics.add("test/pubsub/topic5");
         expectedMqttToPubSub.remove("mqtt/topic2");
         expectedMqttToPubSub.put("mqtt/topic4", new ArrayList<>(Arrays.asList("test/pubsub/topic4")));
         assertEquals(expectedMqttToPubSub, pubSubClient.getRouteMqttToPubSub());
-        assertEquals(expectedPubSubToMqtt, pubSubClient.getRoutePubSubToMqtt());
+        assertEquals(expectedPubSubTopics, pubSubClient.getPubSubTopics());
 
         pubSubClient.stop();
     }
@@ -108,7 +107,7 @@ public class PubSubClientTest {
         CountDownLatch listenerRan = new CountDownLatch(1);
         MessageBridge.MessageListener listener = (sourceType, msg) -> {
             assertEquals("some message", new String(msg.getPayload(), StandardCharsets.UTF_8));
-            assertEquals("mqtt/topic", msg.getTopic());
+            assertEquals("test/pubsub/topic", msg.getTopic());
             listenerRan.countDown();
         };
         messageBridge.addListener(listener, TopicMapping.TopicType.Pubsub);

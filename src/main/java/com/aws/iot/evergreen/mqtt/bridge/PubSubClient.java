@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 public class PubSubClient {
     @Getter(AccessLevel.PACKAGE)
-    private Map<String, List<String>> routePubSubToMqtt = new HashMap<>();
+    private Set<String> pubSubTopics = new HashSet<>();
 
     @Getter(AccessLevel.PACKAGE)
     private Map<String, List<String>> routeMqttToPubSub = new HashMap<>();
@@ -59,30 +59,45 @@ public class PubSubClient {
      */
     public void stop() {
         messageBridge.removeListener(mqttListener, TopicMapping.TopicType.LocalMqtt);
-        for (String pubSubTopic: routePubSubToMqtt.keySet()) {
-            unsubscribeFromPubSub(pubSubTopic);
-        }
-        routePubSubToMqtt.clear();
-        routeMqttToPubSub.clear();
+        removeRoutingConfigAndSubscriptions();
     }
 
     synchronized void updateRoutingConfigAndSubscriptions() {
-        Set<String> prevPubSubTopics = new HashSet<>(routePubSubToMqtt.keySet());
-
         routeMqttToPubSub = getRouteMap(TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.Pubsub);
-        routePubSubToMqtt = getRouteMap(TopicMapping.TopicType.Pubsub, TopicMapping.TopicType.LocalMqtt);
+
+        Set<String> prevPubSubTopics = new HashSet<>(pubSubTopics);
+        pubSubTopics = getSubscriptionTopics(TopicMapping.TopicType.Pubsub);
 
         //Subscribe to newly added topics and unsubscribe from removed topics
-        Set<String> currPubSubTopics = routePubSubToMqtt.keySet();
-        Set<String> topicsToSubscribe = new HashSet<>(currPubSubTopics);
+        Set<String> topicsToSubscribe = new HashSet<>(pubSubTopics);
         topicsToSubscribe.removeAll(prevPubSubTopics);
         for (String pubSubTopic: topicsToSubscribe) {
             subscribeToPubSub(pubSubTopic);
         }
-        prevPubSubTopics.removeAll(currPubSubTopics);
+        prevPubSubTopics.removeAll(pubSubTopics);
         for (String pubSubTopic: prevPubSubTopics) {
             unsubscribeFromPubSub(pubSubTopic);
         }
+    }
+
+    private synchronized void removeRoutingConfigAndSubscriptions() {
+        for (String pubSubTopic: pubSubTopics) {
+            unsubscribeFromPubSub(pubSubTopic);
+        }
+        pubSubTopics.clear();
+        routeMqttToPubSub.clear();
+    }
+
+    private Set<String> getSubscriptionTopics(TopicMapping.TopicType sourceType) {
+        Set<String> subscriptionTopics = new HashSet<>();
+
+        for (TopicMapping.MappingEntry entry: topicMapping.getMapping()) {
+            if (entry.getSourceTopicType() == sourceType) {
+                subscriptionTopics.add(entry.getSourceTopic());
+            }
+        }
+
+        return subscriptionTopics;
     }
 
     private Map<String, List<String>> getRouteMap(TopicMapping.TopicType sourceType, TopicMapping.TopicType destType) {
@@ -123,9 +138,7 @@ public class PubSubClient {
     }
 
     private void forwardToMqtt(MessagePublishedEvent message) {
-        String sourceTopic = message.getTopic();
-        for (String destTopic: routePubSubToMqtt.get(sourceTopic)) {
-            messageBridge.notifyMessage(new Message(destTopic, message.getPayload()), TopicMapping.TopicType.Pubsub);
-        }
+        Message forwardMessage = new Message(message.getTopic(), message.getPayload());
+        messageBridge.notifyMessage(forwardMessage, TopicMapping.TopicType.Pubsub);
     }
 }
