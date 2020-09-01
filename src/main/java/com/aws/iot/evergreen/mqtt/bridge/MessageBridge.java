@@ -5,75 +5,137 @@
 
 package com.aws.iot.evergreen.mqtt.bridge;
 
-import lombok.NoArgsConstructor;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.mqtt.bridge.clients.MessageClient;
+import com.aws.iot.evergreen.mqtt.bridge.clients.MessageClientException;
+import com.aws.iot.evergreen.util.Pair;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Bridges the messages flowing between clients to various brokers. This class implements a simple observer pattern.
- * Anyone interested in messages of certain source type can listen for those messages Example, IoTCore client will be
- * interested in messages with source as LocalMqtt, so it can listen for messages with sourceType as LocalMqtt
- * messageBridge.addListener(listener, TopicMapping.TopicType.LocalMqtt)
+ * Bridges/Routes the messages flowing between clients to various brokers. This class process the topics mappings. It
+ * tells the clients to subscribe to the relevant topics and routes the messages to other clients when received.
  */
-@NoArgsConstructor
 public class MessageBridge {
-    private Map<TopicMapping.TopicType, Set<MessageListener>> listeners = new ConcurrentHashMap<>();
+    private static final Logger LOGGER = LogManager.getLogger(MessageBridge.class);
+
+    private final TopicMapping topicMapping;
+    // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
+    private final Map<TopicMapping.TopicType, MessageClient> messageClientMap = new ConcurrentHashMap<>();
+    // A map from type of source to its mapping. The mapping is actually mapping from topic name to its destinations
+    // (destination topic + type). This data structure may change once we introduce complex routing mechanism.
+    // Example:
+    // LocalMqtt -> {"/sourceTopic", [{"/destinationTopic", IoTCore}, {"/destinationTopic2", Pubsub}]}
+    private Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
+            perClientSourceDestinationMap = new HashMap<>();
 
     /**
-     * Add a listener to listen to messages of type sourceType.
+     * Ctr for Message Bridge.
      *
-     * @param listener   listener to add
-     * @param sourceType type of messages to listen to
+     * @param topicMapping topics mapping
      */
-    public void addListener(MessageListener listener, TopicMapping.TopicType sourceType) {
-        listeners.compute(sourceType, (topicType, messageListeners) -> {
-            if (messageListeners == null) {
-                Set<MessageListener> newMessageListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
-                newMessageListeners.add(listener);
-                return newMessageListeners;
-            } else {
-                messageListeners.add(listener);
-                return messageListeners;
-            }
-        });
+    public MessageBridge(TopicMapping topicMapping) {
+        this.topicMapping = topicMapping;
+        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        processMappingAndSubscribe();
     }
 
     /**
-     * Remove a listener listening for message of given type sourceType.
+     * Add or replace the client of given type.
      *
-     * @param listener   listener to remove
-     * @param sourceType type the listener is listener is registered to listen
+     * @param clientType    type of the client (type is the `source` type). Example, it will be LocalMqtt for
+     *                      MQTTClient
+     * @param messageClient client
      */
-    public void removeListener(MessageListener listener, TopicMapping.TopicType sourceType) {
-        listeners.computeIfPresent(sourceType, (topicType, messageListeners) -> {
-            messageListeners.remove(listener);
-            if (messageListeners.isEmpty()) {
-                return null;
-            }
-            return messageListeners;
-        });
+    public void addOrReplaceMessageClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
+        messageClientMap.put(clientType, messageClient);
+        updateSubscriptionsForClient(clientType, messageClient);
     }
 
     /**
-     * Notify listeners of a message from source sourceType.
+     * Remove the client of given type.
      *
-     * @param msg        message to be notified about
-     * @param sourceType type of source
+     * @param clientType client type
      */
-    public void notifyMessage(Message msg, TopicMapping.TopicType sourceType) {
-        Set<MessageListener> messageListeners = listeners.get(sourceType);
-        if (messageListeners != null) {
-            messageListeners.forEach(listener -> listener.onMessage(sourceType, msg));
+    public void removeMessageClient(TopicMapping.TopicType clientType) {
+        messageClientMap.remove(clientType);
+    }
+
+    private void handleMessage(TopicMapping.TopicType sourceType, Message message) {
+        String sourceTopic = message.getTopic();
+        LOGGER.atDebug().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic).log("Message received");
+
+        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
+                perClientSourceDestinationMap.get(sourceType);
+        if (srcDestMapping != null) {
+            List<Pair<String, TopicMapping.TopicType>> destinations = srcDestMapping.get(sourceTopic);
+            if (destinations == null) {
+                return;
+            }
+            for (Pair<String, TopicMapping.TopicType> destination : destinations) {
+                MessageClient client = messageClientMap.get(destination.getRight());
+                if (client != null) {
+                    Message msg = new Message(destination.getLeft(), message.getPayload());
+                    try {
+                        client.publish(msg);
+                        LOGGER.atDebug().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic)
+                                .kv("destType", destination.getRight()).kv("destTopic", destination.getLeft())
+                                .log("Published message");
+                    } catch (MessageClientException e) {
+                        LOGGER.atError().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic)
+                                .kv("destType", destination.getRight()).kv("destTopic", destination.getLeft())
+                                .log("Failed to publish");
+                    }
+                }
+            }
         }
     }
 
-    /**
-     * Listener to be notified of messages.
-     */
-    public interface MessageListener {
-        void onMessage(TopicMapping.TopicType sourceType, Message msg);
+    private void processMappingAndSubscribe() {
+        LOGGER.atDebug().kv("topicMapping", topicMapping).log("Processing mapping");
+
+        List<TopicMapping.MappingEntry> mappingEntryList = topicMapping.getMapping();
+
+        Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
+                perClientSourceDestinationMapTemp = new HashMap<>();
+
+        mappingEntryList.forEach(mappingEntry -> {
+            // Ensure mapping for client type
+            Map<String, List<Pair<String, TopicMapping.TopicType>>> sourceDestinationMap =
+                    perClientSourceDestinationMapTemp
+                            .computeIfAbsent(mappingEntry.getSourceTopicType(), k -> new HashMap<>());
+
+            // Add destinations for each source topic
+            sourceDestinationMap.computeIfAbsent(mappingEntry.getSourceTopic(), k -> new ArrayList<>())
+                    .add(new Pair<>(mappingEntry.getDestTopic(), mappingEntry.getDestTopicType()));
+        });
+
+        perClientSourceDestinationMap = perClientSourceDestinationMapTemp;
+
+        messageClientMap.forEach(this::updateSubscriptionsForClient);
+        LOGGER.atDebug().kv("topicMapping", perClientSourceDestinationMap).log("Processed mapping");
+    }
+
+    private void updateSubscriptionsForClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
+        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
+                perClientSourceDestinationMap.get(clientType);
+
+        Set<String> topicsToSubscribe;
+        if (srcDestMapping == null) {
+            topicsToSubscribe = new HashSet<>();
+        } else {
+            topicsToSubscribe = srcDestMapping.keySet();
+        }
+
+        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
+
+        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
     }
 }

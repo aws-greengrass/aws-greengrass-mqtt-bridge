@@ -8,7 +8,7 @@ package com.aws.iot.evergreen.mqtt.bridge.clients;
 /**
  * Exception thrown by the MQTT Client.
  */
-public class MQTTClientException extends Exception {
+public class MQTTClientException extends MessageClientException {
     static final long serialVersionUID = -3387516993124229948L;
 
     MQTTClientException(String msg, Throwable cause) {

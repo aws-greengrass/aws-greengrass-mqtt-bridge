@@ -5,8 +5,6 @@ package com.aws.iot.evergreen.mqtt.bridge.clients;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
-import com.aws.iot.evergreen.mqtt.bridge.MessageBridge;
-import com.aws.iot.evergreen.mqtt.bridge.TopicMapping;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -22,16 +20,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
@@ -47,17 +47,13 @@ public class MQTTClientTest {
     private MqttClient mockMqttClient;
 
     @Mock
-    private TopicMapping mockTopicMapping;
-
-    @Mock
-    private MessageBridge mockMessageBridge;
+    private Consumer<Message> mockMessageHandler;
 
     @Test
     void WHEN_call_mqtt_client_constructed_THEN_does_not_throw() {
-        TopicMapping mapping = new TopicMapping();
         when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        new MQTTClient(mockTopics, mapping, new MessageBridge(), mockMqttClient);
+        new MQTTClient(mockTopics, mockMqttClient);
     }
 
     @Test
@@ -66,16 +62,10 @@ public class MQTTClientTest {
         when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockTopicMapping, mockMessageBridge, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
         mqttClient.start();
         verify(mockMqttClient, times(1)).connect(any());
         verify(mockMqttClient, times(1)).setCallback(any());
-        verify(mockTopicMapping, times(1)).listenToUpdates(any());
-        ArgumentCaptor<TopicMapping.TopicType> sourceTypeArgumentCaptor =
-                ArgumentCaptor.forClass(TopicMapping.TopicType.class);
-        verify(mockMessageBridge, times(2)).addListener(any(), sourceTypeArgumentCaptor.capture());
-        MatcherAssert.assertThat(sourceTypeArgumentCaptor.getAllValues(),
-                Matchers.containsInAnyOrder(TopicMapping.TopicType.IotCore, TopicMapping.TopicType.Pubsub));
     }
 
     @Test
@@ -83,67 +73,36 @@ public class MQTTClientTest {
         when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doThrow(new MqttException(0)).when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockTopicMapping, mockMessageBridge, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
         Assertions.assertThrows(MQTTClientException.class, mqttClient::start);
     }
 
     @Test
-    void GIVEN_mqtt_client_and_mapping_populated_WHEN_call_start_THEN_internal_mappings_updated_and_subscribed()
-            throws Exception {
-        TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mapping, mockMessageBridge, mockMqttClient);
-        mqttClient.start();
+    void GIVEN_mqtt_client_started_WHEN_update_subscriptions_THEN_topics_subscribed() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, message -> {
+        });
+
         ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
         MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
                 Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
 
-        List<TopicMapping.MappingEntry> subscribedLocalMqttTopics = mqttClient.getSubscribedLocalMqttTopics();
-        MatcherAssert.assertThat(subscribedLocalMqttTopics, Matchers.hasSize(2));
-        MatcherAssert.assertThat(subscribedLocalMqttTopics, Matchers.containsInAnyOrder(
-                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt, "/test/cloud/topic",
-                        TopicMapping.TopicType.IotCore),
-                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt, "/test/pubsub/topic",
-                        TopicMapping.TopicType.Pubsub)));
-
-        List<TopicMapping.MappingEntry> topicMappingsWithDestinationAsLocalMqtt =
-                mqttClient.getTopicMappingsWithDestinationAsLocalMqtt();
-        MatcherAssert.assertThat(topicMappingsWithDestinationAsLocalMqtt, Matchers.hasSize(2));
-        MatcherAssert.assertThat(topicMappingsWithDestinationAsLocalMqtt, Matchers.containsInAnyOrder(
-                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore, "/test/cloud/topic2",
-                        TopicMapping.TopicType.LocalMqtt),
-                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub, "/test/cloud/topic2",
-                        TopicMapping.TopicType.LocalMqtt)));
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
     }
 
     @Test
-    void GIVEN_mqtt_client_with_mapping_WHEN_call_stop_THEN_internal_mappings_deleted_and_unsubscribed()
-            throws Exception {
-        TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mapping, mockMessageBridge, mockMqttClient);
-        mqttClient.start();
+    void GIVEN_mqtt_client_with_subscriptions_WHEN_call_stop_THEN_topics_unsubscribed() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, message -> {
+        });
 
         mqttClient.stop();
 
@@ -152,75 +111,37 @@ public class MQTTClientTest {
         MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
                 Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
 
-        List<TopicMapping.MappingEntry> subscribedLocalMqttTopics = mqttClient.getSubscribedLocalMqttTopics();
-        MatcherAssert.assertThat(subscribedLocalMqttTopics, Matchers.hasSize(0));
-
-        List<TopicMapping.MappingEntry> topicMappingsWithDestinationAsLocalMqtt =
-                mqttClient.getTopicMappingsWithDestinationAsLocalMqtt();
-        MatcherAssert.assertThat(topicMappingsWithDestinationAsLocalMqtt, Matchers.hasSize(0));
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(), Matchers.hasSize(0));
 
         verify(mockMqttClient, times(1)).disconnect();
-        ArgumentCaptor<TopicMapping.TopicType> sourceTypeArgumentCaptor =
-                ArgumentCaptor.forClass(TopicMapping.TopicType.class);
-        verify(mockMessageBridge, times(2)).removeListener(any(), sourceTypeArgumentCaptor.capture());
-        MatcherAssert.assertThat(sourceTypeArgumentCaptor.getAllValues(),
-                Matchers.containsInAnyOrder(TopicMapping.TopicType.IotCore, TopicMapping.TopicType.Pubsub));
     }
 
     @Test
-    void GIVEN_mqtt_client_with_mapping_WHEN_mapping_updated_THEN_internal_mappings_and_subscriptions_updated()
-            throws Exception {
-        TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mapping, mockMessageBridge, mockMqttClient);
-        mqttClient.start();
+    void GIVEN_mqtt_client_with_subscriptions_WHEN_subscriptions_updated_THEN_subscriptions_updated() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, message -> {
+        });
 
         reset(mockMqttClient);
-        // Change topic 2
-        // Add a new topic 3
-        // Modify old topic 3 to come from Pubsub
-        // Remove topic 4
-        mapping.updateMapping(
-                "[\n" + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic2/changed\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic/changed\", \"DestTopicType\": \"Pubsub\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic3/added\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic/added\", \"DestTopicType\": \"Pubsub\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+
+        topics.clear();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2/changed");
+        topics.add("mqtt/topic3/added");
+        mqttClient.updateSubscriptions(topics, message -> {
+        });
 
         ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
         MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
                 Matchers.containsInAnyOrder("mqtt/topic2/changed", "mqtt/topic3/added"));
 
-        List<TopicMapping.MappingEntry> subscribedLocalMqttTopics = mqttClient.getSubscribedLocalMqttTopics();
-        MatcherAssert.assertThat(subscribedLocalMqttTopics, Matchers.hasSize(3));
-        MatcherAssert.assertThat(subscribedLocalMqttTopics, Matchers.containsInAnyOrder(
-                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt, "/test/cloud/topic",
-                        TopicMapping.TopicType.IotCore),
-                new TopicMapping.MappingEntry("mqtt/topic2/changed", TopicMapping.TopicType.LocalMqtt,
-                        "/test/pubsub/topic/changed", TopicMapping.TopicType.Pubsub),
-                new TopicMapping.MappingEntry("mqtt/topic3/added", TopicMapping.TopicType.LocalMqtt,
-                        "/test/pubsub" + "/topic/added", TopicMapping.TopicType.Pubsub)));
-
-        List<TopicMapping.MappingEntry> topicMappingsWithDestinationAsLocalMqtt =
-                mqttClient.getTopicMappingsWithDestinationAsLocalMqtt();
-        MatcherAssert.assertThat(topicMappingsWithDestinationAsLocalMqtt, Matchers.hasSize(1));
-        MatcherAssert.assertThat(topicMappingsWithDestinationAsLocalMqtt, Matchers.containsInAnyOrder(
-                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.Pubsub, "/test/pubsub/topic2",
-                        TopicMapping.TopicType.LocalMqtt)));
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(), Matchers.hasSize(3));
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2/changed", "mqtt/topic3/added"));
 
         topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(1)).unsubscribe(topicArgumentCaptor.capture());
@@ -228,38 +149,29 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqtt_client_and_mapping_populated_WHEN_receive_mqtt_message_THEN_routed_to_message_bridge()
-            throws Exception {
-        TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+    void GIVEN_mqtt_client_and_subscribed_WHEN_receive_mqtt_message_THEN_routed_to_message_handler() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mapping, mockMessageBridge, mockMqttClient);
+
         mqttClient.start();
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
         byte[] messageOnTopic1 = "message from topic mqtt/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic mqtt/topic2".getBytes();
+        byte[] messageOnTopic3 = "message from topic mqtt/topic/not/in/mapping".getBytes();
         MqttCallback mqttCallback = mqttCallbackArgumentCaptor.getValue();
         mqttCallback.messageArrived("mqtt/topic", new MqttMessage(messageOnTopic1));
         mqttCallback.messageArrived("mqtt/topic2", new MqttMessage(messageOnTopic2));
-
         // Also simulate a message which is not in the mapping
-        mqttCallback.messageArrived("mqtt/topic/not/in/mapping",
-                new MqttMessage("message from topic mqtt/topic/not/in/mapping".getBytes()));
+        mqttCallback.messageArrived("mqtt/topic/not/in/mapping", new MqttMessage(messageOnTopic3));
 
         ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
-        ArgumentCaptor<TopicMapping.TopicType> topicTypeArgumentCaptor =
-                ArgumentCaptor.forClass(TopicMapping.TopicType.class);
-        verify(mockMessageBridge, times(2)).notifyMessage(messageCapture.capture(), topicTypeArgumentCaptor.capture());
+        verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
         MatcherAssert.assertThat(messageCapture.getAllValues().get(0).getTopic(),
                 Matchers.is(Matchers.equalTo("mqtt/topic")));
@@ -269,69 +181,35 @@ public class MQTTClientTest {
                 Matchers.is(Matchers.equalTo("mqtt/topic2")));
         Assertions.assertArrayEquals(messageOnTopic2, messageCapture.getAllValues().get(1).getPayload());
 
-        MatcherAssert.assertThat(topicTypeArgumentCaptor.getAllValues(),
-                Matchers.contains(TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.LocalMqtt));
+        MatcherAssert.assertThat(messageCapture.getAllValues().get(2).getTopic(),
+                Matchers.is(Matchers.equalTo("mqtt/topic/not/in/mapping")));
+        Assertions.assertArrayEquals(messageOnTopic3, messageCapture.getAllValues().get(2).getPayload());
     }
 
     @Test
-    void GIVEN_mqtt_client_and_mapping_populated_WHEN_receive_pubsub_and_iotcore_message_THEN_routed_to_mqtt_broker()
-            throws Exception {
-        TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic3\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
-        doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mapping, mockMessageBridge, mockMqttClient);
-        mqttClient.start();
-
-        ArgumentCaptor<MessageBridge.MessageListener> messageListenerArgumentCaptor =
-                ArgumentCaptor.forClass(MessageBridge.MessageListener.class);
-        ArgumentCaptor<TopicMapping.TopicType> sourceTypeArgumentCaptor =
-                ArgumentCaptor.forClass(TopicMapping.TopicType.class);
-        verify(mockMessageBridge, times(2))
-                .addListener(messageListenerArgumentCaptor.capture(), sourceTypeArgumentCaptor.capture());
-
-        MessageBridge.MessageListener iotCoreMessageListener;
-        MessageBridge.MessageListener pubsubMessageListener;
-        if (sourceTypeArgumentCaptor.getAllValues().get(0).equals(TopicMapping.TopicType.IotCore)) {
-            iotCoreMessageListener = messageListenerArgumentCaptor.getAllValues().get(0);
-            pubsubMessageListener = messageListenerArgumentCaptor.getAllValues().get(1);
-        } else {
-            pubsubMessageListener = messageListenerArgumentCaptor.getAllValues().get(0);
-            iotCoreMessageListener = messageListenerArgumentCaptor.getAllValues().get(1);
-        }
+    void GIVEN_mqtt_client_and_subscribed_WHEN_published_message_THEN_routed_to_mqtt_broker() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
         byte[] messageFromPubsub = "message from pusub".getBytes();
         byte[] messageFromIotCore = "message from iotcore".getBytes();
 
-        iotCoreMessageListener
-                .onMessage(TopicMapping.TopicType.IotCore, new Message("mqtt/topic3", messageFromIotCore));
-        pubsubMessageListener.onMessage(TopicMapping.TopicType.Pubsub, new Message("mqtt/topic4", messageFromPubsub));
-
-        // Also simulate messages we are not interested in
-        iotCoreMessageListener.onMessage(TopicMapping.TopicType.IotCore,
-                new Message("mqtt/topic/not/in/mapping", messageFromIotCore));
-        pubsubMessageListener
-                .onMessage(TopicMapping.TopicType.Pubsub, new Message("mqtt/topic2/not/in/mapping", messageFromPubsub));
+        mqttClient.publish(new Message("mapped/topic/from/pubsub", messageFromPubsub));
+        mqttClient.publish(new Message("mapped/topic/from/iotcore", messageFromIotCore));
 
         ArgumentCaptor<MqttMessage> messageCapture = ArgumentCaptor.forClass(MqttMessage.class);
         ArgumentCaptor<String> topicStringArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(2)).publish(topicStringArgumentCaptor.capture(), messageCapture.capture());
 
         MatcherAssert.assertThat(topicStringArgumentCaptor.getAllValues().get(0),
-                Matchers.is(Matchers.equalTo("/test/cloud/topic2")));
-        Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(0).getPayload());
+                Matchers.is(Matchers.equalTo("mapped/topic/from/pubsub")));
+        Assertions.assertArrayEquals(messageFromPubsub, messageCapture.getAllValues().get(0).getPayload());
 
         MatcherAssert.assertThat(topicStringArgumentCaptor.getAllValues().get(1),
-                Matchers.is(Matchers.equalTo("/test/cloud/topic3")));
-        Assertions.assertArrayEquals(messageFromPubsub, messageCapture.getAllValues().get(1).getPayload());
+                Matchers.is(Matchers.equalTo("mapped/topic/from/iotcore")));
+        Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(1).getPayload());
     }
 }

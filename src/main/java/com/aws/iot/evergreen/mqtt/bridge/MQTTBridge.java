@@ -29,12 +29,15 @@ public class MQTTBridge extends EvergreenService {
     /**
      * Ctr for MQTTBridge.
      *
-     * @param topics        topics passed by by the kernel
-     * @param topicMapping  mapping of mqtt topics to iotCore/pubsub topics
-     * @param messageBridge message bridge to route the messages
+     * @param topics       topics passed by by the kernel
+     * @param topicMapping mapping of mqtt topics to iotCore/pubsub topics
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
+    public MQTTBridge(Topics topics, TopicMapping topicMapping) {
+        this(topics, new TopicMapping(), new MessageBridge(topicMapping));
+    }
+
+    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
         super(topics);
         this.topicMapping = topicMapping;
         this.topics = topics;
@@ -57,7 +60,7 @@ public class MQTTBridge extends EvergreenService {
 
         this.messageBridge = messageBridge;
         try {
-            this.mqttClient = new MQTTClient(topics, topicMapping, messageBridge);
+            this.mqttClient = new MQTTClient(topics);
         } catch (MQTTClientException e) {
             serviceErrored(e);
         }
@@ -66,8 +69,9 @@ public class MQTTBridge extends EvergreenService {
     @Override
     public void startup() {
         try {
-            this.mqttClient = new MQTTClient(topics, topicMapping, messageBridge);
+            this.mqttClient = new MQTTClient(topics);
             mqttClient.start();
+            messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
             serviceErrored(e);
             return;
@@ -77,6 +81,7 @@ public class MQTTBridge extends EvergreenService {
 
     @Override
     public void shutdown() {
+        messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
         }
