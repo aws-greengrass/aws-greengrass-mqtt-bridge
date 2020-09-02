@@ -31,12 +31,8 @@ public class PubSubClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received PubSub message");
 
-        if (messageHandler == null) {
-            LOGGER.atDebug().kv(TOPIC, topic).log("PubSub message received but message handler not set");
-        } else {
-            Message msg = new Message(topic, message.getPayload());
-            messageHandler.accept(msg);
-        }
+        Message msg = new Message(topic, message.getPayload());
+        messageHandler.accept(msg);
     };
 
     /**
@@ -77,6 +73,7 @@ public class PubSubClient implements MessageClient {
 
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+        this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to pubsub topics");
 
         Set<String> topicsToRemove = new HashSet<>(subscribedPubSubTopics);
@@ -95,8 +92,6 @@ public class PubSubClient implements MessageClient {
             LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
             subscribedPubSubTopics.add(s);
         });
-
-        this.messageHandler = messageHandler;
     }
 
     private void publishToPubSub(String topic, byte[] payload) {

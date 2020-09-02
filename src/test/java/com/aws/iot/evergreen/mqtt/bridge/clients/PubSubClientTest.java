@@ -136,17 +136,21 @@ public class PubSubClientTest {
 
         byte[] messageOnTopic1 = "message from topic pubsub/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic pubsub/topic2".getBytes();
+        byte[] messageOnTopic3 = "message from topic pubsub/topic/not/in/mapping".getBytes();
         pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic").payload(messageOnTopic1).build());
         pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic2").payload(messageOnTopic2).build());
+        // Also simulate a message which is not in the mapping
+        pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic/not/in/mapping")
+                .payload(messageOnTopic3).build());
 
         ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
-        verify(mockMessageHandler, times(2)).accept(messageCapture.capture());
+        verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
         List<Message> argValues = messageCapture.getAllValues();
         assertThat(argValues.stream().map(Message::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
+                Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2", "pubsub/topic/not/in/mapping"));
         assertThat(argValues.stream().map(Message::getPayload).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder(messageOnTopic1, messageOnTopic2));
+                Matchers.containsInAnyOrder(messageOnTopic1, messageOnTopic2, messageOnTopic3));
     }
 
     @Test

@@ -130,17 +130,20 @@ public class IoTCoreClientTest {
 
         byte[] messageOnTopic1 = "message from topic iotcore/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic iotcore/topic2".getBytes();
+        byte[] messageOnTopic3 = "message from topic iotcore/topic/not/in/mapping".getBytes();
         iotCoreCallback.accept(new MqttMessage("iotcore/topic", messageOnTopic1));
         iotCoreCallback.accept(new MqttMessage("iotcore/topic2", messageOnTopic2));
+        // Also simulate a message which is not in the mapping
+        iotCoreCallback.accept(new MqttMessage("iotcore/topic/not/in/mapping", messageOnTopic3));
 
         ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
-        verify(mockMessageHandler, times(2)).accept(messageCapture.capture());
+        verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
         List<Message> argValues = messageCapture.getAllValues();
         assertThat(argValues.stream().map(Message::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2", "iotcore/topic/not/in/mapping"));
         assertThat(argValues.stream().map(Message::getPayload).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder(messageOnTopic1, messageOnTopic2));
+                Matchers.containsInAnyOrder(messageOnTopic1, messageOnTopic2, messageOnTopic3));
     }
 
     @Test

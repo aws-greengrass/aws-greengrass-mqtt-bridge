@@ -34,12 +34,8 @@ public class IoTCoreClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received IoTCore message");
 
-        if (messageHandler == null) {
-            LOGGER.atDebug().kv(TOPIC, topic).log("IoTCore message received but message handler not set");
-        } else {
-            Message msg = new Message(topic, message.getPayload());
-            messageHandler.accept(msg);
-        }
+        Message msg = new Message(topic, message.getPayload());
+        messageHandler.accept(msg);
     };
 
     /**
@@ -84,6 +80,7 @@ public class IoTCoreClient implements MessageClient {
 
     @Override
     public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+        this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
 
         Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
@@ -111,8 +108,6 @@ public class IoTCoreClient implements MessageClient {
                 LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
             }
         });
-
-        this.messageHandler = messageHandler;
     }
 
     private void publishToIotCore(String topic, byte[] payload) {
