@@ -1,0 +1,116 @@
+package com.aws.iot.evergreen.mqtt.bridge.clients;
+
+import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
+import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.iot.evergreen.logging.api.Logger;
+import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.mqtt.bridge.Message;
+import lombok.AccessLevel;
+import lombok.Getter;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
+import javax.inject.Inject;
+
+public class PubSubClient implements MessageClient {
+    private static final Logger LOGGER = LogManager.getLogger(PubSubClient.class);
+    public static final String TOPIC = "topic";
+
+    @Getter(AccessLevel.PROTECTED)
+    private Set<String> subscribedPubSubTopics = new HashSet<>();
+
+    private Consumer<Message> messageHandler;
+
+    private final PubSubIPCAgent pubSubIPCAgent;
+
+    private final Consumer<MessagePublishedEvent> pubSubCallback = (message) -> {
+        String topic = message.getTopic();
+        LOGGER.atTrace().kv(TOPIC, topic).log("Received PubSub message");
+
+        if (messageHandler == null) {
+            LOGGER.atDebug().kv(TOPIC, topic).log("PubSub message received but message handler not set");
+        } else {
+            Message msg = new Message(topic, message.getPayload());
+            messageHandler.accept(msg);
+        }
+    };
+
+    /**
+     * Constructor for PubSubClient.
+     *
+     * @param pubSubIPCAgent for interacting with PubSub
+     */
+    @Inject
+    public PubSubClient(PubSubIPCAgent pubSubIPCAgent) {
+        this.pubSubIPCAgent = pubSubIPCAgent;
+    }
+
+    /**
+     * Stop the {@link PubSubClient}.
+     */
+    public void stop() {
+        removeMappingAndSubscriptions();
+    }
+
+    private synchronized void removeMappingAndSubscriptions() {
+        unsubscribeAll();
+        subscribedPubSubTopics.clear();
+    }
+
+    private void unsubscribeAll() {
+        LOGGER.atDebug().kv("mapping", subscribedPubSubTopics).log("unsubscribe from pubsub topics");
+
+        this.subscribedPubSubTopics.forEach(s -> {
+            unsubscribeFromPubSub(s);
+            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+        });
+    }
+
+    @Override
+    public void publish(Message message) {
+        publishToPubSub(message.getTopic(), message.getPayload());
+    }
+
+    @Override
+    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+        LOGGER.atDebug().kv("topics", topics).log("Subscribing to pubsub topics");
+
+        Set<String> topicsToRemove = new HashSet<>(subscribedPubSubTopics);
+        topicsToRemove.removeAll(topics);
+        topicsToRemove.forEach(s -> {
+            unsubscribeFromPubSub(s);
+            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+            subscribedPubSubTopics.remove(s);
+        });
+
+        Set<String> topicsToSubscribe = new HashSet<>(topics);
+        topicsToSubscribe.removeAll(subscribedPubSubTopics);
+
+        topicsToSubscribe.forEach(s -> {
+            subscribeToPubSub(s);
+            LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
+            subscribedPubSubTopics.add(s);
+        });
+
+        this.messageHandler = messageHandler;
+    }
+
+    private void publishToPubSub(String topic, byte[] payload) {
+        PubSubPublishRequest publishRequest = PubSubPublishRequest.builder().topic(topic).payload(payload).build();
+        pubSubIPCAgent.publish(publishRequest);
+    }
+
+    private void subscribeToPubSub(String topic) {
+        PubSubSubscribeRequest subscribeRequest = PubSubSubscribeRequest.builder().topic(topic).build();
+        pubSubIPCAgent.subscribe(subscribeRequest, pubSubCallback);
+    }
+
+    private void unsubscribeFromPubSub(String topic) {
+        PubSubUnsubscribeRequest unsubscribeRequest = PubSubUnsubscribeRequest.builder().topic(topic).build();
+        pubSubIPCAgent.unsubscribe(unsubscribeRequest, pubSubCallback);
+    }
+}
