@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 import javax.inject.Inject;
 
 public class IoTCoreClient implements MessageClient {
-    private static final Logger LOGGER = LogManager.getLogger(PubSubClient.class);
+    private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
     public static final String TOPIC = "topic";
 
     @Getter(AccessLevel.PROTECTED)
@@ -34,8 +34,12 @@ public class IoTCoreClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received IoTCore message");
 
-        Message msg = new Message(topic, message.getPayload());
-        messageHandler.accept(msg);
+        if (messageHandler == null) {
+            LOGGER.atWarn().kv(TOPIC, topic).log("IoTCore message received but message handler not set");
+        } else {
+            Message msg = new Message(topic, message.getPayload());
+            messageHandler.accept(msg);
+        }
     };
 
     /**
@@ -61,16 +65,23 @@ public class IoTCoreClient implements MessageClient {
     }
 
     private void unsubscribeAll() {
-        LOGGER.atDebug().kv("mapping", subscribedIotCoreTopics).log("unsubscribe from pubsub topics");
+        LOGGER.atDebug().kv("mapping", subscribedIotCoreTopics).log("unsubscribe from iot core topics");
 
         this.subscribedIotCoreTopics.forEach(s -> {
             try {
                 unsubscribeFromIotCore(s);
                 LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                LOGGER.atWarn().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
             }
         });
+    }
+
+    private void unsubscribeFromIotCore(String topic)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        UnsubscribeRequest unsubscribeRequest = UnsubscribeRequest.builder().topic(topic).callback(iotCoreCallback)
+                .build();
+        iotMqttClient.unsubscribe(unsubscribeRequest);
     }
 
     @Override
@@ -78,8 +89,14 @@ public class IoTCoreClient implements MessageClient {
         publishToIotCore(message.getTopic(), message.getPayload());
     }
 
+    private void publishToIotCore(String topic, byte[] payload) {
+        PublishRequest publishRequest = PublishRequest.builder().topic(topic).payload(payload)
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        iotMqttClient.publish(publishRequest);
+    }
+
     @Override
-    public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
 
@@ -110,22 +127,9 @@ public class IoTCoreClient implements MessageClient {
         });
     }
 
-    private void publishToIotCore(String topic, byte[] payload) {
-        PublishRequest publishRequest = PublishRequest.builder().topic(topic).payload(payload)
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-        iotMqttClient.publish(publishRequest);
-    }
-
     private void subscribeToIotCore(String topic) throws InterruptedException, ExecutionException, TimeoutException {
         SubscribeRequest subscribeRequest = SubscribeRequest.builder().topic(topic).callback(iotCoreCallback)
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         iotMqttClient.subscribe(subscribeRequest);
-    }
-
-    private void unsubscribeFromIotCore(String topic)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        UnsubscribeRequest unsubscribeRequest = UnsubscribeRequest.builder().topic(topic).callback(iotCoreCallback)
-                .build();
-        iotMqttClient.unsubscribe(unsubscribeRequest);
     }
 }

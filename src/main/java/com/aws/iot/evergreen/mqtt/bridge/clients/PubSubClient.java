@@ -31,8 +31,12 @@ public class PubSubClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received PubSub message");
 
-        Message msg = new Message(topic, message.getPayload());
-        messageHandler.accept(msg);
+        if (messageHandler == null) {
+            LOGGER.atWarn().kv(TOPIC, topic).log("PubSub message received but message handler not set");
+        } else {
+            Message msg = new Message(topic, message.getPayload());
+            messageHandler.accept(msg);
+        }
     };
 
     /**
@@ -66,9 +70,19 @@ public class PubSubClient implements MessageClient {
         });
     }
 
+    private void unsubscribeFromPubSub(String topic) {
+        PubSubUnsubscribeRequest unsubscribeRequest = PubSubUnsubscribeRequest.builder().topic(topic).build();
+        pubSubIPCAgent.unsubscribe(unsubscribeRequest, pubSubCallback);
+    }
+
     @Override
     public void publish(Message message) {
         publishToPubSub(message.getTopic(), message.getPayload());
+    }
+
+    private void publishToPubSub(String topic, byte[] payload) {
+        PubSubPublishRequest publishRequest = PubSubPublishRequest.builder().topic(topic).payload(payload).build();
+        pubSubIPCAgent.publish(publishRequest);
     }
 
     @Override
@@ -94,18 +108,8 @@ public class PubSubClient implements MessageClient {
         });
     }
 
-    private void publishToPubSub(String topic, byte[] payload) {
-        PubSubPublishRequest publishRequest = PubSubPublishRequest.builder().topic(topic).payload(payload).build();
-        pubSubIPCAgent.publish(publishRequest);
-    }
-
     private void subscribeToPubSub(String topic) {
         PubSubSubscribeRequest subscribeRequest = PubSubSubscribeRequest.builder().topic(topic).build();
         pubSubIPCAgent.subscribe(subscribeRequest, pubSubCallback);
-    }
-
-    private void unsubscribeFromPubSub(String topic) {
-        PubSubUnsubscribeRequest unsubscribeRequest = PubSubUnsubscribeRequest.builder().topic(topic).build();
-        pubSubIPCAgent.unsubscribe(unsubscribeRequest, pubSubCallback);
     }
 }
