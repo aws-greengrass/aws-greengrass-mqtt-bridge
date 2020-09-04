@@ -123,7 +123,8 @@ public class MessageBridge {
         LOGGER.atDebug().kv("topicMapping", perClientSourceDestinationMap).log("Processed mapping");
     }
 
-    private void updateSubscriptionsForClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
+    private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
+                                                           MessageClient messageClient) {
         Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
                 perClientSourceDestinationMap.get(clientType);
 

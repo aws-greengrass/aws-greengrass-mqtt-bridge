@@ -22,7 +22,6 @@ public class MQTTBridge extends EvergreenService {
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
     private final MessageBridge messageBridge;
-    private final Topics topics;
     private MQTTClient mqttClient;
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
@@ -34,15 +33,14 @@ public class MQTTBridge extends EvergreenService {
      */
     @Inject
     public MQTTBridge(Topics topics, TopicMapping topicMapping) {
-        this(topics, new TopicMapping(), new MessageBridge(topicMapping));
+        this(topics, topicMapping, new MessageBridge(topicMapping));
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
         super(topics);
         this.topicMapping = topicMapping;
-        this.topics = topics;
 
-        topics.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("{}")
+        topics.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
                 .subscribe((why, newv) -> {
                     try {
                         String mapping = Coerce.toString(newv);
@@ -69,7 +67,6 @@ public class MQTTBridge extends EvergreenService {
     @Override
     public void startup() {
         try {
-            this.mqttClient = new MQTTClient(topics);
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {

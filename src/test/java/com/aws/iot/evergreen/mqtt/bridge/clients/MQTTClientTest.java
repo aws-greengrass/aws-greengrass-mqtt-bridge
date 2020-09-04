@@ -212,4 +212,33 @@ public class MQTTClientTest {
                 Matchers.is(Matchers.equalTo("mapped/topic/from/iotcore")));
         Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(1).getPayload());
     }
+
+    @Test
+    void GIVEN_mqtt_client_WHEN_connection_lost_THEN_attempts_to_reconnect_and_resubscribed() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
+        ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
+        doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
+
+        mqttClient.start();
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, mockMessageHandler);
+
+        reset(mockMqttClient);
+
+        MqttCallback mqttCallback = mqttCallbackArgumentCaptor.getValue();
+        mqttCallback.connectionLost(new MqttException(1));
+
+        verify(mockMqttClient, times(1)).reconnect();
+
+        ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
+        MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+    }
 }
