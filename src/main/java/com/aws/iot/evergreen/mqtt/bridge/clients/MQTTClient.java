@@ -48,11 +48,7 @@ public class MQTTClient implements MessageClient {
             LOGGER.atDebug().setCause(cause).log("Mqtt client disconnected, reconnecting...");
             // TODO: Need to handle reconnects here, for now we try to reconnect once
             // TODO: If connection attempts fail, we should set the service to errored state
-            try {
-                mqttClientInternal.reconnect();
-            } catch (MqttException e) {
-                LOGGER.atError().setCause(e).log("Unable to create a MQTT client");
-            }
+            reconnectAndResubscribe();
         }
 
         @Override
@@ -192,6 +188,20 @@ public class MQTTClient implements MessageClient {
                 LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
             }
         });
+    }
+
+    private void reconnectAndResubscribe() {
+        try {
+            mqttClientInternal.reconnect();
+        } catch (MqttException e) {
+            LOGGER.atError().setCause(e).log("Unable to create a MQTT client");
+            return;
+        }
+
+        Set<String> topicsToResubscribe = new HashSet<>(subscribedLocalMqttTopics);
+        subscribedLocalMqttTopics.clear();
+        // Resubscribe to topics
+        updateSubscriptions(topicsToResubscribe, messageHandler);
     }
 }
 
