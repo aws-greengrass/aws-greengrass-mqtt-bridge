@@ -158,6 +158,10 @@ public class MQTTClient implements MessageClient {
 
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+        updateSubscriptionsInternal(topics, messageHandler);
+    }
+
+    private void updateSubscriptionsInternal(Set<String> topics, Consumer<Message> messageHandler) {
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to local mqtt topics");
 
         this.messageHandler = messageHandler;
@@ -198,10 +202,14 @@ public class MQTTClient implements MessageClient {
             return;
         }
 
+        resubscribe();
+    }
+
+    private synchronized void resubscribe() {
         Set<String> topicsToResubscribe = new HashSet<>(subscribedLocalMqttTopics);
         subscribedLocalMqttTopics.clear();
         // Resubscribe to topics
-        updateSubscriptions(topicsToResubscribe, messageHandler);
+        updateSubscriptionsInternal(topicsToResubscribe, messageHandler);
     }
 }
 
