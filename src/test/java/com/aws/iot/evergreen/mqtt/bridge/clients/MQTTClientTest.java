@@ -212,4 +212,18 @@ public class MQTTClientTest {
                 Matchers.is(Matchers.equalTo("mapped/topic/from/iotcore")));
         Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(1).getPayload());
     }
+
+    @Test
+    void GIVEN_mqtt_client_WHEN_connection_lost_THEN_attempts_to_reconnect() throws Exception {
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
+        ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
+        doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
+
+        mqttClient.start();
+        MqttCallback mqttCallback = mqttCallbackArgumentCaptor.getValue();
+        mqttCallback.connectionLost(new MqttException(1));
+
+        verify(mockMqttClient, times(1)).reconnect();
+    }
 }

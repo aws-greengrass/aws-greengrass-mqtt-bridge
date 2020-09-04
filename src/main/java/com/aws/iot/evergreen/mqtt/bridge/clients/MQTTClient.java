@@ -45,7 +45,14 @@ public class MQTTClient implements MessageClient {
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
         public void connectionLost(Throwable cause) {
-            LOGGER.atTrace().setCause(cause).log("Mqtt client disconnected");
+            LOGGER.atDebug().setCause(cause).log("Mqtt client disconnected, reconnecting...");
+            // TODO: Need to handle reconnects here, for now we try to reconnect once
+            // TODO: If connection attempts fail, we should set the service to errored state
+            try {
+                mqttClientInternal.reconnect();
+            } catch (MqttException e) {
+                LOGGER.atError().setCause(e).log("Unable to create a MQTT client");
+            }
         }
 
         @Override
@@ -53,7 +60,7 @@ public class MQTTClient implements MessageClient {
             LOGGER.atTrace().kv(TOPIC, topic).log("Received MQTT message");
 
             if (messageHandler == null) {
-                LOGGER.atDebug().kv(TOPIC, topic).log("Mqtt message received but message handler not set");
+                LOGGER.atWarn().kv(TOPIC, topic).log("Mqtt message received but message handler not set");
             } else {
                 Message msg = new Message(topic, message.getPayload());
                 messageHandler.accept(msg);
@@ -99,6 +106,7 @@ public class MQTTClient implements MessageClient {
         connOpts.setCleanSession(true);
         LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
         try {
+            // TODO: need retry logic here if we want to remove dependency on broker
             mqttClientInternal.connect(connOpts);
         } catch (MqttException e) {
             LOGGER.atError().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Unable to connect to broker");
@@ -119,7 +127,7 @@ public class MQTTClient implements MessageClient {
             mqttClientInternal.disconnect();
             dataStore.close();
         } catch (MqttException e) {
-            LOGGER.atError().cause(e).log("Failed to disconnect MQTT Client");
+            LOGGER.atError().setCause(e).log("Failed to disconnect MQTT Client");
         }
     }
 
@@ -136,7 +144,7 @@ public class MQTTClient implements MessageClient {
                 mqttClientInternal.unsubscribe(s);
                 LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
             } catch (MqttException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                LOGGER.atWarn().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
             }
         });
     }
@@ -155,6 +163,8 @@ public class MQTTClient implements MessageClient {
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to local mqtt topics");
+
+        this.messageHandler = messageHandler;
 
         Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
         topicsToRemove.removeAll(topics);
@@ -182,8 +192,6 @@ public class MQTTClient implements MessageClient {
                 LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
             }
         });
-
-        this.messageHandler = messageHandler;
     }
 }
 

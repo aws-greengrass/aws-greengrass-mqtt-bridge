@@ -33,7 +33,7 @@ public class MQTTBridge extends EvergreenService {
      */
     @Inject
     public MQTTBridge(Topics topics, TopicMapping topicMapping) {
-        this(topics, new TopicMapping(), new MessageBridge(topicMapping));
+        this(topics, topicMapping, new MessageBridge(topicMapping));
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
