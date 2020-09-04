@@ -4,14 +4,16 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -24,11 +26,16 @@ public class TopicMappingTest {
     @Test
     void GIVEN_mapping_as_json_string_WHEN_updateMapping_THEN_mapping_updated_successfully() throws Exception {
         TopicMapping mapping = new TopicMapping();
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        mapping.listenToUpdates(updateLatch::countDown);
         mapping.updateMapping("[\n"
                 + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]");
+
+        Assertions.assertTrue(updateLatch.await(100, TimeUnit.MILLISECONDS));
+
         List<TopicMapping.MappingEntry> expectedMapping = new ArrayList<>();
         expectedMapping.add(new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
                 "/test/cloud" + "/topic", TopicMapping.TopicType.IotCore));
@@ -43,14 +50,20 @@ public class TopicMappingTest {
     @Test
     void GIVEN_invalid_mapping_as_json_string_WHEN_updateMapping_THEN_mapping_not_updated() throws Exception {
         TopicMapping mapping = new TopicMapping();
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        mapping.listenToUpdates(updateLatch::countDown);
+
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
-        Assertions.assertThrows(JsonProcessingException.class, () -> mapping.updateMapping("[\n"
+        Assertions.assertThrows(IOException.class, () -> mapping.updateMapping("[\n"
                 + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
                 + "\"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub-Invalid\"},\n"
                 + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
                 + "]"));
+
+        Assertions.assertFalse(updateLatch.await(100, TimeUnit.MILLISECONDS));
+
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
     }
 
