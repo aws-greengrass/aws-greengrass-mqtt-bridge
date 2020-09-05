@@ -23,9 +23,9 @@ import java.security.cert.X509Certificate;
 import javax.inject.Inject;
 
 public class MQTTClientKeyStore {
-    protected static final String DEFAULT_KEYSTORE_PASSWORD = "";
+    static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
     private static final String   DEFAULT_CN = "greengrass-mqtt-bridge";
-    protected static final String KEY_ALIAS = "greengrass-mqtt-bridge";
+    static final String KEY_ALIAS = "greengrass-mqtt-bridge";
     private static final String   RSA_KEY_INSTANCE = "RSA";
     private static final int      RSA_KEY_LENGTH = 2048;
 
@@ -48,7 +48,7 @@ public class MQTTClientKeyStore {
      * @throws KeyStoreException      if unable to generate keypair or load keystore
      * @throws CsrGeneratingException if unable to generate csr
      */
-    public void initAndSubscribe() throws CsrProcessingException, KeyStoreException, CsrGeneratingException {
+    public void init() throws CsrProcessingException, KeyStoreException, CsrGeneratingException {
         try {
             keyPair = newRSAKeyPair();
         } catch (NoSuchAlgorithmException e) {
@@ -57,7 +57,7 @@ public class MQTTClientKeyStore {
 
         keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         try {
-            keyStore.load(null, DEFAULT_KEYSTORE_PASSWORD.toCharArray());
+            keyStore.load(null, DEFAULT_KEYSTORE_PASSWORD);
         } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
             throw new KeyStoreException("unable to load keystore", e);
         }
@@ -72,11 +72,17 @@ public class MQTTClientKeyStore {
         certificateManager.subscribeToCertificateUpdates(csr, this::updateCertInKeyStore);
     }
 
+    private KeyPair newRSAKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance(RSA_KEY_INSTANCE);
+        kpg.initialize(RSA_KEY_LENGTH);
+        return kpg.generateKeyPair();
+    }
+
     private void updateCertInKeyStore(String certPem) {
         try {
             X509Certificate cert = pemToX509Certificate(certPem);
             Certificate[] certChain = {cert};
-            keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD.toCharArray(), certChain);
+            keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
             //TODO: notify MQTTClient with keystore
         } catch (CertificateException | IOException | KeyStoreException e) {
             //consumer can only throw runtime exception
@@ -92,11 +98,5 @@ public class MQTTClientKeyStore {
             cert = (X509Certificate) certFactory.generateCertificate(certStream);
         }
         return cert;
-    }
-
-    private KeyPair newRSAKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance(RSA_KEY_INSTANCE);
-        kpg.initialize(RSA_KEY_LENGTH);
-        return kpg.generateKeyPair();
     }
 }
