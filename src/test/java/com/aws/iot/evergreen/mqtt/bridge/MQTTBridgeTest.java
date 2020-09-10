@@ -47,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -186,7 +188,7 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_valid_CAs_updated_THEN_KeyStore_updated() throws Exception {
+    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
@@ -206,7 +208,6 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
             ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, caTopic);
             return null;
         });
-        when(caTopic.getOnce()).thenReturn("[CA1, CA2]");
 
         DCMService mockDCMService = mock(DCMService.class);
         when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
@@ -218,10 +219,21 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         when(config.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
         when(config.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
 
+        when(caTopic.getOnce()).thenReturn("[[CA1, CA2]]");
         new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
-
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
         verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
+
+        when(caTopic.getOnce()).thenReturn("[CA1, CA2]");
+        reset(mockMqttClientKeyStore);
+        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
+        verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
+        assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
+
+        when(caTopic.getOnce()).thenReturn("[]");
+        reset(mockMqttClientKeyStore);
+        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
+        verify(mockMqttClientKeyStore, never()).updateCA(any());
     }
 }
