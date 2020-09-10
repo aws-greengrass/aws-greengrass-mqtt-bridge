@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -171,5 +172,14 @@ public class PubSubClientTest {
 
         assertThat(requestCapture.getValue().getTopic(), Matchers.is(Matchers.equalTo("mapped/topic/from/local/mqtt")));
         assertThat(requestCapture.getValue().getPayload(), Matchers.is(Matchers.equalTo(messageFromLocalMqtt)));
+    }
+
+    @Test
+    void GIVEN_pubsub_client_WHEN_update_subscriptions_with_null_message_handler_THEN_throws() {
+        PubSubClient pubSubClient = new PubSubClient(mockPubSubIPCAgent);
+        Set<String> topics = new HashSet<>();
+        topics.add("pubsub/topic");
+        topics.add("pubsub/topic2");
+        assertThrows(NullPointerException.class, () -> pubSubClient.updateSubscriptions(topics, null));
     }
 }

@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -35,7 +36,7 @@ public class IoTCoreClientTest {
     private Consumer<Message> mockMessageHandler;
 
     @Test
-    void WHEN_call_pubsub_client_constructed_THEN_does_not_throw() {
+    void WHEN_call_iotcore_client_constructed_THEN_does_not_throw() {
         new IoTCoreClient(mockIotMqttClient);
     }
 
@@ -150,8 +151,8 @@ public class IoTCoreClientTest {
     void GIVEN_iotcore_client_and_subscribed_WHEN_published_message_THEN_routed_to_iotcore_mqttclient() {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient);
         Set<String> topics = new HashSet<>();
-        topics.add("pubsub/topic");
-        topics.add("pubsub/topic2");
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
@@ -164,5 +165,14 @@ public class IoTCoreClientTest {
 
         assertThat(requestCapture.getValue().getTopic(), Matchers.is(Matchers.equalTo("mapped/topic/from/local/mqtt")));
         assertThat(requestCapture.getValue().getPayload(), Matchers.is(Matchers.equalTo(messageFromLocalMqtt)));
+    }
+
+    @Test
+    void GIVEN_iotcore_client_WHEN_update_subscriptions_with_null_message_handler_THEN_throws() {
+        IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient);
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+        assertThrows(NullPointerException.class, () -> iotCoreClient.updateSubscriptions(topics, null));
     }
 }

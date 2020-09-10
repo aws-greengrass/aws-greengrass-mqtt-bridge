@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.mqtt.UnsubscribeRequest;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
@@ -96,7 +97,7 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @Override
-    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
 

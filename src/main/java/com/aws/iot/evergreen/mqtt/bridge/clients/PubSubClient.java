@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -86,7 +87,7 @@ public class PubSubClient implements MessageClient {
     }
 
     @Override
-    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to pubsub topics");
 
