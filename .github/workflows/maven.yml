@@ -64,7 +64,6 @@ jobs:
   publish:
     needs: build
     runs-on: [self-hosted, Linux, greengrass]
-    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2
       - name: Checkout Private Action
