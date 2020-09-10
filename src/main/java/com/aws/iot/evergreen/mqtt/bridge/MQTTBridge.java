@@ -1,9 +1,15 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dcm.DCMService;
+import com.aws.iot.evergreen.dcm.certificate.CsrProcessingException;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.kernel.Kernel;
+import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.mqtt.bridge.auth.CsrGeneratingException;
+import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClientException;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -13,11 +19,17 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
+import java.security.KeyStoreException;
+import java.security.cert.CertificateException;
+import java.util.List;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends EvergreenService {
     public static final String SERVICE_NAME = "aws.greengrass.mqtt.bridge";
+    static final String RUNTIME_CONFIG_KEY = "runtime";
+    static final String CERTIFICATES_TOPIC = "certificates";
+    static final String AUTHORITIES = "authorities";
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
@@ -28,15 +40,18 @@ public class MQTTBridge extends EvergreenService {
     /**
      * Ctr for MQTTBridge.
      *
-     * @param topics       topics passed by by the kernel
-     * @param topicMapping mapping of mqtt topics to iotCore/pubsub topics
+     * @param topics             topics passed by by the kernel
+     * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
+     * @param kernel             greengrass kernel
+     * @param mqttClientKeyStore KeyStore for MQTT Client
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping) {
-        this(topics, topicMapping, new MessageBridge(topicMapping));
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
+        this(topics, topicMapping, new MessageBridge(topicMapping), kernel, mqttClientKeyStore);
     }
 
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
+    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge, Kernel kernel,
+                         MQTTClientKeyStore mqttClientKeyStore) {
         super(topics);
         this.topicMapping = topicMapping;
 
@@ -55,6 +70,35 @@ public class MQTTBridge extends EvergreenService {
                         serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
                     }
                 });
+
+        try {
+            mqttClientKeyStore.init();
+        } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
+            serviceErrored(e);
+        }
+
+        try {
+            kernel.locate(DCMService.DCM_SERVICE_NAME).getConfig()
+                    .lookup(RUNTIME_CONFIG_KEY, CERTIFICATES_TOPIC, AUTHORITIES).dflt("[]")
+                    .subscribe((why, newv) -> {
+                        try {
+                            List<String> caPemList = Coerce.toStringList(newv);
+                            if (Utils.isEmpty(caPemList)) {
+                                logger.debug("CA list null or empty");
+                                return;
+                            }
+                            parseCAList(caPemList);
+                            mqttClientKeyStore.updateCA(caPemList);
+                        } catch (IOException | CertificateException | KeyStoreException e) {
+                            logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
+                            serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
+                        }
+                    });
+        } catch (ServiceLoadException e) {
+            logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
+                    DCMService.DCM_SERVICE_NAME);
+            serviceErrored(e);
+        }
 
         this.messageBridge = messageBridge;
         try {
@@ -81,6 +125,19 @@ public class MQTTBridge extends EvergreenService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
+        }
+    }
+
+    private void parseCAList(List<String> caPemList) {
+        String firstCA = caPemList.get(0);
+        if (firstCA.startsWith("[")) {
+            caPemList.set(0, firstCA.substring(1));
+        }
+
+        int lastIdx = caPemList.size() - 1;
+        String lastCA = caPemList.get(lastIdx);
+        if (lastCA.endsWith("]")) {
+            caPemList.set(lastIdx, lastCA.substring(0, lastCA.length() - 1));
         }
     }
 }
