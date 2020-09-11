@@ -51,6 +51,12 @@ public class PubSubClient implements MessageClient {
     }
 
     /**
+     * Start the {@link PubSubClient}.
+     */
+    public void start() {
+    }
+
+    /**
      * Stop the {@link PubSubClient}.
      */
     public void stop() {

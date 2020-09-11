@@ -1,11 +1,15 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
+import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
+import com.aws.iot.evergreen.mqtt.MqttClient;
+import com.aws.iot.evergreen.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClientException;
+import com.aws.iot.evergreen.mqtt.bridge.clients.PubSubClient;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
@@ -23,20 +27,25 @@ public class MQTTBridge extends EvergreenService {
     private final TopicMapping topicMapping;
     private final MessageBridge messageBridge;
     private MQTTClient mqttClient;
+    private PubSubClient pubSubClient;
+    private IoTCoreClient ioTCoreClient;
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
     /**
      * Ctr for MQTTBridge.
      *
-     * @param topics       topics passed by by the kernel
-     * @param topicMapping mapping of mqtt topics to iotCore/pubsub topics
+     * @param topics         topics passed by by the kernel
+     * @param topicMapping   mapping of mqtt topics to iotCore/pubsub topics
+     * @param pubSubIPCAgent IPC agent for pubsub
+     * @param mqttClient     mqtt client for iot core
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping) {
-        this(topics, topicMapping, new MessageBridge(topicMapping));
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCAgent pubSubIPCAgent, MqttClient mqttClient) {
+        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, mqttClient);
     }
 
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge) {
+    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
+                         PubSubIPCAgent pubSubIPCAgent, MqttClient mqttClient) {
         super(topics);
         this.topicMapping = topicMapping;
 
@@ -48,6 +57,7 @@ public class MQTTBridge extends EvergreenService {
                             logger.debug("Mapping null or empty");
                             return;
                         }
+                        logger.atDebug().kv("mapping", mapping).log("Updating mapping");
                         topicMapping.updateMapping(mapping);
                     } catch (IOException e) {
                         logger.atError("Invalid topic mapping").kv("TopicMapping", Coerce.toString(newv)).log();
@@ -62,6 +72,8 @@ public class MQTTBridge extends EvergreenService {
         } catch (MQTTClientException e) {
             serviceErrored(e);
         }
+        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
+        this.ioTCoreClient = new IoTCoreClient(mqttClient);
     }
 
     @Override
@@ -73,6 +85,12 @@ public class MQTTBridge extends EvergreenService {
             serviceErrored(e);
             return;
         }
+        pubSubClient.start();
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, pubSubClient);
+
+        ioTCoreClient.start();
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
+
         reportState(State.RUNNING);
     }
 
@@ -81,6 +99,16 @@ public class MQTTBridge extends EvergreenService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
+        }
+
+        messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
+        if (pubSubClient != null) {
+            pubSubClient.stop();
+        }
+
+        messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
+        if (ioTCoreClient != null) {
+            ioTCoreClient.stop();
         }
     }
 }
