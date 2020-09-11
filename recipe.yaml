@@ -1,11 +1,10 @@
 ---
-templateVersion: '2020-01-25'
-componentName: aws.greengrass.mqtt.bridge
-description: AWS Greengrass MQTT Bridge
-publisher: AWS
-version: '0.0.0'
-componentType: plugin
-manifests:
-  - lifecycle:
-    artifacts:
-      - uri: s3://gg-dev-artifacts/$componentName/$platform/$version/aws.greengrass.mqtt.bridge.jar
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.greengrass.mqtt.bridge
+ComponentDescription: AWS Greengrass MQTT Bridge
+ComponentPublisher: AWS
+ComponentVersion: 0.0.0
+ComponentType: aws.greengrass.plugin
+Manifests:
+  - Artifacts:
+      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.mqtt.bridge.jar
