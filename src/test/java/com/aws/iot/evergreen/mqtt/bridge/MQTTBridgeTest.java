@@ -1,9 +1,7 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
-import com.aws.iot.evergreen.config.Subscriber;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.config.WhatHappened;
 import com.aws.iot.evergreen.dcm.certificate.CertificateManager;
 import com.aws.iot.evergreen.dcm.DCMService;
 import com.aws.iot.evergreen.dependency.State;
@@ -35,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -202,38 +201,27 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         when(config.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING))
                 .thenReturn(mappingTopic);
 
-        Topic caTopic = mock(Topic.class);
-        when(caTopic.dflt(any())).thenReturn(caTopic);
-        when(caTopic.subscribe(any())).thenAnswer((a) -> {
-            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, caTopic);
-            return null;
-        });
-
         DCMService mockDCMService = mock(DCMService.class);
         when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
         Topics mockDCMConfig = mock(Topics.class);
         when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
-        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
-                .thenReturn(caTopic);
 
         when(config.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
         when(config.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
 
-        when(caTopic.getOnce()).thenReturn("[[CA1, CA2]]");
+        Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
+                .thenReturn(caTopic);
         new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
         verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
 
-        when(caTopic.getOnce()).thenReturn("[CA1, CA2]");
+        caTopic = Topic.of(context, "authorities", Collections.emptyList());
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
+                .thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
         new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
-        verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
-        assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
-
-        when(caTopic.getOnce()).thenReturn("[]");
-        reset(mockMqttClientKeyStore);
-        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
-        verify(mockMqttClientKeyStore, never()).updateCA(any());
+        verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
     }
 }

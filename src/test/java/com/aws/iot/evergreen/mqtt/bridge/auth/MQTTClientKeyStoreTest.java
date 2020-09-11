@@ -8,6 +8,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,14 +18,15 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore.CA_ALIAS;
 import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,7 +35,7 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class MQTTClientKeyStoreTest {
-    private static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
+    public static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
             + "MIICujCCAaICCQCQcEEQmGoJqjANBgkqhkiG9w0BAQUFADAfMR0wGwYDVQQDDBRt\r\n"
             + "b3F1ZXR0ZS5lY2xpcHNlLm9yZzAeFw0yMDA3MjExODA2MzdaFw0yMTA3MTYxODA2\r\n"
             + "MzdaMB8xHTAbBgNVBAMMFG1vcXVldHRlLmVjbGlwc2Uub3JnMIIBIjANBgkqhkiG\r\n"
@@ -97,10 +100,42 @@ public class MQTTClientKeyStoreTest {
         assertTrue(updateLatch.await(100, TimeUnit.MILLISECONDS));
         assertThat(keyStore.size(), is(1));
 
-        X509Certificate caCert = (X509Certificate) keyStore.getCertificate(CA_ALIAS);
+        X509Certificate caCert = null;
+        Enumeration<String> entries = keyStore.aliases();
+        while (entries.hasMoreElements()) {
+            String alias = entries.nextElement();
+            if (keyStore.isCertificateEntry(alias)) {
+                caCert = (X509Certificate) keyStore.getCertificate(alias);
+                break;
+            }
+        }
         byte[] caCertBytes = encodeToBase64Pem(caCert.getEncoded(), BEGIN_CERT, END_CERT);
         String caCertPem = new String(caCertBytes, StandardCharsets.UTF_8);
         assertThat(caCertPem, is(CERTIFICATE));
+    }
+
+    @Test
+    void GIVEN_MQTTClientKeyStore_WHEN_called_getSSLSocketFactory_THEN_returns_SSLSocketFactory() throws Exception {
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        mqttClientKeyStore.init();
+        CountDownLatch updateLatch = new CountDownLatch(2);
+        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
+
+        ArgumentCaptor<Consumer<String>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockCertificateManager, times(1))
+                .subscribeToCertificateUpdates(any(String.class), cbArgumentCaptor.capture());
+        Consumer<String> certCallback = cbArgumentCaptor.getValue();
+
+        KeyStore keyStore = mqttClientKeyStore.getKeyStore();
+        assertThat(keyStore.size(), is(0));
+
+        certCallback.accept(CERTIFICATE);
+        mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
+        assertTrue(updateLatch.await(100, TimeUnit.MILLISECONDS));
+        assertThat(keyStore.size(), is(2));
+
+        SocketFactory socketFactory = mqttClientKeyStore.getSSLSocketFactory();
+        assertThat(socketFactory, is(instanceOf(SSLSocketFactory.class)));
     }
 
     private static byte[] encodeToBase64Pem(byte[] content, byte[] header, byte[] footer) throws IOException {

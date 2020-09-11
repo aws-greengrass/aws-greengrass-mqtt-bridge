@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.mqtt.bridge.MQTTBridge;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
+import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.util.Coerce;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,10 +22,12 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
+import java.security.KeyStoreException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import javax.net.ssl.SSLSocketFactory;
 
 public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
@@ -41,6 +44,8 @@ public class MQTTClient implements MessageClient {
     private MqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
+
+    private final MQTTClientKeyStore mqttClientKeyStore;
 
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
@@ -71,12 +76,13 @@ public class MQTTClient implements MessageClient {
     /**
      * Ctr for MQTTClient.
      *
-     * @param topics topics passed in by kernel
+     * @param topics             topics passed in by kernel
+     * @param mqttClientKeyStore KeyStore for MQTT Client
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */
     @Inject
-    public MQTTClient(Topics topics) throws MQTTClientException {
-        this(topics, null);
+    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore) throws MQTTClientException {
+        this(topics, mqttClientKeyStore, null);
         // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(serverUri, clientId, dataStore);
@@ -85,11 +91,46 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    protected MQTTClient(Topics topics, MqttClient mqttClient) {
+    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, MqttClient mqttClient) {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI, BROKER_URI_KEY));
         this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME, CLIENT_ID_KEY));
+        this.mqttClientKeyStore = mqttClientKeyStore;
+        this.mqttClientKeyStore.listenToUpdates(this::reset);
+    }
+
+    private void reset() {
+        if (mqttClientInternal.isConnected()) {
+            try {
+                mqttClientInternal.disconnect();
+            } catch (MqttException e) {
+                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT Client");
+                return;
+            }
+        }
+
+        try {
+            readKeyStoreAndConnect();
+        } catch (KeyStoreException | MqttException e) {
+            LOGGER.atError().setCause(e).log("Failed to connect with updated KeyStore");
+            return;
+        }
+
+        resubscribe();
+    }
+
+    private void readKeyStoreAndConnect() throws KeyStoreException, MqttException {
+        MqttConnectOptions connOpts = new MqttConnectOptions();
+        connOpts.setCleanSession(true);
+
+        if (DEFAULT_BROKER_URI.startsWith("ssl")) {
+            SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
+            connOpts.setSocketFactory(ssf);
+        }
+
+        LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
+        mqttClientInternal.connect(connOpts);
     }
 
     /**
@@ -98,13 +139,10 @@ public class MQTTClient implements MessageClient {
      * @throws MQTTClientException if unable to connect to the broker
      */
     public void start() throws MQTTClientException {
-        MqttConnectOptions connOpts = new MqttConnectOptions();
-        connOpts.setCleanSession(true);
-        LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
         try {
             // TODO: need retry logic here if we want to remove dependency on broker
-            mqttClientInternal.connect(connOpts);
-        } catch (MqttException e) {
+            readKeyStoreAndConnect();
+        } catch (MqttException | KeyStoreException e) {
             LOGGER.atError().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Unable to connect to broker");
             throw new MQTTClientException("Unable to connect to MQTT broker", e);
         }
@@ -212,4 +250,3 @@ public class MQTTClient implements MessageClient {
         updateSubscriptionsInternal(topicsToResubscribe, messageHandler);
     }
 }
-

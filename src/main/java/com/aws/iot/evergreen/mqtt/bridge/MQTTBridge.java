@@ -79,15 +79,14 @@ public class MQTTBridge extends EvergreenService {
 
         try {
             kernel.locate(DCMService.DCM_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_CONFIG_KEY, CERTIFICATES_TOPIC, AUTHORITIES).dflt("[]")
+                    .lookup(RUNTIME_CONFIG_KEY, CERTIFICATES_TOPIC, AUTHORITIES)
                     .subscribe((why, newv) -> {
                         try {
-                            List<String> caPemList = Coerce.toStringList(newv);
+                            List<String> caPemList = (List<String>) newv.toPOJO();
                             if (Utils.isEmpty(caPemList)) {
                                 logger.debug("CA list null or empty");
                                 return;
                             }
-                            parseCAList(caPemList);
                             mqttClientKeyStore.updateCA(caPemList);
                         } catch (IOException | CertificateException | KeyStoreException e) {
                             logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
@@ -102,7 +101,7 @@ public class MQTTBridge extends EvergreenService {
 
         this.messageBridge = messageBridge;
         try {
-            this.mqttClient = new MQTTClient(topics);
+            this.mqttClient = new MQTTClient(topics, mqttClientKeyStore);
         } catch (MQTTClientException e) {
             serviceErrored(e);
         }
@@ -125,19 +124,6 @@ public class MQTTBridge extends EvergreenService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
-        }
-    }
-
-    private void parseCAList(List<String> caPemList) {
-        String firstCA = caPemList.get(0);
-        if (firstCA.startsWith("[")) {
-            caPemList.set(0, firstCA.substring(1));
-        }
-
-        int lastIdx = caPemList.size() - 1;
-        String lastCA = caPemList.get(lastIdx);
-        if (lastCA.endsWith("]")) {
-            caPemList.set(lastIdx, lastCA.substring(0, lastCA.length() - 1));
         }
     }
 }
