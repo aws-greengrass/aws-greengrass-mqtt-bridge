@@ -3,7 +3,7 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.mqtt.bridge
 ComponentDescription: AWS Greengrass MQTT Bridge
 ComponentPublisher: AWS
-ComponentVersion: 0.0.0
+ComponentVersion: 0.0.2
 ComponentType: aws.greengrass.plugin
 Manifests:
   - Artifacts:
