@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.mqtt.bridge.MQTTBridge;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
 import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -94,8 +95,10 @@ public class MQTTClient implements MessageClient {
     protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, MqttClient mqttClient) {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
-        this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI, BROKER_URI_KEY));
-        this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME, CLIENT_ID_KEY));
+        this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI,
+                KernelConfigResolver.PARAMETERS_CONFIG_KEY, BROKER_URI_KEY));
+        this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME,
+                KernelConfigResolver.PARAMETERS_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
     }
@@ -124,7 +127,7 @@ public class MQTTClient implements MessageClient {
         MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(true);
 
-        if (DEFAULT_BROKER_URI.startsWith("ssl")) {
+        if (serverUri.startsWith("ssl")) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }

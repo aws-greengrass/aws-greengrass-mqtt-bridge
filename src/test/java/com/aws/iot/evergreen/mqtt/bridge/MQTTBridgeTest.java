@@ -206,8 +206,10 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         Topics mockDCMConfig = mock(Topics.class);
         when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
 
-        when(config.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
-        when(config.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
+        when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
+        when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
         when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
