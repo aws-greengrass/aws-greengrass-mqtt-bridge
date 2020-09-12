@@ -54,6 +54,12 @@ public class IoTCoreClient implements MessageClient {
     }
 
     /**
+     * Start the {@link IoTCoreClient}.
+     */
+    public void start() {
+    }
+
+    /**
      * Stop the {@link IoTCoreClient}.
      */
     public void stop() {
