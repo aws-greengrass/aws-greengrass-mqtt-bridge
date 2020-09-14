@@ -9,9 +9,9 @@ import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.bridge.auth.CsrGeneratingException;
 import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClientException;
@@ -38,6 +38,8 @@ public class MQTTBridge extends EvergreenService {
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
     private final MessageBridge messageBridge;
+    private final Kernel kernel;
+    private final MQTTClientKeyStore mqttClientKeyStore;
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
@@ -49,24 +51,32 @@ public class MQTTBridge extends EvergreenService {
      * @param topics             topics passed by by the kernel
      * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
      * @param pubSubIPCAgent     IPC agent for pubsub
-     * @param mqttClient         mqtt client for iot core
+     * @param iotMqttClient      mqtt client for iot core
      * @param kernel             greengrass kernel
      * @param mqttClientKeyStore KeyStore for MQTT Client
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCAgent pubSubIPCAgent, MqttClient mqttClient, 
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCAgent pubSubIPCAgent, MqttClient iotMqttClient,
                       Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, mqttClient, kernel, 
+        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
              mqttClientKeyStore);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge, 
-                         PubSubIPCAgent pubSubIPCAgent, MqttClient mqttClient, Kernel kernel, 
+                         PubSubIPCAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
                          MQTTClientKeyStore mqttClientKeyStore) {
         super(topics);
         this.topicMapping = topicMapping;
+        this.kernel = kernel;
+        this.mqttClientKeyStore = mqttClientKeyStore;
+        this.messageBridge = messageBridge;
+        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
+    }
 
-        topics.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
+    @Override
+    public void install() {
+        this.config.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
                 .subscribe((why, newv) -> {
                     try {
                         String mapping = Coerce.toString(newv);
@@ -82,7 +92,10 @@ public class MQTTBridge extends EvergreenService {
                         serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
                     }
                 });
+    }
 
+    @Override
+    public void startup() {
         try {
             mqttClientKeyStore.init();
         } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
@@ -111,19 +124,8 @@ public class MQTTBridge extends EvergreenService {
             serviceErrored(e);
         }
 
-        this.messageBridge = messageBridge;
         try {
-            this.mqttClient = new MQTTClient(topics, mqttClientKeyStore);
-        } catch (MQTTClientException e) {
-            serviceErrored(e);
-        }
-        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(mqttClient);
-    }
-
-    @Override
-    public void startup() {
-        try {
+            mqttClient = new MQTTClient(this.config, mqttClientKeyStore);
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {

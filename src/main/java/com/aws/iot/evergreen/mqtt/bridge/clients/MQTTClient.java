@@ -125,6 +125,7 @@ public class MQTTClient implements MessageClient {
 
     private void readKeyStoreAndConnect() throws KeyStoreException, MqttException {
         MqttConnectOptions connOpts = new MqttConnectOptions();
+        //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
         if (serverUri.startsWith("ssl")) {

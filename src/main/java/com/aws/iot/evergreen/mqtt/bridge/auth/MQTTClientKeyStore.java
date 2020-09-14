@@ -1,13 +1,12 @@
 package com.aws.iot.evergreen.mqtt.bridge.auth;
 
-import com.aws.iot.evergreen.dcm.certificate.CertificateManager;
+import com.aws.iot.evergreen.dcm.CertificateManager;
 import com.aws.iot.evergreen.dcm.certificate.CertificateRequestGenerator;
 import com.aws.iot.evergreen.dcm.certificate.CsrProcessingException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.Getter;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.bouncycastle.operator.OperatorCreationException;
 
 import java.io.ByteArrayInputStream;
@@ -94,7 +93,7 @@ public class MQTTClientKeyStore {
         } catch (IOException | OperatorCreationException e) {
             throw new CsrGeneratingException("unable to generate CSR from keypair", e);
         }
-        certificateManager.subscribeToCertificateUpdates(csr, this::updateCert);
+        certificateManager.subscribeToClientCertificateUpdates(csr, this::updateCert);
     }
 
     private KeyPair newRSAKeyPair() throws NoSuchAlgorithmException {
@@ -103,27 +102,15 @@ public class MQTTClientKeyStore {
         return kpg.generateKeyPair();
     }
 
-    private void updateCert(String certPem) {
+    private void updateCert(X509Certificate cert) {
         try {
-            X509Certificate cert = pemToX509Certificate(certPem);
             Certificate[] certChain = {cert};
             keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
 
             updateListeners.forEach(UpdateListener::onUpdate); //notify MQTTClient
-        } catch (CertificateException | IOException | KeyStoreException e) {
-            //consumer can't throw checked exception
+        } catch (KeyStoreException e) {
             LOGGER.atError("Unable to store generated cert", e);
         }
-    }
-
-    private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
-        byte[] certBytes = certPem.getBytes(StandardCharsets.UTF_8);
-        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        X509Certificate cert;
-        try (InputStream certStream = new ByteArrayInputStream(certBytes)) {
-            cert = (X509Certificate) certFactory.generateCertificate(certStream);
-        }
-        return cert;
     }
 
     /**
@@ -144,19 +131,29 @@ public class MQTTClientKeyStore {
             }
         }
 
-        for (String caCertPem : caCerts) {
-            X509Certificate caCert = pemToX509Certificate(caCertPem);
-            keyStore.setCertificateEntry(RandomStringUtils.randomAlphanumeric(10), caCert);
+        for (int i = 0; i < caCerts.size(); i++) {
+            X509Certificate caCert = pemToX509Certificate(caCerts.get(i));
+            keyStore.setCertificateEntry("CA" + i, caCert);
         }
 
         updateListeners.forEach(UpdateListener::onUpdate); //notify MQTTClient
+    }
+
+    private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
+        byte[] certBytes = certPem.getBytes(StandardCharsets.UTF_8);
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+        X509Certificate cert;
+        try (InputStream certStream = new ByteArrayInputStream(certBytes)) {
+            cert = (X509Certificate) certFactory.generateCertificate(certStream);
+        }
+        return cert;
     }
 
     /**
      * Add listener to listen to KeyStore updates.
      * @param listener listener method
      */
-    public void listenToUpdates(UpdateListener listener) {
+    public synchronized void listenToUpdates(UpdateListener listener) {
         updateListeners.add(listener);
     }
 

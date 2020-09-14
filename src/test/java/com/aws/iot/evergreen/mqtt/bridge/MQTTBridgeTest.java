@@ -1,14 +1,16 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
+import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dcm.certificate.CertificateManager;
+import com.aws.iot.evergreen.dcm.CertificateManager;
 import com.aws.iot.evergreen.dcm.DCMService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 
+import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
@@ -187,34 +189,34 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
     }
 
     @Test
+    @SuppressWarnings("PMD.CloseResource")
     void GIVEN_Evergreen_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
+        PubSubIPCAgent mockPubSubIPCAgent = mock(PubSubIPCAgent.class);
+        MqttClient mockIotMqttClient = mock(MqttClient.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
-
-        Topic mappingTopic = mock(Topic.class);
-        when(mappingTopic.dflt(any())).thenReturn(mappingTopic);
-        when(mappingTopic.subscribe(any())).thenAnswer((a) -> null);
-        when(config.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING))
-                .thenReturn(mappingTopic);
-
-        DCMService mockDCMService = mock(DCMService.class);
-        when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
-        Topics mockDCMConfig = mock(Topics.class);
-        when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
 
         when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
         when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
 
+        DCMService mockDCMService = mock(DCMService.class);
+        when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
+        Topics mockDCMConfig = mock(Topics.class);
+        when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
+        MQTTBridge mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
+                mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
+
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
         when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
                 .thenReturn(caTopic);
-        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
+        mqttBridge.startup();
+        mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
         verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
@@ -223,7 +225,8 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
                 .thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
-        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockKernel, mockMqttClientKeyStore);
+        mqttBridge.startup();
+        mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
     }
 }

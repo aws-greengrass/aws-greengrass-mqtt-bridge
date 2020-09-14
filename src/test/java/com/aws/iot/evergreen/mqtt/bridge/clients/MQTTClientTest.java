@@ -4,7 +4,7 @@
 package com.aws.iot.evergreen.mqtt.bridge.clients;
 
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dcm.certificate.CertificateManager;
+import com.aws.iot.evergreen.dcm.CertificateManager;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
 import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
