@@ -10,9 +10,9 @@ Manifests:
       - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.mqtt.bridge.jar
     Dependencies:
       aws.greengrass.certificate.manager:
-        VersionRequirement: >=0.0.0
+        VersionRequirement: '>=0.0.0'
         DependencyType: HARD
       #TODO: remove mqtt dependency
       aws.greengrass.mqtt:
-        VersionRequirement: >=0.0.0
+        VersionRequirement: '>=0.0.0'
         DependencyType: HARD
