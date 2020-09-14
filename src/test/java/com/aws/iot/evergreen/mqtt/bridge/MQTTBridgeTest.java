@@ -189,16 +189,19 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
     }
 
     @Test
-    @SuppressWarnings("PMD.CloseResource")
     void GIVEN_Evergreen_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
         PubSubIPCAgent mockPubSubIPCAgent = mock(PubSubIPCAgent.class);
-        MqttClient mockIotMqttClient = mock(MqttClient.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+        MQTTBridge mqttBridge;
+        try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
+            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
+                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
+        }
 
         when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
@@ -209,8 +212,6 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
         Topics mockDCMConfig = mock(Topics.class);
         when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
-        MQTTBridge mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
-                mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
         when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
