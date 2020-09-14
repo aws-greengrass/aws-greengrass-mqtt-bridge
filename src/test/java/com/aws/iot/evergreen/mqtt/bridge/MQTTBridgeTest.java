@@ -214,8 +214,8 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
-        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
-                .thenReturn(caTopic);
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
+                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         mqttBridge.startup();
         mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
@@ -223,8 +223,8 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
 
         caTopic = Topic.of(context, "authorities", Collections.emptyList());
-        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_CONFIG_KEY, MQTTBridge.CERTIFICATES_TOPIC, MQTTBridge.AUTHORITIES))
-                .thenReturn(caTopic);
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
+                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
         mqttBridge.startup();
         mqttBridge.shutdown();

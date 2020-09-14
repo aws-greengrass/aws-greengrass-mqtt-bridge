@@ -31,9 +31,6 @@ import javax.inject.Inject;
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends EvergreenService {
     public static final String SERVICE_NAME = "aws.greengrass.mqtt.bridge";
-    static final String RUNTIME_CONFIG_KEY = "runtime";
-    static final String CERTIFICATES_TOPIC = "certificates";
-    static final String AUTHORITIES = "authorities";
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
@@ -100,11 +97,12 @@ public class MQTTBridge extends EvergreenService {
             mqttClientKeyStore.init();
         } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
             serviceErrored(e);
+            return;
         }
 
         try {
             kernel.locate(DCMService.DCM_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_CONFIG_KEY, CERTIFICATES_TOPIC, AUTHORITIES)
+                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY, DCMService.AUTHORITIES_TOPIC)
                     .subscribe((why, newv) -> {
                         try {
                             List<String> caPemList = (List<String>) newv.toPOJO();
@@ -122,6 +120,7 @@ public class MQTTBridge extends EvergreenService {
             logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
                     DCMService.DCM_SERVICE_NAME);
             serviceErrored(e);
+            return;
         }
 
         try {
