@@ -74,6 +74,9 @@ public class MessageBridge {
 
         Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
                 perClientSourceDestinationMap.get(sourceType);
+
+        LOGGER.atDebug().kv("destinations", srcDestMapping).log("Message will be forwarded to destinations");
+
         if (srcDestMapping != null) {
             List<Pair<String, TopicMapping.TopicType>> destinations = srcDestMapping.get(sourceTopic);
             if (destinations == null) {
@@ -99,9 +102,8 @@ public class MessageBridge {
     }
 
     private void processMappingAndSubscribe() {
-        LOGGER.atDebug().kv("topicMapping", topicMapping).log("Processing mapping");
-
         List<TopicMapping.MappingEntry> mappingEntryList = topicMapping.getMapping();
+        LOGGER.atDebug().kv("topicMapping", mappingEntryList).log("Processing mapping");
 
         Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
                 perClientSourceDestinationMapTemp = new HashMap<>();
