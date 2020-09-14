@@ -11,8 +11,8 @@ Manifests:
     Dependencies:
       aws.greengrass.certificate.manager:
         VersionRequirement: ^0.0
-        DependencyType: hard
+        DependencyType: HARD
       #TODO: remove mqtt dependency
       aws.greengrass.mqtt:
         VersionRequirement: ^0.0
-        DependencyType: hard
+        DependencyType: HARD
