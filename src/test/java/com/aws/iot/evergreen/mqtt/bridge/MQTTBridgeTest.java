@@ -1,9 +1,18 @@
 package com.aws.iot.evergreen.mqtt.bridge;
 
+import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dcm.CertificateManager;
+import com.aws.iot.evergreen.dcm.DCMService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
+
+import com.aws.iot.evergreen.mqtt.MqttClient;
+import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
@@ -18,11 +27,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -32,6 +45,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class MQTTBridgeTest extends EGServiceTestUtil {
@@ -44,9 +64,13 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
     @TempDir
     Path rootDir;
 
+    @Mock
+    CertificateManager mockCertificateManager;
+
     @BeforeEach
     void setup() throws IOException {
         kernel = new Kernel();
+        kernel.getContext().put(CertificateManager.class, mockCertificateManager);
         IConfig defaultConfig = new MemoryConfig(new Properties());
         defaultConfig.setProperty(BrokerConstants.PORT_PROPERTY_NAME, "8883");
         broker = new Server();
@@ -162,5 +186,48 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
         Assertions.assertTrue(bridgeErrored.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
+        serviceFullName = MQTTBridge.SERVICE_NAME;
+        initializeMockedConfig();
+        TopicMapping mockTopicMapping = mock(TopicMapping.class);
+        MessageBridge mockMessageBridge = mock(MessageBridge.class);
+        PubSubIPCAgent mockPubSubIPCAgent = mock(PubSubIPCAgent.class);
+        Kernel mockKernel = mock(Kernel.class);
+        MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+        MQTTBridge mqttBridge;
+        try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
+            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
+                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
+        }
+
+        when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
+        when(config.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
+
+        DCMService mockDCMService = mock(DCMService.class);
+        when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
+        Topics mockDCMConfig = mock(Topics.class);
+        when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
+
+        Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
+                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+        ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
+        assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
+
+        caTopic = Topic.of(context, "authorities", Collections.emptyList());
+        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
+                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        reset(mockMqttClientKeyStore);
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+        verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
     }
 }

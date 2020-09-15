@@ -4,7 +4,10 @@
 package com.aws.iot.evergreen.mqtt.bridge.clients;
 
 import com.aws.iot.evergreen.config.Topics;
+import com.aws.iot.evergreen.dcm.CertificateManager;
 import com.aws.iot.evergreen.mqtt.bridge.Message;
+import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -20,14 +23,21 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.net.ssl.SSLSocketFactory;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -49,20 +59,27 @@ public class MQTTClientTest {
     @Mock
     private Consumer<Message> mockMessageHandler;
 
+    @Mock
+    private MQTTClientKeyStore mockMqttClientKeyStore;
+
     @Test
     void WHEN_call_mqtt_client_constructed_THEN_does_not_throw() {
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        new MQTTClient(mockTopics, mockMqttClient);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
     }
 
     @Test
     void GIVEN_mqtt_client_WHEN_call_start_THEN_connected_to_broker() throws Exception {
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         mqttClient.start();
         verify(mockMqttClient, times(1)).connect(any());
         verify(mockMqttClient, times(1)).setCallback(any());
@@ -70,16 +87,18 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_WHEN_start_throws_exception_THEN_mqtt_client_exception_is_thrown() throws Exception {
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
-        when(mockTopics.findOrDefault(any(), eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doThrow(new MqttException(0)).when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Assertions.assertThrows(MQTTClientException.class, mqttClient::start);
     }
 
     @Test
     void GIVEN_mqtt_client_started_WHEN_update_subscriptions_THEN_topics_subscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -97,7 +116,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_call_stop_THEN_topics_unsubscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -118,7 +137,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_subscriptions_updated_THEN_subscriptions_updated() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -145,12 +164,16 @@ public class MQTTClientTest {
 
         topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(1)).unsubscribe(topicArgumentCaptor.capture());
-        MatcherAssert.assertThat(topicArgumentCaptor.getValue(), Matchers.is(Matchers.equalTo("mqtt/topic2")));
+        MatcherAssert.assertThat(topicArgumentCaptor.getValue(), is(Matchers.equalTo("mqtt/topic2")));
     }
 
     @Test
     void GIVEN_mqtt_client_and_subscribed_WHEN_receive_mqtt_message_THEN_routed_to_message_handler() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
@@ -174,21 +197,21 @@ public class MQTTClientTest {
         verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
         MatcherAssert.assertThat(messageCapture.getAllValues().get(0).getTopic(),
-                Matchers.is(Matchers.equalTo("mqtt/topic")));
+                is(Matchers.equalTo("mqtt/topic")));
         Assertions.assertArrayEquals(messageOnTopic1, messageCapture.getAllValues().get(0).getPayload());
 
         MatcherAssert.assertThat(messageCapture.getAllValues().get(1).getTopic(),
-                Matchers.is(Matchers.equalTo("mqtt/topic2")));
+                is(Matchers.equalTo("mqtt/topic2")));
         Assertions.assertArrayEquals(messageOnTopic2, messageCapture.getAllValues().get(1).getPayload());
 
         MatcherAssert.assertThat(messageCapture.getAllValues().get(2).getTopic(),
-                Matchers.is(Matchers.equalTo("mqtt/topic/not/in/mapping")));
+                is(Matchers.equalTo("mqtt/topic/not/in/mapping")));
         Assertions.assertArrayEquals(messageOnTopic3, messageCapture.getAllValues().get(2).getPayload());
     }
 
     @Test
     void GIVEN_mqtt_client_and_subscribed_WHEN_published_message_THEN_routed_to_mqtt_broker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -205,17 +228,21 @@ public class MQTTClientTest {
         verify(mockMqttClient, times(2)).publish(topicStringArgumentCaptor.capture(), messageCapture.capture());
 
         MatcherAssert.assertThat(topicStringArgumentCaptor.getAllValues().get(0),
-                Matchers.is(Matchers.equalTo("mapped/topic/from/pubsub")));
+                is(Matchers.equalTo("mapped/topic/from/pubsub")));
         Assertions.assertArrayEquals(messageFromPubsub, messageCapture.getAllValues().get(0).getPayload());
 
         MatcherAssert.assertThat(topicStringArgumentCaptor.getAllValues().get(1),
-                Matchers.is(Matchers.equalTo("mapped/topic/from/iotcore")));
+                is(Matchers.equalTo("mapped/topic/from/iotcore")));
         Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(1).getPayload());
     }
 
     @Test
     void GIVEN_mqtt_client_WHEN_connection_lost_THEN_attempts_to_reconnect_and_resubscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClient);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
@@ -240,5 +267,46 @@ public class MQTTClientTest {
 
         MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
                 Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+    }
+
+    @Test
+    void GIVEN_mqtt_client_WHEN_keystore_updated_THEN_resets() throws Exception {
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.BROKER_URI_KEY))).thenReturn("ssl://localhost:8883");
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.PARAMETERS_CONFIG_KEY),
+                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        CertificateManager mockCertificateManager = mock(CertificateManager.class);
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        mqttClientKeyStore.init();
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mqttClientKeyStore, mockMqttClient);
+
+        mqttClient.start();
+        Set<String> topics = new HashSet<>();
+        topics.add("mqtt/topic");
+        topics.add("mqtt/topic2");
+        mqttClient.updateSubscriptions(topics, mockMessageHandler);
+
+        reset(mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(true);
+        mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
+
+        ArgumentCaptor<MqttConnectOptions> optionsArgumentCaptor = ArgumentCaptor.forClass(MqttConnectOptions.class);
+        verify(mockMqttClient, times(1)).disconnect();
+        verify(mockMqttClient, times(1)).connect(optionsArgumentCaptor.capture());
+        MatcherAssert.assertThat(optionsArgumentCaptor.getValue().getSocketFactory(),
+                is(instanceOf(SSLSocketFactory.class)));
+
+        ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
+        MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+
+        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+
+        reset(mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(false);
+        mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
+        verify(mockMqttClient, never()).disconnect();
     }
 }
