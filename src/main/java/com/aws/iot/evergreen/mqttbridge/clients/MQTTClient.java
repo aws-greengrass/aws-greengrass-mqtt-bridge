@@ -32,7 +32,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
-    private static final String DEFAULT_BROKER_URI = "tcp://localhost:8883";
+    private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     public static final String BROKER_URI_KEY = "brokerServerUri";
     public static final String CLIENT_ID_KEY = "clientId";
     public static final String TOPIC = "topic";
