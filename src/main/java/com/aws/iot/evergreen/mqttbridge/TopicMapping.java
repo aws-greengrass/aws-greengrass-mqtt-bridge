@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqtt.bridge;
+package com.aws.iot.evergreen.mqttbridge;
 
 import com.aws.iot.evergreen.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonProperty;

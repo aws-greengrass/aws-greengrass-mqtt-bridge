@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqtt.bridge.clients;
+package com.aws.iot.evergreen.mqttbridge.clients;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.mqtt.bridge.MQTTBridge;
-import com.aws.iot.evergreen.mqtt.bridge.Message;
-import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.mqttbridge.MQTTBridge;
+import com.aws.iot.evergreen.mqttbridge.Message;
+import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import lombok.AccessLevel;

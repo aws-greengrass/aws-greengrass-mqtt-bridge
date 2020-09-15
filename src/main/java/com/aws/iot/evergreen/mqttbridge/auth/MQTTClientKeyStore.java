@@ -1,8 +1,8 @@
-package com.aws.iot.evergreen.mqtt.bridge.auth;
+package com.aws.iot.evergreen.mqttbridge.auth;
 
-import com.aws.iot.evergreen.dcm.CertificateManager;
-import com.aws.iot.evergreen.dcm.certificate.CertificateRequestGenerator;
-import com.aws.iot.evergreen.dcm.certificate.CsrProcessingException;
+import com.aws.iot.evergreen.certificatemanager.CertificateManager;
+import com.aws.iot.evergreen.certificatemanager.certificate.CertificateRequestGenerator;
+import com.aws.iot.evergreen.certificatemanager.certificate.CsrProcessingException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import lombok.AccessLevel;
@@ -36,8 +36,8 @@ import javax.net.ssl.TrustManagerFactory;
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
     static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
-    private static final String DEFAULT_CN = "greengrass-mqtt-bridge";
-    static final String KEY_ALIAS = "greengrass-mqtt-bridge";
+    private static final String DEFAULT_CN = "aws-greengrass-mqttbridge";
+    static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
     private static final String RSA_KEY_INSTANCE = "RSA";
     private static final int RSA_KEY_LENGTH = 2048;
 

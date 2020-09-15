@@ -1,4 +1,4 @@
-package com.aws.iot.evergreen.mqtt.bridge.auth;
+package com.aws.iot.evergreen.mqttbridge.auth;
 
 /**
  * Exception thrown in CSR generation.

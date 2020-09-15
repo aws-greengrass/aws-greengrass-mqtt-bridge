@@ -1,11 +1,11 @@
-package com.aws.iot.evergreen.mqtt.bridge.clients;
+package com.aws.iot.evergreen.mqttbridge.clients;
 
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
 import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
-import com.aws.iot.evergreen.mqtt.bridge.Message;
+import com.aws.iot.evergreen.mqttbridge.Message;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;

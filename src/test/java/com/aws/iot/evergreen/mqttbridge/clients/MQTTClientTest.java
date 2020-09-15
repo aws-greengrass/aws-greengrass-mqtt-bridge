@@ -1,12 +1,12 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.mqtt.bridge.clients;
+package com.aws.iot.evergreen.mqttbridge.clients;
 
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dcm.CertificateManager;
-import com.aws.iot.evergreen.mqtt.bridge.Message;
-import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.certificatemanager.CertificateManager;
+import com.aws.iot.evergreen.mqttbridge.Message;
+import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -29,7 +29,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
+import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;

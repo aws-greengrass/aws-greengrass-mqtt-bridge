@@ -1,18 +1,18 @@
-package com.aws.iot.evergreen.mqtt.bridge;
+package com.aws.iot.evergreen.mqttbridge;
 
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dcm.CertificateManager;
-import com.aws.iot.evergreen.dcm.DCMService;
+import com.aws.iot.evergreen.certificatemanager.CertificateManager;
+import com.aws.iot.evergreen.certificatemanager.DCMService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
 
 import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
+import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.mqttbridge.clients.MQTTClient;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;

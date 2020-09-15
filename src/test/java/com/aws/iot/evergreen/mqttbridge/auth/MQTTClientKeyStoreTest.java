@@ -1,6 +1,6 @@
-package com.aws.iot.evergreen.mqtt.bridge.auth;
+package com.aws.iot.evergreen.mqttbridge.auth;
 
-import com.aws.iot.evergreen.dcm.CertificateManager;
+import com.aws.iot.evergreen.certificatemanager.CertificateManager;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,8 +26,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
-import static com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
+import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
