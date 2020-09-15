@@ -1,15 +1,15 @@
 ---
 RecipeFormatVersion: '2020-01-25'
-ComponentName: aws.greengrass.mqtt.bridge
+ComponentName: aws.greengrass.MqttBridge
 ComponentDescription: AWS Greengrass MQTT Bridge
 ComponentPublisher: AWS
 ComponentVersion: 0.0.0
 ComponentType: aws.greengrass.plugin
 Manifests:
   - Artifacts:
-      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.mqtt.bridge.jar
+      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.MqttBridge.jar
     Dependencies:
-      aws.greengrass.certificate.manager:
+      aws.greengrass.CertificateManager:
         VersionRequirement: '>=0.0.0'
         DependencyType: HARD
       #TODO: remove mqtt dependency

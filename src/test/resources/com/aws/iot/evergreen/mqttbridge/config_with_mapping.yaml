@@ -1,5 +1,5 @@
 services:
-  aws.greengrass.mqtt.bridge:
+  aws.greengrass.MqttBridge:
     parameters:
       mqttTopicMapping: '[
                            {"SourceTopic": "topic/to/iotCore", "SourceTopicType": "LocalMqtt", "DestTopic": "/test/cloud/topic", "DestTopicType": "IotCore"},
@@ -8,4 +8,4 @@ services:
                          ]'
   main:
     dependencies:
-      - aws.greengrass.mqtt.bridge
+      - aws.greengrass.MqttBridge

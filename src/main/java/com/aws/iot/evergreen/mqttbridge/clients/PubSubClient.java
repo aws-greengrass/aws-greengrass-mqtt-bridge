@@ -1,4 +1,4 @@
-package com.aws.iot.evergreen.mqtt.bridge.clients;
+package com.aws.iot.evergreen.mqttbridge.clients;
 
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
 import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
@@ -7,7 +7,7 @@ import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
 import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.mqtt.bridge.Message;
+import com.aws.iot.evergreen.mqttbridge.Message;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;

@@ -1,7 +1,7 @@
 /* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0 */
 
-package com.aws.iot.evergreen.mqtt.bridge;
+package com.aws.iot.evergreen.mqttbridge;
 
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import org.junit.jupiter.api.Assertions;

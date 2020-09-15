@@ -1,4 +1,4 @@
 services:
     main:
         dependencies:
-            - aws.greengrass.mqtt.bridge
+            - aws.greengrass.MqttBridge

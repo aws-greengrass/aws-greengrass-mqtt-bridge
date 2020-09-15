@@ -1,21 +1,21 @@
-package com.aws.iot.evergreen.mqtt.bridge;
+package com.aws.iot.evergreen.mqttbridge;
 
 import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.iot.evergreen.certificatemanager.DCMService;
+import com.aws.iot.evergreen.certificatemanager.certificate.CsrProcessingException;
 import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dcm.DCMService;
-import com.aws.iot.evergreen.dcm.certificate.CsrProcessingException;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqtt.bridge.auth.CsrGeneratingException;
-import com.aws.iot.evergreen.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.mqtt.bridge.clients.IoTCoreClient;
-import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClient;
-import com.aws.iot.evergreen.mqtt.bridge.clients.MQTTClientException;
-import com.aws.iot.evergreen.mqtt.bridge.clients.PubSubClient;
+import com.aws.iot.evergreen.mqttbridge.auth.CsrGeneratingException;
+import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.iot.evergreen.mqttbridge.clients.IoTCoreClient;
+import com.aws.iot.evergreen.mqttbridge.clients.MQTTClient;
+import com.aws.iot.evergreen.mqttbridge.clients.MQTTClientException;
+import com.aws.iot.evergreen.mqttbridge.clients.PubSubClient;
 import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Utils;
@@ -30,7 +30,7 @@ import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends EvergreenService {
-    public static final String SERVICE_NAME = "aws.greengrass.mqtt.bridge";
+    public static final String SERVICE_NAME = "aws.greengrass.MqttBridge";
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;

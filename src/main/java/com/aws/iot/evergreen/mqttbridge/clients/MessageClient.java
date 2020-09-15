@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqtt.bridge.clients;
+package com.aws.iot.evergreen.mqttbridge.clients;
 
-import com.aws.iot.evergreen.mqtt.bridge.Message;
+import com.aws.iot.evergreen.mqttbridge.Message;
 
 import java.util.Set;
 import java.util.function.Consumer;
