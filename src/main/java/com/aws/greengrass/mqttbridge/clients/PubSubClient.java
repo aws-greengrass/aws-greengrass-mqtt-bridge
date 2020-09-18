@@ -1,13 +1,18 @@
-package com.aws.iot.evergreen.mqttbridge.clients;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.mqttbridge.Message;
+package com.aws.greengrass.mqttbridge.clients;
+
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.ipc.services.pubsub.MessagePublishedEvent;
+import com.aws.greengrass.ipc.services.pubsub.PubSubPublishRequest;
+import com.aws.greengrass.ipc.services.pubsub.PubSubSubscribeRequest;
+import com.aws.greengrass.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttbridge.Message;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;

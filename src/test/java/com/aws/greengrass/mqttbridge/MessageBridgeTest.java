@@ -1,11 +1,13 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-package com.aws.iot.evergreen.mqttbridge;
+package com.aws.greengrass.mqttbridge;
 
-import com.aws.iot.evergreen.mqttbridge.clients.MessageClient;
-import com.aws.iot.evergreen.mqttbridge.clients.MessageClientException;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.greengrass.mqttbridge.clients.MessageClient;
+import com.aws.greengrass.mqttbridge.clients.MessageClientException;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
@@ -24,7 +26,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MessageBridgeTest {
     @Mock
     private MessageClient mockMessageClient;

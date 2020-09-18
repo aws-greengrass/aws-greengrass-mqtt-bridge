@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqttbridge;
+package com.aws.greengrass.mqttbridge;
 
-import com.aws.iot.evergreen.util.SerializerFactory;
+import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AllArgsConstructor;

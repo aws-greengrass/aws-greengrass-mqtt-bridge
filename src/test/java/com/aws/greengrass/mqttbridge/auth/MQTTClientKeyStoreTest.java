@@ -1,15 +1,18 @@
-package com.aws.iot.evergreen.mqttbridge.auth;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.certificatemanager.CertificateManager;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+package com.aws.greengrass.mqttbridge.auth;
+
+import com.aws.greengrass.certificatemanager.CertificateManager;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,9 +28,11 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 
-import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
-import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
+import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -36,7 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientKeyStoreTest {
     public static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
             + "MIICujCCAaICCQCQcEEQmGoJqjANBgkqhkiG9w0BAQUFADAfMR0wGwYDVQQDDBRt\r\n"

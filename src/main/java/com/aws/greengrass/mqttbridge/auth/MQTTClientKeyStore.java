@@ -1,10 +1,15 @@
-package com.aws.iot.evergreen.mqttbridge.auth;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.certificatemanager.CertificateManager;
-import com.aws.iot.evergreen.certificatemanager.certificate.CertificateRequestGenerator;
-import com.aws.iot.evergreen.certificatemanager.certificate.CsrProcessingException;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
+package com.aws.greengrass.mqttbridge.auth;
+
+import com.aws.greengrass.certificatemanager.CertificateManager;
+import com.aws.greengrass.certificatemanager.certificate.CertificateRequestGenerator;
+import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.Getter;
 import org.bouncycastle.operator.OperatorCreationException;

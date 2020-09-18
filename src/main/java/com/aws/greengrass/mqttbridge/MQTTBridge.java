@@ -1,24 +1,29 @@
-package com.aws.iot.evergreen.mqttbridge;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.certificatemanager.DCMService;
-import com.aws.iot.evergreen.certificatemanager.certificate.CsrProcessingException;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.dependency.ImplementsService;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
-import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqttbridge.auth.CsrGeneratingException;
-import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.mqttbridge.clients.IoTCoreClient;
-import com.aws.iot.evergreen.mqttbridge.clients.MQTTClient;
-import com.aws.iot.evergreen.mqttbridge.clients.MQTTClientException;
-import com.aws.iot.evergreen.mqttbridge.clients.PubSubClient;
-import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.util.Coerce;
-import com.aws.iot.evergreen.util.Utils;
+package com.aws.greengrass.mqttbridge;
+
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.certificatemanager.DCMService;
+import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.PluginService;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttbridge.auth.CsrGeneratingException;
+import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqttbridge.clients.MQTTClient;
+import com.aws.greengrass.mqttbridge.clients.MQTTClientException;
+import com.aws.greengrass.mqttbridge.clients.PubSubClient;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -29,7 +34,7 @@ import java.util.List;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
-public class MQTTBridge extends EvergreenService {
+public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.MqttBridge";
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
@@ -59,7 +64,7 @@ public class MQTTBridge extends EvergreenService {
              mqttClientKeyStore);
     }
 
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge, 
+    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
                          MQTTClientKeyStore mqttClientKeyStore) {
         super(topics);

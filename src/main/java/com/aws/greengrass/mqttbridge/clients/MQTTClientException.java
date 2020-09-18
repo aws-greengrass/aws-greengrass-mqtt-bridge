@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqttbridge.clients;
+package com.aws.greengrass.mqttbridge.clients;
 
 /**
  * Exception thrown by the MQTT Client.

@@ -1,14 +1,16 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-package com.aws.iot.evergreen.mqttbridge.clients;
+package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.certificatemanager.CertificateManager;
-import com.aws.iot.evergreen.mqttbridge.Message;
-import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.greengrass.certificatemanager.CertificateManager;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.mqttbridge.Message;
+import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -23,13 +25,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import javax.net.ssl.SSLSocketFactory;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import javax.net.ssl.SSLSocketFactory;
 
-import static com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
+import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +46,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientTest {
 
     private static final String SERVER_URI = "testUri";
