@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqttbridge.clients;
+package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.mqttbridge.MQTTBridge;
-import com.aws.iot.evergreen.mqttbridge.Message;
-import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.util.Coerce;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttbridge.MQTTBridge;
+import com.aws.greengrass.mqttbridge.Message;
+import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.util.Coerce;
 import lombok.AccessLevel;
 import lombok.Getter;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;

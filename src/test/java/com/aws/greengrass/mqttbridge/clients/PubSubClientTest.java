@@ -1,12 +1,17 @@
-package com.aws.iot.evergreen.mqttbridge.clients;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.ipc.services.pubsub.MessagePublishedEvent;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubPublishRequest;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubSubscribeRequest;
-import com.aws.iot.evergreen.ipc.services.pubsub.PubSubUnsubscribeRequest;
-import com.aws.iot.evergreen.mqttbridge.Message;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+package com.aws.greengrass.mqttbridge.clients;
+
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.ipc.services.pubsub.MessagePublishedEvent;
+import com.aws.greengrass.ipc.services.pubsub.PubSubPublishRequest;
+import com.aws.greengrass.ipc.services.pubsub.PubSubSubscribeRequest;
+import com.aws.greengrass.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.greengrass.mqttbridge.Message;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +32,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class PubSubClientTest {
 
     @Mock

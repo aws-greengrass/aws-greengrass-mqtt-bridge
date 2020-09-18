@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.iot.evergreen.mqttbridge;
+package com.aws.greengrass.mqttbridge;
 
-import com.aws.iot.evergreen.logging.api.Logger;
-import com.aws.iot.evergreen.logging.impl.LogManager;
-import com.aws.iot.evergreen.mqttbridge.clients.MessageClient;
-import com.aws.iot.evergreen.mqttbridge.clients.MessageClientException;
-import com.aws.iot.evergreen.util.Pair;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttbridge.clients.MessageClient;
+import com.aws.greengrass.mqttbridge.clients.MessageClientException;
+import com.aws.greengrass.util.Pair;
 
 import java.util.ArrayList;
 import java.util.HashMap;

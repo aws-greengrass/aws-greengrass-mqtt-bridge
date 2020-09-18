@@ -1,9 +1,11 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-package com.aws.iot.evergreen.mqttbridge;
+package com.aws.greengrass.mqttbridge;
 
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class TopicMappingTest {
 
     @Test

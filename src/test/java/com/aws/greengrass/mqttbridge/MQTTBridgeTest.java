@@ -1,21 +1,25 @@
-package com.aws.iot.evergreen.mqttbridge;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.iot.evergreen.config.Topic;
-import com.aws.iot.evergreen.config.Topics;
-import com.aws.iot.evergreen.certificatemanager.CertificateManager;
-import com.aws.iot.evergreen.certificatemanager.DCMService;
-import com.aws.iot.evergreen.dependency.State;
-import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
-import com.aws.iot.evergreen.kernel.Kernel;
+package com.aws.greengrass.mqttbridge;
 
-import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqttbridge.auth.MQTTClientKeyStore;
-import com.aws.iot.evergreen.mqttbridge.clients.MQTTClient;
-import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
-import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.certificatemanager.CertificateManager;
+import com.aws.greengrass.certificatemanager.DCMService;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.MQTTClient;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
@@ -53,8 +57,8 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
-public class MQTTBridgeTest extends EGServiceTestUtil {
+@ExtendWith({MockitoExtension.class, GGExtension.class})
+public class MQTTBridgeTest extends GGServiceTestUtil {
     private static final long TEST_TIME_OUT_SEC = 30L;
 
     private Kernel kernel;
@@ -87,7 +91,7 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         CountDownLatch bridgeRunning = new CountDownLatch(1);
         kernel.parseArgs("-r", rootDir.toAbsolutePath().toString(), "-i",
                 getClass().getResource(configFileName).toString());
-        listener = (EvergreenService service, State was, State newState) -> {
+        listener = (GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.RUNNING)) {
                 bridgeRunning.countDown();
             }
@@ -164,7 +168,7 @@ public class MQTTBridgeTest extends EGServiceTestUtil {
         kernel.getContext().removeGlobalStateChangeListener(listener);
         CountDownLatch bridgeErrored = new CountDownLatch(1);
 
-        GlobalStateChangeListener listener = (EvergreenService service, State was, State newState) -> {
+        GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.ERRORED)) {
                 bridgeErrored.countDown();
             }

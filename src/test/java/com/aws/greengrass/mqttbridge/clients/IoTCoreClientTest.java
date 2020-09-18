@@ -1,11 +1,16 @@
-package com.aws.iot.evergreen.mqttbridge.clients;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-import com.aws.iot.evergreen.mqtt.MqttClient;
-import com.aws.iot.evergreen.mqtt.PublishRequest;
-import com.aws.iot.evergreen.mqtt.SubscribeRequest;
-import com.aws.iot.evergreen.mqtt.UnsubscribeRequest;
-import com.aws.iot.evergreen.mqttbridge.Message;
-import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+package com.aws.greengrass.mqttbridge.clients;
+
+import com.aws.greengrass.mqttbridge.Message;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.mqttclient.SubscribeRequest;
+import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +31,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, EGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
 
     @Mock
