@@ -256,11 +256,13 @@ public class MQTTClientTest {
         mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
         reset(mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(false, false, true);
+        doThrow(new MqttException(0)).doNothing().when(mockMqttClient).connect(any());
 
         MqttCallback mqttCallback = mqttCallbackArgumentCaptor.getValue();
         mqttCallback.connectionLost(new MqttException(1));
 
-        verify(mockMqttClient, times(1)).reconnect();
+        verify(mockMqttClient, times(2)).connect(any());
 
         ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
