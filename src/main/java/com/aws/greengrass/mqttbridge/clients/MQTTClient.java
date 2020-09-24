@@ -244,7 +244,8 @@ public class MQTTClient implements MessageClient {
             try {
                 mqttClientInternal.connect(connOpts);
             } catch (MqttException e) {
-                LOGGER.atDebug().log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
+                LOGGER.atDebug().setCause(e)
+                        .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
                 try {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
