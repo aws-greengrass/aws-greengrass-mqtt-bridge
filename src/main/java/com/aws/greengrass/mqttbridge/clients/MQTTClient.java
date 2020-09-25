@@ -36,7 +36,10 @@ public class MQTTClient implements MessageClient {
     public static final String BROKER_URI_KEY = "brokerServerUri";
     public static final String CLIENT_ID_KEY = "clientId";
     public static final String TOPIC = "topic";
+    private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
+    private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
+    private final MqttConnectOptions connOpts = new MqttConnectOptions();
     private Consumer<Message> messageHandler;
     private final String serverUri;
     private final String clientId;
@@ -52,7 +55,6 @@ public class MQTTClient implements MessageClient {
         @Override
         public void connectionLost(Throwable cause) {
             LOGGER.atDebug().setCause(cause).log("Mqtt client disconnected, reconnecting...");
-            // TODO: Need to handle reconnects here, for now we try to reconnect once
             // TODO: If connection attempts fail, we should set the service to errored state
             reconnectAndResubscribe();
         }
@@ -124,7 +126,6 @@ public class MQTTClient implements MessageClient {
     }
 
     private void readKeyStoreAndConnect() throws KeyStoreException, MqttException {
-        MqttConnectOptions connOpts = new MqttConnectOptions();
         //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
@@ -237,11 +238,22 @@ public class MQTTClient implements MessageClient {
     }
 
     private void reconnectAndResubscribe() {
-        try {
-            mqttClientInternal.reconnect();
-        } catch (MqttException e) {
-            LOGGER.atError().setCause(e).log("Unable to create a MQTT client");
-            return;
+        int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
+
+        while (!mqttClientInternal.isConnected()) {
+            try {
+                mqttClientInternal.connect(connOpts);
+            } catch (MqttException e) {
+                LOGGER.atDebug().setCause(e)
+                        .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
+                try {
+                    Thread.sleep(waitBeforeRetry * 1000);
+                } catch (InterruptedException er) {
+                    LOGGER.atError().setCause(er).log("Failed to reconnect");
+                    return;
+                }
+                waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
+            }
         }
 
         resubscribe();
