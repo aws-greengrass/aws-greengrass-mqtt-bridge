@@ -7,7 +7,7 @@ ComponentVersion: 0.0.0
 ComponentType: aws.greengrass.plugin
 Manifests:
   - Artifacts:
-      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.MqttBridge.jar
+      - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.MqttBridge.jar
     Dependencies:
       aws.greengrass.CertificateManager:
         VersionRequirement: '>=0.0.0'
