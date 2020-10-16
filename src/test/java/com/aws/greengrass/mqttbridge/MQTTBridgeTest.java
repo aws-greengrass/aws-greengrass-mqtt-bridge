@@ -103,12 +103,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_start_kernel_THEN_bridge_starts_successfully() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_start_kernel_THEN_bridge_starts_successfully() throws Exception {
         startKernelWithConfig("config.yaml");
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated() throws Exception {
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
@@ -126,7 +126,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated()
             throws Exception {
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
@@ -144,7 +144,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated()
             throws Exception {
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
@@ -159,7 +159,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated()
             throws Exception {
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
@@ -193,7 +193,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Evergreen_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
