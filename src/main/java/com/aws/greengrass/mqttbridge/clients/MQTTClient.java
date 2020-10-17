@@ -79,7 +79,7 @@ public class MQTTClient implements MessageClient {
     /**
      * Ctr for MQTTClient.
      *
-     * @param topics             topics passed in by kernel
+     * @param topics             topics passed in by Nucleus
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */

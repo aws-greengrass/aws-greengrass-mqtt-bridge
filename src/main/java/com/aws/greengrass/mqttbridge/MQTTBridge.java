@@ -50,7 +50,7 @@ public class MQTTBridge extends PluginService {
     /**
      * Ctr for MQTTBridge.
      *
-     * @param topics             topics passed by by the kernel
+     * @param topics             topics passed by by the Nucleus
      * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
      * @param pubSubIPCAgent     IPC agent for pubsub
      * @param iotMqttClient      mqtt client for iot core
@@ -90,7 +90,7 @@ public class MQTTBridge extends PluginService {
                         topicMapping.updateMapping(mapping);
                     } catch (IOException e) {
                         logger.atError("Invalid topic mapping").kv("TopicMapping", Coerce.toString(newv)).log();
-                        // Currently, kernel spills all exceptions in std err which junit consider failures
+                        // Currently, Nucleus spills all exceptions in std err which junit consider failures
                         serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
                     }
                 });
