@@ -3,7 +3,7 @@ name: Java CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches: '*'
 
@@ -86,7 +86,7 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: true
+          publishAsPublic: false
           additionalReplacements: '{"stage": "gamma"}'
       - uses: ./.github/actions/aws-greengrass-component-upload-action
         name: Upload to GCS Prod
@@ -97,5 +97,5 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: true
+          publishAsPublic: false
           additionalReplacements: '{"stage": "prod"}'
