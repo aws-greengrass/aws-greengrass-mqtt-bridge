@@ -75,6 +75,7 @@ jobs:
         run: mvn -ntp package -DskipTests
       - run: sudo apt-get install -y awscli
       - name: Upload to S3
+        run: aws s3 cp target/aws.greengrass.MqttBridge.jar s3://greengrass-artifacts-releases/${{github.repository}}/${{github.ref}}/aws.greengrass.MqttBridge-${{github.sha}}.jar
         run: aws s3 cp target/aws.greengrass.MqttBridge.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/aws.greengrass.MqttBridge-${{github.sha}}.jar
       - run: mkdir -p target/artifacts && cp target/aws.greengrass.MqttBridge.jar target/artifacts/
       - uses: ./.github/actions/aws-greengrass-component-upload-action
