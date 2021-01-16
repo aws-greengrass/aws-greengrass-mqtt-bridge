@@ -1,6 +1,6 @@
 services:
     aws.greengrass.MqttBridge:
-        parameters:
+        configuration:
             brokerServerUri: 'tcp://localhost:8883'
     main:
         dependencies:
