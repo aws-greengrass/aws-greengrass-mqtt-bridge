@@ -12,12 +12,20 @@
     <artifactId>mqtt-bridge</artifactId>
     <name>greengrass-mqtt-bridge</name>
     <packaging>jar</packaging>
-    <version>1.0-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
     <repositories>
         <repository>
-            <id>greengrass-dev-snapshot</id>
-            <name>Nucleus Snapshot</name>
-            <url>https://d10d248laylpoq.cloudfront.net</url>
+            <id>greengrass-common</id>
+            <name>Greengrass common</name>
+            <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
         </repository>
         <repository>
             <id>bintray</id>
@@ -30,17 +38,18 @@
             </snapshots>
         </repository>
     </repositories>
+
     <dependencies>
         <dependency>
-            <groupId>com.aws.iot</groupId>
+            <groupId>com.aws.greengrass</groupId>
             <artifactId>certificate-manager</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>2.0.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>nucleus</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>2.0.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -51,7 +60,7 @@
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>nucleus</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>2.0.0-SNAPSHOT</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
@@ -358,4 +367,11 @@
         <groups></groups>
         <mqttbridgejar.name>aws.greengrass.MqttBridge</mqttbridgejar.name>
     </properties>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>greengrass-dev-snapshot</id>
+            <name>Greengrass Dev Snapshot</name>
+            <url>${dev-snapshot-repository-url}</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
