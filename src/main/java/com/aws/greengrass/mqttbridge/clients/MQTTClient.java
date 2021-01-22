@@ -38,11 +38,15 @@ public class MQTTClient implements MessageClient {
     public static final String TOPIC = "topic";
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
+    private static final int DEFAULT_MAX_RETRIES = 10;
+    public static final String MAX_RETRIES_KEY = "brokerConnectMaxRetries";
 
+    @Getter(AccessLevel.PACKAGE)
     private final MqttConnectOptions connOpts = new MqttConnectOptions();
     private Consumer<Message> messageHandler;
     private final String serverUri;
     private final String clientId;
+    private final int maxRetries;
 
     private final MqttClientPersistence dataStore;
     private MqttClient mqttClientInternal;
@@ -51,12 +55,19 @@ public class MQTTClient implements MessageClient {
 
     private final MQTTClientKeyStore mqttClientKeyStore;
 
+    private final MQTTBridge mqttBridge;
+
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
         public void connectionLost(Throwable cause) {
             LOGGER.atDebug().setCause(cause).log("Mqtt client disconnected, reconnecting...");
-            // TODO: If connection attempts fail, we should set the service to errored state
-            reconnectAndResubscribe();
+            try {
+                connectWithRetry();
+                resubscribe();
+            } catch (MQTTClientException e) {
+                LOGGER.atError().setCause(e).log("Unable to reconnect to broker");
+                mqttBridge.serviceErrored(e);
+            }
         }
 
         @Override
@@ -79,13 +90,15 @@ public class MQTTClient implements MessageClient {
     /**
      * Ctr for MQTTClient.
      *
+     * @param mqttBridge         MQTTBridge service class instance
      * @param topics             topics passed in by Nucleus
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */
     @Inject
-    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore) throws MQTTClientException {
-        this(topics, mqttClientKeyStore, null);
+    public MQTTClient(MQTTBridge mqttBridge, Topics topics, MQTTClientKeyStore mqttClientKeyStore)
+            throws MQTTClientException {
+        this(mqttBridge, topics, mqttClientKeyStore, null);
         // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(serverUri, clientId, dataStore);
@@ -94,63 +107,47 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, MqttClient mqttClient) {
+    protected MQTTClient(MQTTBridge mqttBridge, Topics topics, MQTTClientKeyStore mqttClientKeyStore,
+                         MqttClient mqttClient) {
+        this.mqttBridge = mqttBridge;
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI,
                 KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_URI_KEY));
         this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME,
                 KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
+        this.maxRetries = Coerce.toInt(topics.findOrDefault(DEFAULT_MAX_RETRIES,
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MAX_RETRIES_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(this::reset);
+        this.mqttClientKeyStore.listenToUpdates(this::readKeyStore);
     }
 
-    private void reset() {
-        if (mqttClientInternal.isConnected()) {
-            try {
-                mqttClientInternal.disconnect();
-            } catch (MqttException e) {
-                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT Client");
-                return;
-            }
-        }
-
+    private void readKeyStore() {
         try {
-            readKeyStoreAndConnect();
-        } catch (KeyStoreException | MqttException e) {
-            LOGGER.atError().setCause(e).log("Failed to connect with updated KeyStore");
-            return;
+            if (serverUri.startsWith("ssl")) {
+                SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
+                connOpts.setSocketFactory(ssf);
+            }
+        } catch (KeyStoreException e) {
+            LOGGER.atError().setCause(e).log("Unable to read updated keystore");
         }
-
-        resubscribe();
-    }
-
-    private void readKeyStoreAndConnect() throws KeyStoreException, MqttException {
-        //TODO: persistent session could be used
-        connOpts.setCleanSession(true);
-
-        if (serverUri.startsWith("ssl")) {
-            SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
-            connOpts.setSocketFactory(ssf);
-        }
-
-        LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
-        mqttClientInternal.connect(connOpts);
     }
 
     /**
      * Start the {@link MQTTClient}.
      *
      * @throws MQTTClientException if unable to connect to the broker
+     * @throws KeyStoreException   if unable to read keystore
      */
-    public void start() throws MQTTClientException {
-        try {
-            // TODO: need retry logic here if we want to remove dependency on broker
-            readKeyStoreAndConnect();
-        } catch (MqttException | KeyStoreException e) {
-            LOGGER.atError().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Unable to connect to broker");
-            throw new MQTTClientException("Unable to connect to MQTT broker", e);
+    public void start() throws MQTTClientException, KeyStoreException {
+        connOpts.setCleanSession(true);
+        if (serverUri.startsWith("ssl")) {
+            SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
+            connOpts.setSocketFactory(ssf);
         }
+
+        LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
+        connectWithRetry();
         LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connected to broker");
 
         mqttClientInternal.setCallback(mqttCallback);
@@ -239,10 +236,19 @@ public class MQTTClient implements MessageClient {
         });
     }
 
-    private void reconnectAndResubscribe() {
-        int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
+    private synchronized void resubscribe() {
+        Set<String> topicsToResubscribe = new HashSet<>(subscribedLocalMqttTopics);
+        subscribedLocalMqttTopics.clear();
+        // Resubscribe to topics
+        updateSubscriptionsInternal(topicsToResubscribe, messageHandler);
+    }
 
-        while (!mqttClientInternal.isConnected()) {
+    @SuppressWarnings("PMD.PreserveStackTrace")
+    private void connectWithRetry() throws MQTTClientException {
+        int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
+        int numRetries = 0;
+
+        while (!mqttClientInternal.isConnected() && numRetries < maxRetries) {
             try {
                 mqttClientInternal.connect(connOpts);
             } catch (MqttException e) {
@@ -250,21 +256,16 @@ public class MQTTClient implements MessageClient {
                         .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
                 try {
                     Thread.sleep(waitBeforeRetry * 1000);
-                } catch (InterruptedException er) {
-                    LOGGER.atError().setCause(er).log("Failed to reconnect");
-                    return;
+                } catch (InterruptedException ex) {
+                    throw new MQTTClientException("Interrupted while waiting to retry connect", ex);
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
             }
+            numRetries++;
         }
 
-        resubscribe();
-    }
-
-    private synchronized void resubscribe() {
-        Set<String> topicsToResubscribe = new HashSet<>(subscribedLocalMqttTopics);
-        subscribedLocalMqttTopics.clear();
-        // Resubscribe to topics
-        updateSubscriptionsInternal(topicsToResubscribe, messageHandler);
+        if (!mqttClientInternal.isConnected()) {
+            throw new MQTTClientException(String.format("Unable to connect to broker after %d retries", maxRetries));
+        }
     }
 }

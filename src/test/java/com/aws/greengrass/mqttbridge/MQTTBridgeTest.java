@@ -211,6 +211,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
         when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
+        when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(10);
 
         DCMService mockDCMService = mock(DCMService.class);
         when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);

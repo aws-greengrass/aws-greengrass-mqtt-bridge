@@ -101,6 +101,7 @@ public class MQTTBridge extends PluginService {
         try {
             mqttClientKeyStore.init();
         } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
+            logger.atError().setCause(e).log("Unable to initialize keystore for MQTT client");
             serviceErrored(e);
             return;
         }
@@ -129,10 +130,11 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            mqttClient = new MQTTClient(this.config, mqttClientKeyStore);
+            mqttClient = new MQTTClient(this, this.config, mqttClientKeyStore);
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
-        } catch (MQTTClientException e) {
+        } catch (MQTTClientException | KeyStoreException e) {
+            logger.atError().setCause(e).log("Unable to set up MQTT client");
             serviceErrored(e);
             return;
         }

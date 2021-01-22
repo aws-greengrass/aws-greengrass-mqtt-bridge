@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge.clients;
 import com.aws.greengrass.certificatemanager.CertificateManager;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.mqttbridge.MQTTBridge;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -25,22 +26,22 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.net.SocketFactory;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import javax.net.ssl.SSLSocketFactory;
 
 import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStoreTest.CERTIFICATE;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,9 @@ public class MQTTClientTest {
 
     private static final String SERVER_URI = "testUri";
     private static final String CLIENT_ID = "id";
+
+    @Mock
+    private MQTTBridge mockMqttBridge;
 
     @Mock
     private Topics mockTopics;
@@ -70,7 +74,7 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
     }
 
     @Test
@@ -79,11 +83,14 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(10);
+        when(mockMqttClient.isConnected()).thenReturn(false, false, true);
+        doThrow(new MqttException(0)).doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         doNothing().when(mockMqttClient).setCallback(any());
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         mqttClient.start();
-        verify(mockMqttClient, times(1)).connect(any());
+        verify(mockMqttClient, times(2)).connect(any());
         verify(mockMqttClient, times(1)).setCallback(any());
     }
 
@@ -93,14 +100,17 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(2);
+        when(mockMqttClient.isConnected()).thenReturn(false);
         doThrow(new MqttException(0)).when(mockMqttClient).connect(any(MqttConnectOptions.class));
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Assertions.assertThrows(MQTTClientException.class, mqttClient::start);
     }
 
     @Test
     void GIVEN_mqtt_client_started_WHEN_update_subscriptions_THEN_topics_subscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -118,7 +128,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_call_stop_THEN_topics_unsubscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -140,7 +150,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_subscriptions_updated_THEN_subscriptions_updated() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -176,7 +186,10 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(10);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(false, true);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
@@ -214,7 +227,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_and_subscribed_WHEN_published_message_THEN_routed_to_mqtt_broker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -245,7 +258,10 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(10);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(false, true);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
@@ -275,43 +291,28 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqtt_client_WHEN_keystore_updated_THEN_resets() throws Exception {
+    void GIVEN_mqtt_client_WHEN_keystore_updated_THEN_reads_keystore() throws Exception {
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn("ssl://localhost:8883");
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
+        when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
+                eq(MQTTClient.MAX_RETRIES_KEY))).thenReturn(10);
         CertificateManager mockCertificateManager = mock(CertificateManager.class);
-        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        MQTTClientKeyStore mqttClientKeyStore = spy(new MQTTClientKeyStore(mockCertificateManager));
         mqttClientKeyStore.init();
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockMqttBridge, mockTopics, mqttClientKeyStore, mockMqttClient);
 
+        when(mockMqttClient.isConnected()).thenReturn(false, true);
+        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         mqttClient.start();
-        Set<String> topics = new HashSet<>();
-        topics.add("mqtt/topic");
-        topics.add("mqtt/topic2");
-        mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
-        reset(mockMqttClient);
-        when(mockMqttClient.isConnected()).thenReturn(true);
+        SocketFactory initialSF = mqttClient.getConnOpts().getSocketFactory();
+        reset(mqttClientKeyStore);
         mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
 
-        ArgumentCaptor<MqttConnectOptions> optionsArgumentCaptor = ArgumentCaptor.forClass(MqttConnectOptions.class);
-        verify(mockMqttClient, times(1)).disconnect();
-        verify(mockMqttClient, times(1)).connect(optionsArgumentCaptor.capture());
-        MatcherAssert.assertThat(optionsArgumentCaptor.getValue().getSocketFactory(),
-                is(instanceOf(SSLSocketFactory.class)));
-
-        ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
-        verify(mockMqttClient, times(2)).subscribe(topicArgumentCaptor.capture());
-        MatcherAssert.assertThat(topicArgumentCaptor.getAllValues(),
-                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
-
-        MatcherAssert.assertThat(mqttClient.getSubscribedLocalMqttTopics(),
-                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
-
-        reset(mockMqttClient);
-        when(mockMqttClient.isConnected()).thenReturn(false);
-        mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
-        verify(mockMqttClient, never()).disconnect();
+        SocketFactory finalSF = mqttClient.getConnOpts().getSocketFactory();
+        MatcherAssert.assertThat(finalSF, is(not(initialSF)));
+        verify(mqttClientKeyStore, times(1)).getSSLSocketFactory();
     }
 }
