@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -56,24 +57,26 @@ public class MQTTBridge extends PluginService {
      * @param iotMqttClient      mqtt client for iot core
      * @param kernel             greengrass kernel
      * @param mqttClientKeyStore KeyStore for MQTT Client
+     * @param executorService    for updating IoT Core subscriptions on separate thread
      */
     @Inject
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
+                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
+                      ExecutorService executorService) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-             mqttClientKeyStore);
+             mqttClientKeyStore, executorService);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
-                         MQTTClientKeyStore mqttClientKeyStore) {
+                         MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
     }
 
     @Override

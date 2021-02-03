@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -204,7 +205,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTBridge mqttBridge;
         try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
             mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
-                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
+                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore, Executors.newFixedThreadPool(1));
         }
 
         when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
