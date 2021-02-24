@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -38,7 +39,7 @@ public class IoTCoreClient implements MessageClient {
     public static final String TOPIC = "topic";
 
     @Getter(AccessLevel.PROTECTED)
-    private Set<String> subscribedIotCoreTopics = new HashSet<>();
+    private Set<String> subscribedIotCoreTopics = ConcurrentHashMap.newKeySet();
 
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
 
@@ -50,12 +51,12 @@ public class IoTCoreClient implements MessageClient {
 
     private final ExecutorService executorService;
 
-    private final AtomicBoolean isConnected = new AtomicBoolean(false);
+    private final AtomicBoolean isConnected;
 
     private final RetryUtils.RetryConfig subscribeRetryConfig = RetryUtils.RetryConfig.builder()
             .initialRetryInterval(Duration.ofMinutes(1L)).maxRetryInterval(Duration.ofMinutes(30L))
-            .maxAttempt(Integer.MAX_VALUE).retryableExceptions(Arrays.asList(SubscribeInterruptedException.class,
-                    ExecutionException.class, TimeoutException.class)).build();
+            .maxAttempt(Integer.MAX_VALUE)
+            .retryableExceptions(Arrays.asList(ExecutionException.class, TimeoutException.class)).build();
 
     private final Consumer<MqttMessage> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
@@ -100,6 +101,7 @@ public class IoTCoreClient implements MessageClient {
         this.iotMqttClient = iotMqttClient;
         this.iotMqttClient.addToCallbackEvents(onConnect, connectionCallback);
         this.executorService = executorService;
+        this.isConnected = new AtomicBoolean(iotMqttClient.connected());
     }
 
     /**
@@ -167,26 +169,22 @@ public class IoTCoreClient implements MessageClient {
     }
 
     private synchronized void updateSubscriptionsInternal()
-            throws ExecutionException, TimeoutException, SubscribeInterruptedException {
-        try {
-            Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
-            topicsToRemove.removeAll(toSubscribeIotCoreTopics);
-            for (String s : topicsToRemove) {
-                unsubscribeFromIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
-                subscribedIotCoreTopics.remove(s);
-            }
+            throws ExecutionException, TimeoutException, InterruptedException {
+        Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
+        topicsToRemove.removeAll(toSubscribeIotCoreTopics);
+        for (String s : topicsToRemove) {
+            unsubscribeFromIotCore(s);
+            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+            subscribedIotCoreTopics.remove(s);
+        }
 
-            Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
-            topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+        Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
+        topicsToSubscribe.removeAll(subscribedIotCoreTopics);
 
-            for (String s : topicsToSubscribe) {
-                subscribeToIotCore(s);
-                LOGGER.atInfo().kv(TOPIC, s).log("Subscribed to topic");
-                subscribedIotCoreTopics.add(s);
-            }
-        } catch (InterruptedException e) {
-            throw new SubscribeInterruptedException(e);
+        for (String s : topicsToSubscribe) {
+            subscribeToIotCore(s);
+            LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
+            subscribedIotCoreTopics.add(s);
         }
     }
 
@@ -207,8 +205,10 @@ public class IoTCoreClient implements MessageClient {
                     updateSubscriptionsInternal();
                     return null;
                 }, "update-subscriptions", LOGGER);
-            } catch (Exception e) {
+            } catch (InterruptedException e) {
                 LOGGER.atDebug().setCause(e).log("Retry workflow interrupted");
+            } catch (Exception e) {
+                LOGGER.atError().setCause(e).log("Failed to update subscriptions");
             }
         });
     }

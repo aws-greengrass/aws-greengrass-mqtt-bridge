@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.DCMService;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -21,7 +20,6 @@ import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClientException;
 import com.aws.greengrass.mqttbridge.clients.PubSubClient;
-import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
@@ -31,7 +29,6 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -53,30 +50,28 @@ public class MQTTBridge extends PluginService {
      *
      * @param topics             topics passed by by the Nucleus
      * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
-     * @param pubSubIPCAgent     IPC agent for pubsub
-     * @param iotMqttClient      mqtt client for iot core
+     * @param pubSubClient       PubSub Client
+     * @param ioTCoreClient      IoT Core mqtt client
      * @param kernel             greengrass kernel
      * @param mqttClientKeyStore KeyStore for MQTT Client
-     * @param executorService    for updating IoT Core subscriptions on separate thread
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
-                      ExecutorService executorService) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-             mqttClientKeyStore, executorService);
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubClient pubSubClient, IoTCoreClient ioTCoreClient,
+                      Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
+        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubClient, ioTCoreClient, kernel,
+                mqttClientKeyStore);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
-                         PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
-                         MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService) {
+                         PubSubClient pubSubClient, IoTCoreClient ioTCoreClient, Kernel kernel,
+                         MQTTClientKeyStore mqttClientKeyStore) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
-        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
+        this.pubSubClient = pubSubClient;
+        this.ioTCoreClient = ioTCoreClient;
     }
 
     @Override

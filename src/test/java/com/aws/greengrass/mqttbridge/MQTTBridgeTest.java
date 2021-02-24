@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.CertificateManager;
 import com.aws.greengrass.certificatemanager.DCMService;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -16,8 +15,9 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
-import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttbridge.clients.PubSubClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -199,14 +198,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
-        PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
+        PubSubClient mockPubSubClient = mock(PubSubClient.class);
+        IoTCoreClient mockIoTCoreClient = mock(IoTCoreClient.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
-        MQTTBridge mqttBridge;
-        try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
-            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
-                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore, Executors.newFixedThreadPool(1));
-        }
+        MQTTBridge mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubClient,
+                mockIoTCoreClient, mockKernel, mockMqttClientKeyStore);
 
         when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
