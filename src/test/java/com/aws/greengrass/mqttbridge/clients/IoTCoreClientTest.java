@@ -41,6 +41,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
@@ -70,11 +71,7 @@ public class IoTCoreClientTest {
     @Test
     void GIVEN_iotcore_client_started_WHEN_update_subscriptions_THEN_topics_subscribed() throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> callbackArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(callbackArgumentCaptor.capture(), any());
-        CallbackEventManager.OnConnectCallback connectCallback = callbackArgumentCaptor.getValue();
-        connectCallback.onConnect(false);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -95,11 +92,7 @@ public class IoTCoreClientTest {
     @Test
     void GIVEN_iotcore_client_with_subscriptions_WHEN_call_stop_THEN_topics_unsubscribed() throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> callbackArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(callbackArgumentCaptor.capture(), any());
-        CallbackEventManager.OnConnectCallback connectCallback = callbackArgumentCaptor.getValue();
-        connectCallback.onConnect(false);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -122,11 +115,7 @@ public class IoTCoreClientTest {
     void GIVEN_iotcore_client_with_subscriptions_WHEN_subscriptions_updated_THEN_subscriptions_updated()
             throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> callbackArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(callbackArgumentCaptor.capture(), any());
-        CallbackEventManager.OnConnectCallback connectCallback = callbackArgumentCaptor.getValue();
-        connectCallback.onConnect(false);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -135,6 +124,7 @@ public class IoTCoreClientTest {
         });
 
         reset(mockIotMqttClient);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         topics.clear();
         topics.add("iotcore/topic");
@@ -165,11 +155,7 @@ public class IoTCoreClientTest {
     void GIVEN_iotcore_client_and_subscribed_WHEN_receive_iotcore_message_THEN_routed_to_message_handler()
             throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> callbackArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(callbackArgumentCaptor.capture(), any());
-        CallbackEventManager.OnConnectCallback connectCallback = callbackArgumentCaptor.getValue();
-        connectCallback.onConnect(false);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -226,6 +212,7 @@ public class IoTCoreClientTest {
     void GIVEN_iotcore_client_WHEN_offline_start_and_update_subscriptions_THEN_subscriptions_updated_on_connection()
             throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
+        when(mockIotMqttClient.connected()).thenReturn(false);
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
@@ -252,17 +239,14 @@ public class IoTCoreClientTest {
     void GIVEN_iotcore_client_WHEN_go_offline_and_update_subscriptions_THEN_subscriptions_updated_on_connection()
             throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> onConnectArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
         ArgumentCaptor<MqttClientConnectionEvents> connectionCallbackArgumentCaptor = ArgumentCaptor.forClass(
                 MqttClientConnectionEvents.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(onConnectArgumentCaptor.capture(),
+        verify(mockIotMqttClient, times(1)).addToCallbackEvents(any(),
                 connectionCallbackArgumentCaptor.capture());
-        CallbackEventManager.OnConnectCallback onConnect = onConnectArgumentCaptor.getValue();
         MqttClientConnectionEvents connectionCallback = connectionCallbackArgumentCaptor.getValue();
 
-        onConnect.onConnect(false);
         connectionCallback.onConnectionInterrupted(0);
+        when(mockIotMqttClient.connected()).thenReturn(false);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -288,11 +272,7 @@ public class IoTCoreClientTest {
         ignoreExceptionOfType(context, ExecutionException.class);
 
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, mockExecutorService);
-        ArgumentCaptor<CallbackEventManager.OnConnectCallback> callbackArgumentCaptor = ArgumentCaptor.forClass(
-                CallbackEventManager.OnConnectCallback.class);
-        verify(mockIotMqttClient, times(1)).addToCallbackEvents(callbackArgumentCaptor.capture(), any());
-        CallbackEventManager.OnConnectCallback connectCallback = callbackArgumentCaptor.getValue();
-        connectCallback.onConnect(false);
+        when(mockIotMqttClient.connected()).thenReturn(true);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");

@@ -30,7 +30,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -50,8 +49,6 @@ public class IoTCoreClient implements MessageClient {
     private final MqttClient iotMqttClient;
 
     private final ExecutorService executorService;
-
-    private final AtomicBoolean isConnected;
 
     private final RetryUtils.RetryConfig subscribeRetryConfig = RetryUtils.RetryConfig.builder()
             .initialRetryInterval(Duration.ofMinutes(1L)).maxRetryInterval(Duration.ofMinutes(30L))
@@ -73,7 +70,6 @@ public class IoTCoreClient implements MessageClient {
     private final MqttClientConnectionEvents connectionCallback = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int i) {
-            isConnected.set(false);
             LOGGER.atDebug().log("Connection to cloud interrupted. Cancelling subscription update");
             if (subscribeRetryFuture != null) {
                 subscribeRetryFuture.cancel(true);
@@ -84,7 +80,6 @@ public class IoTCoreClient implements MessageClient {
         public void onConnectionResumed(boolean b) {
             LOGGER.atDebug().log("Connection to cloud resumed. Updating subscriptions");
             startNewSubscribeRetryWorkflow();
-            isConnected.set(true);
         }
     };
 
@@ -101,7 +96,6 @@ public class IoTCoreClient implements MessageClient {
         this.iotMqttClient = iotMqttClient;
         this.iotMqttClient.addToCallbackEvents(onConnect, connectionCallback);
         this.executorService = executorService;
-        this.isConnected = new AtomicBoolean(iotMqttClient.connected());
     }
 
     /**
@@ -163,7 +157,7 @@ public class IoTCoreClient implements MessageClient {
         this.toSubscribeIotCoreTopics = topics;
         LOGGER.atDebug().kv("topics", topics).log("Updated IoT Core topics to subscribe");
 
-        if (isConnected.get()) {
+        if (iotMqttClient.connected()) {
             startNewSubscribeRetryWorkflow();
         }
     }
