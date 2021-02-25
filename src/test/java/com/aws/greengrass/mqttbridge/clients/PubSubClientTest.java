@@ -5,11 +5,8 @@
 
 package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.greengrass.ipc.services.pubsub.MessagePublishedEvent;
-import com.aws.greengrass.ipc.services.pubsub.PubSubPublishRequest;
-import com.aws.greengrass.ipc.services.pubsub.PubSubSubscribeRequest;
-import com.aws.greengrass.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
+import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.Matchers;
@@ -25,9 +22,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.mqttbridge.MQTTBridge.SERVICE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,7 +35,7 @@ import static org.mockito.Mockito.verify;
 public class PubSubClientTest {
 
     @Mock
-    private PubSubIPCAgent mockPubSubIPCAgent;
+    private PubSubIPCEventStreamAgent mockPubSubIPCAgent;
 
     @Mock
     private Consumer<Message> mockMessageHandler;
@@ -55,13 +54,11 @@ public class PubSubClientTest {
         pubSubClient.updateSubscriptions(topics, message -> {
         });
 
-        ArgumentCaptor<PubSubSubscribeRequest> requestArgumentCaptor
-                = ArgumentCaptor.forClass(PubSubSubscribeRequest.class);
-        verify(mockPubSubIPCAgent, times(2)).subscribe(requestArgumentCaptor.capture(),
-                (Consumer<MessagePublishedEvent>) any());
-        List<PubSubSubscribeRequest> argValues = requestArgumentCaptor.getAllValues();
-        assertThat(argValues.stream().map(PubSubSubscribeRequest::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
+        ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockPubSubIPCAgent, times(2)).subscribe(topicArgumentCaptor.capture(),
+                any(), eq(SERVICE_NAME));
+        List<String> argValues = topicArgumentCaptor.getAllValues();
+        assertThat(argValues, Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
 
         assertThat(pubSubClient.getSubscribedPubSubTopics(),
                 Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
@@ -78,13 +75,11 @@ public class PubSubClientTest {
 
         pubSubClient.stop();
 
-        ArgumentCaptor<PubSubUnsubscribeRequest> requestArgumentCaptor
-                = ArgumentCaptor.forClass(PubSubUnsubscribeRequest.class);
-        verify(mockPubSubIPCAgent, times(2)).unsubscribe(requestArgumentCaptor.capture(),
-                (Consumer<MessagePublishedEvent>) any());
-        List<PubSubUnsubscribeRequest> argValues = requestArgumentCaptor.getAllValues();
-        assertThat(argValues.stream().map(PubSubUnsubscribeRequest::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
+        ArgumentCaptor<String> topicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockPubSubIPCAgent, times(2)).unsubscribe(topicArgumentCaptor.capture(),
+                any(), eq(SERVICE_NAME));
+        List<String> argValues = topicArgumentCaptor.getAllValues();
+        assertThat(argValues, Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2"));
 
         assertThat(pubSubClient.getSubscribedPubSubTopics(), Matchers.hasSize(0));
     }
@@ -107,25 +102,21 @@ public class PubSubClientTest {
         pubSubClient.updateSubscriptions(topics, message -> {
         });
 
-        ArgumentCaptor<PubSubSubscribeRequest> subRequestArgumentCaptor
-                = ArgumentCaptor.forClass(PubSubSubscribeRequest.class);
-        verify(mockPubSubIPCAgent, times(2)).subscribe(subRequestArgumentCaptor.capture(),
-                (Consumer<MessagePublishedEvent>) any());
-        List<PubSubSubscribeRequest> subArgValues = subRequestArgumentCaptor.getAllValues();
-        assertThat(subArgValues.stream().map(PubSubSubscribeRequest::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("pubsub/topic2/changed", "pubsub/topic3/added"));
+        ArgumentCaptor<String> subTopicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockPubSubIPCAgent, times(2)).subscribe(subTopicArgumentCaptor.capture(),
+                any(), eq(SERVICE_NAME));
+        List<String> subArgValues = subTopicArgumentCaptor.getAllValues();
+        assertThat(subArgValues, Matchers.containsInAnyOrder("pubsub/topic2/changed", "pubsub/topic3/added"));
 
         assertThat(pubSubClient.getSubscribedPubSubTopics(), Matchers.hasSize(3));
         assertThat(pubSubClient.getSubscribedPubSubTopics(),
                 Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2/changed", "pubsub/topic3/added"));
 
-        ArgumentCaptor<PubSubUnsubscribeRequest> unsubRequestArgumentCaptor
-                = ArgumentCaptor.forClass(PubSubUnsubscribeRequest.class);
-        verify(mockPubSubIPCAgent, times(1)).unsubscribe(unsubRequestArgumentCaptor.capture(),
-                (Consumer<MessagePublishedEvent>) any());
-        List<PubSubUnsubscribeRequest> unsubArgValues = unsubRequestArgumentCaptor.getAllValues();
-        assertThat(unsubArgValues.stream().map(PubSubUnsubscribeRequest::getTopic).collect(Collectors.toList()),
-                Matchers.containsInAnyOrder("pubsub/topic2"));
+        ArgumentCaptor<String> unsubTopicArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockPubSubIPCAgent, times(1)).unsubscribe(unsubTopicArgumentCaptor.capture(),
+                any(), eq(SERVICE_NAME));
+        List<String> unsubArgValues = unsubTopicArgumentCaptor.getAllValues();
+        assertThat(unsubArgValues, Matchers.containsInAnyOrder("pubsub/topic2"));
     }
 
     @Test
@@ -136,17 +127,18 @@ public class PubSubClientTest {
         topics.add("pubsub/topic2");
         pubSubClient.updateSubscriptions(topics, mockMessageHandler);
 
-        ArgumentCaptor<Consumer<MessagePublishedEvent>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
-        verify(mockPubSubIPCAgent, times(2)).subscribe(any(), cbArgumentCaptor.capture());
-        Consumer<MessagePublishedEvent> pubsubCallback = cbArgumentCaptor.getValue();
+        ArgumentCaptor<Consumer<PublishEvent>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockPubSubIPCAgent, times(2)).subscribe(any(), cbArgumentCaptor.capture(),
+                eq(SERVICE_NAME));
+        Consumer<PublishEvent> pubsubCallback = cbArgumentCaptor.getValue();
 
         byte[] messageOnTopic1 = "message from topic pubsub/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic pubsub/topic2".getBytes();
         byte[] messageOnTopic3 = "message from topic pubsub/topic/not/in/mapping".getBytes();
-        pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic").payload(messageOnTopic1).build());
-        pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic2").payload(messageOnTopic2).build());
+        pubsubCallback.accept(PublishEvent.builder().topic("pubsub/topic").payload(messageOnTopic1).build());
+        pubsubCallback.accept(PublishEvent.builder().topic("pubsub/topic2").payload(messageOnTopic2).build());
         // Also simulate a message which is not in the mapping
-        pubsubCallback.accept(MessagePublishedEvent.builder().topic("pubsub/topic/not/in/mapping")
+        pubsubCallback.accept(PublishEvent.builder().topic("pubsub/topic/not/in/mapping")
                 .payload(messageOnTopic3).build());
 
         ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
@@ -172,11 +164,13 @@ public class PubSubClientTest {
 
         pubSubClient.publish(new Message("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
 
-        ArgumentCaptor<PubSubPublishRequest> requestCapture = ArgumentCaptor.forClass(PubSubPublishRequest.class);
-        verify(mockPubSubIPCAgent, times(1)).publish(requestCapture.capture());
+        ArgumentCaptor<String> topicCapture = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<byte[]> payloadCapture = ArgumentCaptor.forClass(byte[].class);
+        verify(mockPubSubIPCAgent, times(1)).publish(topicCapture.capture(),
+                payloadCapture.capture(), eq(SERVICE_NAME));
 
-        assertThat(requestCapture.getValue().getTopic(), Matchers.is(Matchers.equalTo("mapped/topic/from/local/mqtt")));
-        assertThat(requestCapture.getValue().getPayload(), Matchers.is(Matchers.equalTo(messageFromLocalMqtt)));
+        assertThat(topicCapture.getValue(), Matchers.is(Matchers.equalTo("mapped/topic/from/local/mqtt")));
+        assertThat(payloadCapture.getValue(), Matchers.is(Matchers.equalTo(messageFromLocalMqtt)));
     }
 
     @Test

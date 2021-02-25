@@ -5,11 +5,8 @@
 
 package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
-import com.aws.greengrass.ipc.services.pubsub.MessagePublishedEvent;
-import com.aws.greengrass.ipc.services.pubsub.PubSubPublishRequest;
-import com.aws.greengrass.ipc.services.pubsub.PubSubSubscribeRequest;
-import com.aws.greengrass.ipc.services.pubsub.PubSubUnsubscribeRequest;
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
+import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttbridge.Message;
@@ -22,6 +19,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.mqttbridge.MQTTBridge.SERVICE_NAME;
+
 public class PubSubClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(PubSubClient.class);
     public static final String TOPIC = "topic";
@@ -31,9 +30,9 @@ public class PubSubClient implements MessageClient {
 
     private Consumer<Message> messageHandler;
 
-    private final PubSubIPCAgent pubSubIPCAgent;
+    private final PubSubIPCEventStreamAgent pubSubIPCAgent;
 
-    private final Consumer<MessagePublishedEvent> pubSubCallback = (message) -> {
+    private final Consumer<PublishEvent> pubSubCallback = (message) -> {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received PubSub message");
 
@@ -51,7 +50,7 @@ public class PubSubClient implements MessageClient {
      * @param pubSubIPCAgent for interacting with PubSub
      */
     @Inject
-    public PubSubClient(PubSubIPCAgent pubSubIPCAgent) {
+    public PubSubClient(PubSubIPCEventStreamAgent pubSubIPCAgent) {
         this.pubSubIPCAgent = pubSubIPCAgent;
     }
 
@@ -83,8 +82,7 @@ public class PubSubClient implements MessageClient {
     }
 
     private void unsubscribeFromPubSub(String topic) {
-        PubSubUnsubscribeRequest unsubscribeRequest = PubSubUnsubscribeRequest.builder().topic(topic).build();
-        pubSubIPCAgent.unsubscribe(unsubscribeRequest, pubSubCallback);
+        pubSubIPCAgent.unsubscribe(topic, pubSubCallback, SERVICE_NAME);
     }
 
     @Override
@@ -93,8 +91,7 @@ public class PubSubClient implements MessageClient {
     }
 
     private void publishToPubSub(String topic, byte[] payload) {
-        PubSubPublishRequest publishRequest = PubSubPublishRequest.builder().topic(topic).payload(payload).build();
-        pubSubIPCAgent.publish(publishRequest);
+        pubSubIPCAgent.publish(topic, payload, SERVICE_NAME);
     }
 
     @Override
@@ -121,7 +118,6 @@ public class PubSubClient implements MessageClient {
     }
 
     private void subscribeToPubSub(String topic) {
-        PubSubSubscribeRequest subscribeRequest = PubSubSubscribeRequest.builder().topic(topic).build();
-        pubSubIPCAgent.subscribe(subscribeRequest, pubSubCallback);
+        pubSubIPCAgent.subscribe(topic, pubSubCallback, SERVICE_NAME);
     }
 }

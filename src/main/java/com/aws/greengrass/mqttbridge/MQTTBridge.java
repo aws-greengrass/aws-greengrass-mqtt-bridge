@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.DCMService;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -58,14 +58,14 @@ public class MQTTBridge extends PluginService {
      * @param mqttClientKeyStore KeyStore for MQTT Client
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCAgent pubSubIPCAgent, MqttClient iotMqttClient,
-                      Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
+    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
+                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
              mqttClientKeyStore);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
-                         PubSubIPCAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
+                         PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
                          MQTTClientKeyStore mqttClientKeyStore) {
         super(topics);
         this.topicMapping = topicMapping;
@@ -78,7 +78,7 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        this.config.lookup(KernelConfigResolver.PARAMETERS_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
+        this.config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
                 .subscribe((why, newv) -> {
                     try {
                         String mapping = Coerce.toString(newv);

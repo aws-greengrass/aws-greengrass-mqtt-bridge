@@ -1,6 +1,6 @@
 services:
   aws.greengrass.MqttBridge:
-    parameters:
+    configuration:
       brokerServerUri: 'tcp://localhost:8883'
       mqttTopicMapping: '[
                            {"SourceTopic": "topic/to/iotCore", "SourceTopicType": "LocalMqtt", "DestTopic": "/test/cloud/topic", "DestTopicType": "IotCore"},

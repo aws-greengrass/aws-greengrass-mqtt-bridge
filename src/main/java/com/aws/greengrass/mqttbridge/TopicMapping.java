@@ -71,7 +71,7 @@ public class TopicMapping {
     public void updateMapping(@NonNull String mappingAsJson) throws IOException {
         final TypeReference<ArrayList<MappingEntry>> typeRef = new TypeReference<ArrayList<MappingEntry>>() {
         };
-        mapping = SerializerFactory.getJsonObjectMapper().readValue(mappingAsJson, typeRef);
+        mapping = SerializerFactory.getFailSafeJsonObjectMapper().readValue(mappingAsJson, typeRef);
         // TODO: Check for duplicates, General validation + unit tests. Topic strings need to be validated (allowed
         //  filter?, etc)
         updateListeners.forEach(UpdateListener::onUpdate);

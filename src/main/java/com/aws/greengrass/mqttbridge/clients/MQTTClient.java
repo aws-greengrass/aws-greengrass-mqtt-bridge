@@ -98,9 +98,9 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI,
-                KernelConfigResolver.PARAMETERS_CONFIG_KEY, BROKER_URI_KEY));
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_URI_KEY));
         this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME,
-                KernelConfigResolver.PARAMETERS_CONFIG_KEY, CLIENT_ID_KEY));
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
     }
@@ -163,7 +163,9 @@ public class MQTTClient implements MessageClient {
         removeMappingAndSubscriptions();
 
         try {
-            mqttClientInternal.disconnect();
+            if (mqttClientInternal.isConnected()) {
+                mqttClientInternal.disconnect();
+            }
             dataStore.close();
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT Client");
