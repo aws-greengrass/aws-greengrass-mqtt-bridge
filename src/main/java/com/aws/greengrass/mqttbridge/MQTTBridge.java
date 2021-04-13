@@ -6,12 +6,12 @@
 package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
-import com.aws.greengrass.certificatemanager.DCMService;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.device.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -35,7 +35,7 @@ import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends PluginService {
-    public static final String SERVICE_NAME = "aws.greengrass.MqttBridge";
+    public static final String SERVICE_NAME = "aws.greengrass.clientdevices.Mqtt.Bridge";
 
     @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
@@ -106,8 +106,10 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            kernel.locate(DCMService.DCM_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY, DCMService.AUTHORITIES_TOPIC)
+            kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                            ClientDevicesAuthService.CERTIFICATES_KEY,
+                            ClientDevicesAuthService.AUTHORITIES_TOPIC)
                     .subscribe((why, newv) -> {
                         try {
                             List<String> caPemList = (List<String>) newv.toPOJO();
@@ -123,7 +125,7 @@ public class MQTTBridge extends PluginService {
                     });
         } catch (ServiceLoadException e) {
             logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
-                    DCMService.DCM_SERVICE_NAME);
+                    ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME);
             serviceErrored(e);
             return;
         }
