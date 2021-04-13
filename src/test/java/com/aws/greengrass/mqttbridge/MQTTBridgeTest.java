@@ -7,11 +7,11 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.CertificateManager;
-import com.aws.greengrass.certificatemanager.DCMService;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.device.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -212,14 +212,14 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
 
-        DCMService mockDCMService = mock(DCMService.class);
-        when(mockKernel.locate(DCMService.DCM_SERVICE_NAME)).thenReturn(mockDCMService);
-        Topics mockDCMConfig = mock(Topics.class);
-        when(mockDCMService.getConfig()).thenReturn(mockDCMConfig);
+        ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
+        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME)).thenReturn(mockClientAuthService);
+        Topics mockClientAuthConfig = mock(Topics.class);
+        when(mockClientAuthService.getConfig()).thenReturn(mockClientAuthConfig);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
-        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
-                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        when(mockClientAuthConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         mqttBridge.startup();
         mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
@@ -227,8 +227,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
 
         caTopic = Topic.of(context, "authorities", Collections.emptyList());
-        when(mockDCMConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, DCMService.CERTIFICATES_KEY,
-                DCMService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        when(mockClientAuthConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
         mqttBridge.startup();
         mqttBridge.shutdown();
