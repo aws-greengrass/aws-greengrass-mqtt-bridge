@@ -25,7 +25,6 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -107,9 +106,8 @@ public class MQTTClientKeyStore {
         return kpg.generateKeyPair();
     }
 
-    private void updateCert(X509Certificate cert) {
+    private void updateCert(X509Certificate... certChain) {
         try {
-            Certificate[] certChain = {cert};
             keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
 
             updateListeners.forEach(UpdateListener::onUpdate); //notify MQTTClient
