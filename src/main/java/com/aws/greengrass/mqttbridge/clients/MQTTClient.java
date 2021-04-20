@@ -9,12 +9,12 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqttbridge.MQTTBridge;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Coerce;
 import lombok.AccessLevel;
 import lombok.Getter;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -33,6 +33,7 @@ import javax.net.ssl.SSLSocketFactory;
 public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
+    private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + RandomStringUtils.randomNumeric(11);
     public static final String BROKER_URI_KEY = "brokerServerUri";
     public static final String CLIENT_ID_KEY = "clientId";
     public static final String TOPIC = "topic";
@@ -99,7 +100,7 @@ public class MQTTClient implements MessageClient {
         this.dataStore = new MemoryPersistence();
         this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI,
                 KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_URI_KEY));
-        this.clientId = Coerce.toString(topics.findOrDefault(MQTTBridge.SERVICE_NAME,
+        this.clientId = Coerce.toString(topics.findOrDefault(DEFAULT_CLIENT_ID,
                 KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
