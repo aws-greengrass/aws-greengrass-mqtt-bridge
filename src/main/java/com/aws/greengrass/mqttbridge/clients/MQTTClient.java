@@ -208,7 +208,7 @@ public class MQTTClient implements MessageClient {
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
 
-        this.toSubscribeLocalMqttTopics = topics;
+        this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
         LOGGER.atDebug().kv("topics", topics).log("Updated local mqtt topics to subscribe");
 
         if (mqttClientInternal.isConnected()) {
