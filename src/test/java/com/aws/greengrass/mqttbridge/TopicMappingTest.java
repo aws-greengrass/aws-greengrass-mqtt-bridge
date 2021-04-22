@@ -31,9 +31,9 @@ public class TopicMappingTest {
         CountDownLatch updateLatch = new CountDownLatch(1);
         mapping.listenToUpdates(updateLatch::countDown);
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic2\", \"destTopicType\": \"IotCore\"}\n"
                 + "]");
 
         Assertions.assertTrue(updateLatch.await(100, TimeUnit.MILLISECONDS));
@@ -58,10 +58,10 @@ public class TopicMappingTest {
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
         Assertions.assertThrows(IOException.class, () -> mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                + "\"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub-Invalid\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                + "\"/test/pubsub/topic\", \"destTopicType\": \"Pubsub-Invalid\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic2\", \"destTopicType\": \"IotCore\"}\n"
                 + "]"));
 
         Assertions.assertFalse(updateLatch.await(100, TimeUnit.MILLISECONDS));

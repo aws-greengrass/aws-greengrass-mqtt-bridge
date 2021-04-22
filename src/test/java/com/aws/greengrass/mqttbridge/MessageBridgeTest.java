@@ -48,12 +48,12 @@ public class MessageBridgeTest {
     void GIVEN_mqtt_bridge_and_mapping_populated_WHEN_add_client_THEN_subscribed() throws Exception {
         TopicMapping mapping = new TopicMapping();
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"IotCore\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic4\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
         MessageBridge messageBridge = new MessageBridge(mapping);
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
         ArgumentCaptor<Set<String>> topicsArgumentCaptor = ArgumentCaptor.forClass(Set.class);
@@ -91,12 +91,12 @@ public class MessageBridgeTest {
         reset(mockMessageClient3);
 
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"IotCore\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic4\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -126,12 +126,12 @@ public class MessageBridgeTest {
 
         reset(mockMessageClient);
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"IotCore\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic4\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(0)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -146,12 +146,12 @@ public class MessageBridgeTest {
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"IotCore\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic4\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
 
         reset(mockMessageClient);
         reset(mockMessageClient2);
@@ -162,14 +162,14 @@ public class MessageBridgeTest {
         // Modify old topic 3 to come from Pubsub
         // Remove topic 4
         mapping.updateMapping(
-                "[\n" + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic2/changed\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic/changed\", \"DestTopicType\": \"Pubsub\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic3/added\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic/added\", \"DestTopicType\": \"Pubsub\"},\n"
-                        + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                        + "\"/test/pubsub/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                "[\n" + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                        + "\"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                        + "  {\"sourceTopic\": \"mqtt/topic2/changed\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                        + "\"/test/pubsub/topic/changed\", \"destTopicType\": \"Pubsub\"},\n"
+                        + "  {\"sourceTopic\": \"mqtt/topic3/added\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                        + "\"/test/pubsub/topic/added\", \"destTopicType\": \"Pubsub\"},\n"
+                        + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                        + "\"/test/pubsub/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -193,16 +193,16 @@ public class MessageBridgeTest {
             throws Exception {
         TopicMapping mapping = new TopicMapping();
         mapping.updateMapping("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                + "\"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                + "\"/test/pubsub/topic2\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"IotCore\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic4\", \"SourceTopicType\": \"Pubsub\", \"DestTopic\": "
-                + "\"/test/cloud/topic2\", \"DestTopicType\": \"LocalMqtt\"}\n" + "]");
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                + "\"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                + "\"/test/pubsub/topic2\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"IotCore\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic4\", \"sourceTopicType\": \"Pubsub\", \"destTopic\": "
+                + "\"/test/cloud/topic2\", \"destTopicType\": \"LocalMqtt\"}\n" + "]");
 
         MessageBridge messageBridge = new MessageBridge(mapping);
 
