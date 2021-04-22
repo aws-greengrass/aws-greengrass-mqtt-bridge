@@ -6,7 +6,6 @@
 package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.util.SerializerFactory;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -44,16 +43,12 @@ public class TopicMapping {
     @EqualsAndHashCode
     public static class MappingEntry {
         @Getter
-        @JsonProperty("SourceTopic")
         private String sourceTopic;
         @Getter
-        @JsonProperty("SourceTopicType")
         private TopicType sourceTopicType;
         @Getter
-        @JsonProperty("DestTopic")
         private String destTopic;
         @Getter
-        @JsonProperty("DestTopicType")
         private TopicType destTopicType;
     }
 

@@ -115,9 +115,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/pubsub/topic\", \"destTopicType\": \"Pubsub\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic2\", \"destTopicType\": \"IotCore\"}\n"
                 + "]");
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -179,10 +179,10 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue("[\n"
-                + "  {\"SourceTopic\": \"mqtt/topic\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic\", \"DestTopicType\": \"IotCore\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic2\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": "
-                + "\"/test/pubsub/topic\", \"DestTopicType\": \"Pubsub-Invalid\"},\n"
-                + "  {\"SourceTopic\": \"mqtt/topic3\", \"SourceTopicType\": \"LocalMqtt\", \"DestTopic\": \"/test/cloud/topic2\", \"DestTopicType\": \"IotCore\"}\n"
+                + "  {\"sourceTopic\": \"mqtt/topic\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic\", \"destTopicType\": \"IotCore\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic2\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": "
+                + "\"/test/pubsub/topic\", \"destTopicType\": \"Pubsub-Invalid\"},\n"
+                + "  {\"sourceTopic\": \"mqtt/topic3\", \"sourceTopicType\": \"LocalMqtt\", \"destTopic\": \"/test/cloud/topic2\", \"destTopicType\": \"IotCore\"}\n"
                 + "]");
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
