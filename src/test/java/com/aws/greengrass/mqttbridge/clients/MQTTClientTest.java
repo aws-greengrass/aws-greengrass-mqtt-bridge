@@ -19,6 +19,7 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -63,6 +65,11 @@ public class MQTTClientTest {
 
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
+
+    @BeforeEach
+    void setup() {
+        lenient().when(mockMqttClient.isConnected()).thenReturn(true);
+    }
 
     @Test
     void WHEN_call_mqtt_client_constructed_THEN_does_not_throw() {
@@ -148,6 +155,7 @@ public class MQTTClientTest {
         });
 
         reset(mockMqttClient);
+        when(mockMqttClient.isConnected()).thenReturn(true);
 
         topics.clear();
         topics.add("mqtt/topic");

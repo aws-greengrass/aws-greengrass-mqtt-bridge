@@ -49,6 +49,7 @@ public class MQTTClient implements MessageClient {
     private MqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
+    private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
 
     private final MQTTClientKeyStore mqttClientKeyStore;
 
@@ -155,6 +156,7 @@ public class MQTTClient implements MessageClient {
         LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connected to broker");
 
         mqttClientInternal.setCallback(mqttCallback);
+        resubscribe();
     }
 
     /**
@@ -204,16 +206,20 @@ public class MQTTClient implements MessageClient {
 
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
-        updateSubscriptionsInternal(topics, messageHandler);
-    }
-
-    private void updateSubscriptionsInternal(Set<String> topics, Consumer<Message> messageHandler) {
-        LOGGER.atDebug().kv("topics", topics).log("Subscribing to local mqtt topics");
-
         this.messageHandler = messageHandler;
 
+        this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
+        LOGGER.atDebug().kv("topics", topics).log("Updated local mqtt topics to subscribe");
+
+        if (mqttClientInternal.isConnected()) {
+            updateSubscriptionsInternal();
+        }
+    }
+
+    private synchronized void updateSubscriptionsInternal() {
         Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
-        topicsToRemove.removeAll(topics);
+        topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
+
         topicsToRemove.forEach(s -> {
             try {
                 mqttClientInternal.unsubscribe(s);
@@ -225,7 +231,7 @@ public class MQTTClient implements MessageClient {
             }
         });
 
-        Set<String> topicsToSubscribe = new HashSet<>(topics);
+        Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
         topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
 
         // TODO: Support configurable qos, add retry
@@ -263,9 +269,8 @@ public class MQTTClient implements MessageClient {
     }
 
     private synchronized void resubscribe() {
-        Set<String> topicsToResubscribe = new HashSet<>(subscribedLocalMqttTopics);
         subscribedLocalMqttTopics.clear();
         // Resubscribe to topics
-        updateSubscriptionsInternal(topicsToResubscribe, messageHandler);
+        updateSubscriptionsInternal();
     }
 }
