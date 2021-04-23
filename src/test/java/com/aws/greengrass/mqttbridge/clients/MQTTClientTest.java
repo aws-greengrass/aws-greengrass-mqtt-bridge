@@ -88,6 +88,7 @@ public class MQTTClientTest {
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         doNothing().when(mockMqttClient).setCallback(any());
+        when(mockMqttClient.isConnected()).thenReturn(false);
         MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         mqttClient.start();
         verify(mockMqttClient, times(1)).connect(any());
@@ -101,6 +102,7 @@ public class MQTTClientTest {
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doThrow(new MqttException(0)).when(mockMqttClient).connect(any(MqttConnectOptions.class));
+        when(mockMqttClient.isConnected()).thenReturn(false);
         MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
         Assertions.assertThrows(MQTTClientException.class, mqttClient::start);
     }
@@ -185,7 +187,6 @@ public class MQTTClientTest {
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
-        doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
 
@@ -265,7 +266,7 @@ public class MQTTClientTest {
         mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
         reset(mockMqttClient);
-        when(mockMqttClient.isConnected()).thenReturn(false, false, true);
+        when(mockMqttClient.isConnected()).thenReturn(false, false, false, false, true);
         doThrow(new MqttException(0)).doNothing().when(mockMqttClient).connect(any());
 
         MqttCallback mqttCallback = mqttCallbackArgumentCaptor.getValue();
@@ -300,7 +301,7 @@ public class MQTTClientTest {
         mqttClient.updateSubscriptions(topics, mockMessageHandler);
 
         reset(mockMqttClient);
-        when(mockMqttClient.isConnected()).thenReturn(true);
+        when(mockMqttClient.isConnected()).thenReturn(true, false);
         mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
 
         ArgumentCaptor<MqttConnectOptions> optionsArgumentCaptor = ArgumentCaptor.forClass(MqttConnectOptions.class);
