@@ -137,7 +137,13 @@ public class MQTTClient implements MessageClient {
         }
 
         LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
-        mqttClientInternal.connect(connOpts);
+        doConnect();
+    }
+
+    private synchronized void doConnect() throws MqttException {
+        if (!mqttClientInternal.isConnected()) {
+            mqttClientInternal.connect(connOpts);
+        }
     }
 
     /**
@@ -251,7 +257,8 @@ public class MQTTClient implements MessageClient {
 
         while (!mqttClientInternal.isConnected()) {
             try {
-                mqttClientInternal.connect(connOpts);
+                // TODO: Clean up this loop
+                doConnect();
             } catch (MqttException e) {
                 LOGGER.atDebug().setCause(e)
                         .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);

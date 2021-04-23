@@ -131,7 +131,9 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            mqttClient = new MQTTClient(this.config, mqttClientKeyStore);
+            if (mqttClient == null) {
+                mqttClient = new MQTTClient(this.config, mqttClientKeyStore);
+            }
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
