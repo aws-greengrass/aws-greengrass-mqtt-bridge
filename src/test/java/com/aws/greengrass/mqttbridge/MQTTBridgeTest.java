@@ -25,25 +25,14 @@ import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
@@ -56,6 +45,18 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTBridgeTest extends GGServiceTestUtil {
@@ -114,11 +115,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue("{\n"
-                + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
-                + "}");
+                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue(
+                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
+                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
+                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
+                        + "}");
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
@@ -133,12 +134,15 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(3)));
         Map<String, TopicMapping.MappingEntry> expectedMapping = new HashMap<>();
-        expectedMapping.put("mapping1", new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud",
-                TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
-        expectedMapping.put("mapping2", new TopicMapping.MappingEntry("topic/to/map/from/local/to/pubsub",
-                TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.Pubsub));
-        expectedMapping.put("mapping3", new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud/2",
-                TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
+        expectedMapping.put("mapping1",
+                new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore));
+        expectedMapping.put("mapping2",
+                new TopicMapping.MappingEntry("topic/to/map/from/local/to/pubsub", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub));
+        expectedMapping.put("mapping3",
+                new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud/2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore));
 
         assertEquals(expectedMapping, topicMapping.getMapping());
     }
@@ -178,11 +182,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue("{\n"
-                + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub-Invalid\"},\n"
-                + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
-                + "}");
+                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue(
+                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
+                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub-Invalid\"},\n"
+                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
+                        + "}");
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
@@ -202,23 +206,28 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
         try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
-            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent,
-                    mockIotMqttClient, mockKernel, mockMqttClientKeyStore);
+            mqttBridge =
+                    new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
+                            mockKernel, mockMqttClientKeyStore);
         }
 
-        when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
-                eq(MQTTClient.BROKER_URI_KEY))).thenReturn("tcp://localhost:8883");
-        when(config.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
-                eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(MQTTBridge.SERVICE_NAME);
+        when(config
+                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.BROKER_URI_KEY)))
+                .thenReturn("tcp://localhost:8883");
+        when(config
+                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.CLIENT_ID_KEY)))
+                .thenReturn(MQTTBridge.SERVICE_NAME);
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
-        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME)).thenReturn(mockClientAuthService);
+        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
+                .thenReturn(mockClientAuthService);
         Topics mockClientAuthConfig = mock(Topics.class);
         when(mockClientAuthService.getConfig()).thenReturn(mockClientAuthConfig);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
-        when(mockClientAuthConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        when(mockClientAuthConfig
+                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         mqttBridge.startup();
         mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
@@ -226,8 +235,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
 
         caTopic = Topic.of(context, "authorities", Collections.emptyList());
-        when(mockClientAuthConfig.lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        when(mockClientAuthConfig
+                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
         mqttBridge.startup();
         mqttBridge.shutdown();

@@ -61,7 +61,7 @@ public class MQTTBridge extends PluginService {
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-             mqttClientKeyStore);
+                mqttClientKeyStore);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
@@ -107,22 +107,20 @@ public class MQTTBridge extends PluginService {
 
         try {
             kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
-                            ClientDevicesAuthService.CERTIFICATES_KEY,
-                            ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                    .subscribe((why, newv) -> {
-                        try {
-                            List<String> caPemList = (List<String>) newv.toPOJO();
-                            if (Utils.isEmpty(caPemList)) {
-                                logger.debug("CA list null or empty");
-                                return;
-                            }
-                            mqttClientKeyStore.updateCA(caPemList);
-                        } catch (IOException | CertificateException | KeyStoreException e) {
-                            logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
-                            serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
-                        }
-                    });
+                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                            ClientDevicesAuthService.AUTHORITIES_TOPIC).subscribe((why, newv) -> {
+                try {
+                    List<String> caPemList = (List<String>) newv.toPOJO();
+                    if (Utils.isEmpty(caPemList)) {
+                        logger.debug("CA list null or empty");
+                        return;
+                    }
+                    mqttClientKeyStore.updateCA(caPemList);
+                } catch (IOException | CertificateException | KeyStoreException e) {
+                    logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
+                    serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
+                }
+            });
         } catch (ServiceLoadException e) {
             logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
                     ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME);
