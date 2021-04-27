@@ -99,10 +99,11 @@ public class MQTTClient implements MessageClient {
     protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, MqttClient mqttClient) {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
-        this.serverUri = Coerce.toString(topics.findOrDefault(DEFAULT_BROKER_URI,
-                KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_URI_KEY));
-        this.clientId = Coerce.toString(topics.findOrDefault(DEFAULT_CLIENT_ID,
-                KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
+        this.serverUri = Coerce.toString(
+                topics.findOrDefault(DEFAULT_BROKER_URI, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
+                        BROKER_URI_KEY));
+        this.clientId = Coerce.toString(
+                topics.findOrDefault(DEFAULT_CLIENT_ID, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
     }

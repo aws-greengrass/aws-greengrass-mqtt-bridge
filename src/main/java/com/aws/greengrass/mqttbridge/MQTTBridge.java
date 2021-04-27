@@ -78,7 +78,7 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        this.config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
+        this.config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("{}")
                 .subscribe((why, newv) -> {
                     try {
                         String mapping = Coerce.toString(newv);
