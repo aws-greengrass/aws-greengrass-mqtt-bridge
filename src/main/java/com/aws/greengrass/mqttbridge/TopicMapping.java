@@ -5,17 +5,12 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import com.aws.greengrass.util.SerializerFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +25,6 @@ public class TopicMapping {
     private Map<String, MappingEntry> mapping = new HashMap<>();
 
     private List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
-
-    private static final ObjectMapper OBJECT_MAPPER_WITH_STRICT_DUPLICATE_KEY_DETECTION =
-            SerializerFactory.getFailSafeJsonObjectMapper().copy()
-                    .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
 
     /**
      * Type of the topic.
@@ -63,17 +54,14 @@ public class TopicMapping {
     }
 
     /**
-     * Update the topic mapping by parsing the mapping given as json.
+     * Update the topic mapping.
      *
-     * @param mappingAsJson mapping as a json string
-     * @throws IOException if unable to parse the string
+     * @param mapping mapping to update
      */
-    public void updateMapping(@NonNull String mappingAsJson) throws IOException {
-        final TypeReference<Map<String, MappingEntry>> typeRef = new TypeReference<Map<String, MappingEntry>>() {
-        };
-        mapping = OBJECT_MAPPER_WITH_STRICT_DUPLICATE_KEY_DETECTION.readValue(mappingAsJson, typeRef);
+    public void updateMapping(@NonNull Map<String, MappingEntry> mapping) {
         // TODO: Check for duplicates, General validation + unit tests. Topic strings need to be validated (allowed
         //  filter?, etc)
+        this.mapping = mapping;
         updateListeners.forEach(UpdateListener::onUpdate);
     }
 

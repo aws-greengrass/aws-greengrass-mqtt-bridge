@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.mqttbridge.clients.MessageClient;
 import com.aws.greengrass.mqttbridge.clients.MessageClientException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
@@ -17,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -47,12 +49,16 @@ public class MessageBridgeTest {
     @Test
     void GIVEN_mqtt_bridge_and_mapping_populated_WHEN_add_client_THEN_subscribed() throws Exception {
         TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"IotCore\",  \"target\": \"LocalMqtt\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic4\", \"source\": \"Pubsub\",  \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         MessageBridge messageBridge = new MessageBridge(mapping);
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
@@ -90,12 +96,16 @@ public class MessageBridgeTest {
         reset(mockMessageClient2);
         reset(mockMessageClient3);
 
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"IotCore\",  \"target\": \"LocalMqtt\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic4\", \"source\": \"Pubsub\",  \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -124,12 +134,16 @@ public class MessageBridgeTest {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
 
         reset(mockMessageClient);
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"IotCore\",  \"target\": \"LocalMqtt\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic4\", \"source\": \"Pubsub\",  \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(0)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -143,12 +157,16 @@ public class MessageBridgeTest {
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"IotCore\",  \"target\": \"LocalMqtt\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic4\", \"source\": \"Pubsub\",  \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         reset(mockMessageClient);
         reset(mockMessageClient2);
@@ -158,12 +176,16 @@ public class MessageBridgeTest {
         // Add a new topic 3
         // Modify old topic 3 to come from Pubsub
         // Remove topic 4
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2/changed\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3/added\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic3\", \"source\": \"Pubsub\",  \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2/changed", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3/added", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
@@ -186,13 +208,18 @@ public class MessageBridgeTest {
     void GIVEN_mqtt_bridge_and_mapping_populated_WHEN_receive_mqtt_message_THEN_routed_to_iotcore_pubsub()
             throws Exception {
         TopicMapping mapping = new TopicMapping();
-        mapping.updateMapping(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\", \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\", \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\", \"target\": \"Pubsub\"},\n"
-                        + "  \"m4\" :{\"topic\": \"mqtt/topic3\", \"source\": \"IotCore\", \"target\": \"LocalMqtt\"},\n"
-                        + "  \"m5\" :{\"topic\": \"mqtt/topic4\", \"source\": \"Pubsub\", \"target\": \"LocalMqtt\"}\n"
-                        + "}");
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m1-1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
 
         MessageBridge messageBridge = new MessageBridge(mapping);
 

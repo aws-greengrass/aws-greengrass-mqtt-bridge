@@ -20,6 +20,7 @@ import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.util.Utils;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
@@ -114,13 +115,17 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
-        kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
-                        + "}");
-        // Block until subscriber has finished updating
+        Topics mappingConfigTopics = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING);
+
+        mappingConfigTopics.replaceAndWait(Utils.immutableMap("m1",
+                Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", TopicMapping.TopicType.IotCore.toString()), "m2",
+                Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", TopicMapping.TopicType.Pubsub.toString()), "m3",
+                Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", TopicMapping.TopicType.IotCore.toString())));
+
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
         assertThat(topicMapping.getMapping().size(), is(equalTo(3)));
@@ -155,7 +160,24 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue("");
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING)
+                .replaceAndWait(Collections.EMPTY_MAP);
+        // Block until subscriber has finished updating
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        });
+        assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed()
+            throws Exception {
+        startKernelWithConfig("config_with_mapping.yaml");
+        TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
+
+        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(3)));
+        kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING)
+                .replaceAndWait(Collections.EMPTY_MAP);
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
@@ -181,12 +203,17 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         kernel.getContext().addGlobalStateChangeListener(listener);
 
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
-        kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .find(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING).withValue(
-                "{\n" + "  \"m1\" :{\"topic\": \"mqtt/topic\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"},\n"
-                        + "  \"m2\" :{\"topic\": \"mqtt/topic2\", \"source\": \"LocalMqtt\",  \"target\": \"Pubsub-Invalid\"},\n"
-                        + "  \"m3\" :{\"topic\": \"mqtt/topic3\", \"source\": \"LocalMqtt\",  \"target\": \"IotCore\"}\n"
-                        + "}");
+        Topics mappingConfigTopics = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTBridge.MQTT_TOPIC_MAPPING);
+
+        mappingConfigTopics.replaceAndWait(Utils.immutableMap("m1",
+                Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", TopicMapping.TopicType.IotCore.toString()), "m2",
+                Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", "Pubsub-Invalid"), "m3",
+                Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(),
+                        "target", TopicMapping.TopicType.IotCore.toString())));
+
         // Block until subscriber has finished updating
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
