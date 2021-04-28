@@ -46,6 +46,11 @@ public class TopicMapping {
         private TopicType source;
         @Getter
         private TopicType target;
+
+        @Override
+        public String toString() {
+            return String.format("{topic: %s, source: %s, target: %s}", topic, source, target);
+        }
     }
 
     @FunctionalInterface

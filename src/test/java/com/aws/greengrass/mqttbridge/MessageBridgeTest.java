@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -191,7 +192,7 @@ public class MessageBridgeTest {
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
         MatcherAssert.assertThat(topicsArgumentCaptorLocalMqtt.getValue(), Matchers.hasSize(3));
         MatcherAssert.assertThat(topicsArgumentCaptorLocalMqtt.getValue(),
-                Matchers.containsInAnyOrder("mqtt/topic", "mqtt" + "/topic2/changed", "mqtt/topic3/added"));
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2/changed", "mqtt/topic3/added"));
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalPubsub = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient2, times(1)).updateSubscriptions(topicsArgumentCaptorLocalPubsub.capture(), any());
@@ -200,6 +201,23 @@ public class MessageBridgeTest {
                 .assertThat(topicsArgumentCaptorLocalPubsub.getValue(), Matchers.containsInAnyOrder("mqtt/topic3"));
 
         ArgumentCaptor<Set<String>> topicsArgumentCaptorIotCore = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient3, times(1)).updateSubscriptions(topicsArgumentCaptorIotCore.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorIotCore.getValue(), Matchers.hasSize(0));
+
+        // Remove all
+        reset(mockMessageClient);
+        reset(mockMessageClient2);
+        reset(mockMessageClient3);
+        mapping.updateMapping(Collections.EMPTY_MAP);
+        topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorLocalMqtt.getValue(), Matchers.hasSize(0));
+
+        topicsArgumentCaptorLocalPubsub = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient2, times(1)).updateSubscriptions(topicsArgumentCaptorLocalPubsub.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorLocalPubsub.getValue(), Matchers.hasSize(0));
+
+        topicsArgumentCaptorIotCore = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient3, times(1)).updateSubscriptions(topicsArgumentCaptorIotCore.capture(), any());
         MatcherAssert.assertThat(topicsArgumentCaptorIotCore.getValue(), Matchers.hasSize(0));
     }

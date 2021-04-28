@@ -101,7 +101,7 @@ public class MQTTBridge extends PluginService {
                         .convertValue(mappingConfigTopics.toPOJO(),
                                 new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
                                 });
-                logger.atDebug().kv("mapping", mapping).log("Updating mapping");
+                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
                 topicMapping.updateMapping(mapping);
             } catch (IllegalArgumentException e) {
                 logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
