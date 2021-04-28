@@ -102,21 +102,23 @@ public class MessageBridge {
     }
 
     private void processMappingAndSubscribe() {
-        List<TopicMapping.MappingEntry> mappingEntryList = topicMapping.getMapping();
-        LOGGER.atDebug().kv("topicMapping", mappingEntryList).log("Processing mapping");
+        Map<String, TopicMapping.MappingEntry> mapping = topicMapping.getMapping();
+        LOGGER.atDebug().kv("topicMapping", mapping).log("Processing mapping");
 
         Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
                 perClientSourceDestinationMapTemp = new HashMap<>();
 
-        mappingEntryList.forEach(mappingEntry -> {
+        mapping.forEach((key, mappingEntry) -> {
             // Ensure mapping for client type
             Map<String, List<Pair<String, TopicMapping.TopicType>>> sourceDestinationMap =
-                    perClientSourceDestinationMapTemp
-                            .computeIfAbsent(mappingEntry.getSourceTopicType(), k -> new HashMap<>());
+                    perClientSourceDestinationMapTemp.computeIfAbsent(mappingEntry.getSource(), k -> new HashMap<>());
 
             // Add destinations for each source topic
-            sourceDestinationMap.computeIfAbsent(mappingEntry.getSourceTopic(), k -> new ArrayList<>())
-                    .add(new Pair<>(mappingEntry.getDestTopic(), mappingEntry.getDestTopicType()));
+            // TODO: Support more types of topic mapping. Currently we are only mapping to the same topic string
+            // Still keeping the value as a pair of topic string and target type because we want to support mapping
+            // to different topics in the future.
+            sourceDestinationMap.computeIfAbsent(mappingEntry.getTopic(), k -> new ArrayList<>())
+                    .add(new Pair<>(mappingEntry.getTopic(), mappingEntry.getTarget()));
         });
 
         perClientSourceDestinationMap = perClientSourceDestinationMapTemp;

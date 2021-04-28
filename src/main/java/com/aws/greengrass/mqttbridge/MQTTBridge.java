@@ -24,13 +24,18 @@ import com.aws.greengrass.mqttbridge.clients.PubSubClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -45,7 +50,10 @@ public class MQTTBridge extends PluginService {
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
+    private static final JsonMapper OBJECT_MAPPER =
+            JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    private Topics mappingConfigTopics;
 
     /**
      * Ctr for MQTTBridge.
@@ -61,7 +69,7 @@ public class MQTTBridge extends PluginService {
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-             mqttClientKeyStore);
+                mqttClientKeyStore);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
@@ -78,22 +86,29 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        this.config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING).dflt("[]")
-                .subscribe((why, newv) -> {
-                    try {
-                        String mapping = Coerce.toString(newv);
-                        if (Utils.isEmpty(mapping)) {
-                            logger.debug("Mapping null or empty");
-                            return;
-                        }
-                        logger.atDebug().kv("mapping", mapping).log("Updating mapping");
-                        topicMapping.updateMapping(mapping);
-                    } catch (IOException e) {
-                        logger.atError("Invalid topic mapping").kv("TopicMapping", Coerce.toString(newv)).log();
-                        // Currently, Nucleus spills all exceptions in std err which junit consider failures
-                        serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
-                    }
-                });
+        mappingConfigTopics =
+                this.config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
+
+        mappingConfigTopics.subscribe((whatHappened, node) -> {
+            if (mappingConfigTopics.isEmpty()) {
+                logger.debug("Mapping empty");
+                topicMapping.updateMapping(Collections.emptyMap());
+                return;
+            }
+
+            try {
+                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
+                        .convertValue(mappingConfigTopics.toPOJO(),
+                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                                });
+                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+                topicMapping.updateMapping(mapping);
+            } catch (IllegalArgumentException e) {
+                logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
+                // Currently, Nucleus spills all exceptions in std err which junit consider failures
+                serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+            }
+        });
     }
 
     @Override
@@ -107,22 +122,20 @@ public class MQTTBridge extends PluginService {
 
         try {
             kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
-                            ClientDevicesAuthService.CERTIFICATES_KEY,
-                            ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                    .subscribe((why, newv) -> {
-                        try {
-                            List<String> caPemList = (List<String>) newv.toPOJO();
-                            if (Utils.isEmpty(caPemList)) {
-                                logger.debug("CA list null or empty");
-                                return;
-                            }
-                            mqttClientKeyStore.updateCA(caPemList);
-                        } catch (IOException | CertificateException | KeyStoreException e) {
-                            logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
-                            serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
-                        }
-                    });
+                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                            ClientDevicesAuthService.AUTHORITIES_TOPIC).subscribe((why, newv) -> {
+                try {
+                    List<String> caPemList = (List<String>) newv.toPOJO();
+                    if (Utils.isEmpty(caPemList)) {
+                        logger.debug("CA list null or empty");
+                        return;
+                    }
+                    mqttClientKeyStore.updateCA(caPemList);
+                } catch (IOException | CertificateException | KeyStoreException e) {
+                    logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
+                    serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
+                }
+            });
         } catch (ServiceLoadException e) {
             logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
                     ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME);

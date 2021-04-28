@@ -5,17 +5,15 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import com.aws.greengrass.util.SerializerFactory;
-import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -24,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @NoArgsConstructor
 public class TopicMapping {
     @Getter
-    private List<MappingEntry> mapping = new ArrayList<>();
+    private Map<String, MappingEntry> mapping = new HashMap<>();
 
     private List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
 
@@ -43,13 +41,16 @@ public class TopicMapping {
     @EqualsAndHashCode
     public static class MappingEntry {
         @Getter
-        private String sourceTopic;
+        private String topic;
         @Getter
-        private TopicType sourceTopicType;
+        private TopicType source;
         @Getter
-        private String destTopic;
-        @Getter
-        private TopicType destTopicType;
+        private TopicType target;
+
+        @Override
+        public String toString() {
+            return String.format("{topic: %s, source: %s, target: %s}", topic, source, target);
+        }
     }
 
     @FunctionalInterface
@@ -58,17 +59,14 @@ public class TopicMapping {
     }
 
     /**
-     * Update the topic mapping by parsing the mapping given as json.
+     * Update the topic mapping.
      *
-     * @param mappingAsJson mapping as a json string
-     * @throws IOException if unable to parse the string
+     * @param mapping mapping to update
      */
-    public void updateMapping(@NonNull String mappingAsJson) throws IOException {
-        final TypeReference<ArrayList<MappingEntry>> typeRef = new TypeReference<ArrayList<MappingEntry>>() {
-        };
-        mapping = SerializerFactory.getFailSafeJsonObjectMapper().readValue(mappingAsJson, typeRef);
+    public void updateMapping(@NonNull Map<String, MappingEntry> mapping) {
         // TODO: Check for duplicates, General validation + unit tests. Topic strings need to be validated (allowed
         //  filter?, etc)
+        this.mapping = mapping;
         updateListeners.forEach(UpdateListener::onUpdate);
     }
 
