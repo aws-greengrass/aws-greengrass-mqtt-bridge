@@ -28,4 +28,10 @@ public interface MessageClient {
      * @param messageHandler handler to call when message is received on the subscription
      */
     void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler);
+
+    /**
+     * Does this client support topic filters for subscriptions.
+     * @return true if supported
+     */
+    boolean supportsTopicFilters();
 }
