@@ -10,6 +10,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttbridge.clients.MessageClient;
 import com.aws.greengrass.mqttbridge.clients.MessageClientException;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Bridges/Routes the messages flowing between clients to various brokers. This class process the topics mappings. It
@@ -25,6 +28,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MessageBridge {
     private static final Logger LOGGER = LogManager.getLogger(MessageBridge.class);
+    private static final String LOG_KEY_SOURCE_TYPE = "source";
+    private static final String LOG_KEY_SOURCE_TOPIC = "sourceTopic";
+    private static final String LOG_KEY_TARGET_TYPE = "target";
+    private static final String LOG_KEY_TARGET_TOPIC = "targetTopic";
+    private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
@@ -70,33 +78,59 @@ public class MessageBridge {
 
     private void handleMessage(TopicMapping.TopicType sourceType, Message message) {
         String sourceTopic = message.getTopic();
-        LOGGER.atDebug().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic).log("Message received");
+        LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
+                .log("Message received");
+
+        MessageClient sourceClient = messageClientMap.get(sourceType);
+        if (sourceClient == null) {
+            LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
+                    .log("Source client not found");
+            return;
+        }
 
         Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
                 perClientSourceDestinationMap.get(sourceType);
 
-        LOGGER.atDebug().kv("destinations", srcDestMapping).log("Message will be forwarded to destinations");
-
         if (srcDestMapping != null) {
-            List<Pair<String, TopicMapping.TopicType>> destinations = srcDestMapping.get(sourceTopic);
-            if (destinations == null) {
-                return;
-            }
-            for (Pair<String, TopicMapping.TopicType> destination : destinations) {
+            final Consumer<Pair<String, TopicMapping.TopicType>> processDestination = destination -> {
                 MessageClient client = messageClientMap.get(destination.getRight());
-                if (client != null) {
-                    Message msg = new Message(destination.getLeft(), message.getPayload());
+                // If the mapped topic string is empty string, we forward the message to the same topic as the
+                // source topic.
+                final String targetTopic = Utils.isEmpty(destination.getLeft()) ? sourceTopic : destination.getLeft();
+                if (client == null) {
+                    LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
+                            .kv(LOG_KEY_TARGET_TYPE, destination.getRight())
+                            .kv(LOG_KEY_TARGET_TOPIC, destination.getLeft())
+                            .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Client not found for destType");
+                } else {
+                    Message msg = new Message(targetTopic, message.getPayload());
                     try {
                         client.publish(msg);
-                        LOGGER.atDebug().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic)
-                                .kv("destType", destination.getRight()).kv("destTopic", destination.getLeft())
-                                .log("Published message");
+                        LOGGER.atInfo().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
+                                .kv(LOG_KEY_TARGET_TYPE, destination.getRight())
+                                .kv(LOG_KEY_TARGET_TOPIC, destination.getLeft())
+                                .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Published message");
                     } catch (MessageClientException e) {
-                        LOGGER.atError().kv("sourceType", sourceType).kv("sourceTopic", sourceTopic)
-                                .kv("destType", destination.getRight()).kv("destTopic", destination.getLeft())
-                                .log("Failed to publish");
+                        LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
+                                .kv(LOG_KEY_TARGET_TYPE, destination.getRight())
+                                .kv(LOG_KEY_TARGET_TOPIC, destination.getLeft())
+                                .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Failed to publish");
                     }
                 }
+            };
+
+            if (sourceClient.supportsTopicFilters()) {
+                // Do topic filter matching
+                srcDestMapping.entrySet().stream().filter(mapping -> MqttTopic.isMatched(mapping.getKey(), sourceTopic))
+                        .map(Map.Entry::getValue)
+                        .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
+            } else {
+                // Do direct matching
+                List<Pair<String, TopicMapping.TopicType>> destinations = srcDestMapping.get(sourceTopic);
+                if (destinations == null) {
+                    return;
+                }
+                destinations.forEach(processDestination);
             }
         }
     }
@@ -114,11 +148,13 @@ public class MessageBridge {
                     perClientSourceDestinationMapTemp.computeIfAbsent(mappingEntry.getSource(), k -> new HashMap<>());
 
             // Add destinations for each source topic
-            // TODO: Support more types of topic mapping. Currently we are only mapping to the same topic string
+            // TODO: Support more types of topic mapping.
+            // Currently we are only mapping to the same topic on which the message is received (this is specified by
+            // an empty string)
             // Still keeping the value as a pair of topic string and target type because we want to support mapping
             // to different topics in the future.
             sourceDestinationMap.computeIfAbsent(mappingEntry.getTopic(), k -> new ArrayList<>())
-                    .add(new Pair<>(mappingEntry.getTopic(), mappingEntry.getTarget()));
+                    .add(new Pair<>("", mappingEntry.getTarget()));
         });
 
         perClientSourceDestinationMap = perClientSourceDestinationMapTemp;

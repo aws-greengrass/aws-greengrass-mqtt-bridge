@@ -212,6 +212,11 @@ public class MQTTClient implements MessageClient {
     }
 
     @Override
+    public boolean supportsTopicFilters() {
+        return true;
+    }
+
+    @Override
     public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
 

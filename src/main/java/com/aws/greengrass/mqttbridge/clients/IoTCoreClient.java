@@ -139,6 +139,11 @@ public class IoTCoreClient implements MessageClient {
         });
     }
 
+    @Override
+    public boolean supportsTopicFilters() {
+        return true;
+    }
+
     private void subscribeToIotCore(String topic) throws InterruptedException, ExecutionException, TimeoutException {
         SubscribeRequest subscribeRequest = SubscribeRequest.builder().topic(topic).callback(iotCoreCallback)
                 .qos(QualityOfService.AT_LEAST_ONCE).build();

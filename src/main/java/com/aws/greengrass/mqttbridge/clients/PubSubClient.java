@@ -95,6 +95,11 @@ public class PubSubClient implements MessageClient {
     }
 
     @Override
+    public boolean supportsTopicFilters() {
+        return false;
+    }
+
+    @Override
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to pubsub topics");
