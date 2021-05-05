@@ -183,7 +183,9 @@ public class MQTTClient implements MessageClient {
     }
 
     private synchronized void removeMappingAndSubscriptions() {
-        unsubscribeAll();
+        if (mqttClientInternal.isConnected()) {
+            unsubscribeAll();
+        }
         subscribedLocalMqttTopics.clear();
     }
 
