@@ -29,6 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Consumer;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -66,6 +68,8 @@ public class MQTTClientTest {
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
 
+    ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
+
     @BeforeEach
     void setup() {
         lenient().when(mockMqttClient.isConnected()).thenReturn(true);
@@ -77,7 +81,7 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
     }
 
     @Test
@@ -89,7 +93,7 @@ public class MQTTClientTest {
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         doNothing().when(mockMqttClient).setCallback(any());
         when(mockMqttClient.isConnected()).thenReturn(false);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         mqttClient.start();
         verify(mockMqttClient, times(1)).connect(any());
         verify(mockMqttClient, times(1)).setCallback(any());
@@ -103,13 +107,13 @@ public class MQTTClientTest {
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
         doThrow(new MqttException(0)).when(mockMqttClient).connect(any(MqttConnectOptions.class));
         when(mockMqttClient.isConnected()).thenReturn(false);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         Assertions.assertThrows(MQTTClientException.class, mqttClient::start);
     }
 
     @Test
     void GIVEN_mqtt_client_started_WHEN_update_subscriptions_THEN_topics_subscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -127,7 +131,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_call_stop_THEN_topics_unsubscribed() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -149,7 +153,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_with_subscriptions_WHEN_subscriptions_updated_THEN_subscriptions_updated() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -186,7 +190,7 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
 
@@ -223,7 +227,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqtt_client_and_subscribed_WHEN_published_message_THEN_routed_to_mqtt_broker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         Set<String> topics = new HashSet<>();
         topics.add("mqtt/topic");
         topics.add("mqtt/topic2");
@@ -254,7 +258,7 @@ public class MQTTClientTest {
                 eq(MQTTClient.BROKER_URI_KEY))).thenReturn(SERVER_URI);
         when(mockTopics.findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY),
                 eq(MQTTClient.CLIENT_ID_KEY))).thenReturn(CLIENT_ID);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
         doNothing().when(mockMqttClient).connect(any(MqttConnectOptions.class));
         ArgumentCaptor<MqttCallback> mqttCallbackArgumentCaptor = ArgumentCaptor.forClass(MqttCallback.class);
         doNothing().when(mockMqttClient).setCallback(mqttCallbackArgumentCaptor.capture());
@@ -292,7 +296,7 @@ public class MQTTClientTest {
         CertificateManager mockCertificateManager = mock(CertificateManager.class);
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
         mqttClientKeyStore.init();
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mqttClientKeyStore, mockMqttClient);
+        MQTTClient mqttClient = new MQTTClient(mockTopics, mqttClientKeyStore, ses, mockMqttClient);
 
         mqttClient.start();
         Set<String> topics = new HashSet<>();

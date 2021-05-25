@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -66,6 +68,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     private Kernel kernel;
     private GlobalStateChangeListener listener;
     private Server broker;
+    private ScheduledExecutorService ses;
 
     @TempDir
     Path rootDir;
@@ -81,6 +84,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         defaultConfig.setProperty(BrokerConstants.PORT_PROPERTY_NAME, "8883");
         broker = new Server();
         broker.startServer(defaultConfig);
+        ses = new ScheduledThreadPoolExecutor(1);
     }
 
     @AfterEach
@@ -235,7 +239,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
             mqttBridge =
                     new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
-                            mockKernel, mockMqttClientKeyStore);
+                            mockKernel, mockMqttClientKeyStore, ses);
         }
 
         when(config

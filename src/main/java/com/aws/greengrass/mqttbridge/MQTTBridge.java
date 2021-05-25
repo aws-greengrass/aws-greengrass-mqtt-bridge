@@ -36,6 +36,7 @@ import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -47,6 +48,7 @@ public class MQTTBridge extends PluginService {
     private final MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
+    private final ScheduledExecutorService ses;
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
@@ -62,19 +64,21 @@ public class MQTTBridge extends PluginService {
      * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
      * @param pubSubIPCAgent     IPC agent for pubsub
      * @param iotMqttClient      mqtt client for iot core
-     * @param kernel             greengrass kernel
+     * @param kernel             Greengrass kernel
      * @param mqttClientKeyStore KeyStore for MQTT Client
+     * @param ses                Scheduled executor service
      */
     @Inject
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore) {
+                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
+                      ScheduledExecutorService ses) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-                mqttClientKeyStore);
+                mqttClientKeyStore, ses);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
-                         MQTTClientKeyStore mqttClientKeyStore) {
+                         MQTTClientKeyStore mqttClientKeyStore, ScheduledExecutorService ses) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
@@ -82,6 +86,7 @@ public class MQTTBridge extends PluginService {
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
+        this.ses = ses;
     }
 
     @Override
@@ -145,7 +150,7 @@ public class MQTTBridge extends PluginService {
 
         try {
             if (mqttClient == null) {
-                mqttClient = new MQTTClient(this.config, mqttClientKeyStore);
+                mqttClient = new MQTTClient(this.config, mqttClientKeyStore, this.ses);
             }
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
