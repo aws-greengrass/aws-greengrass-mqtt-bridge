@@ -32,15 +32,31 @@ public class FakeMqttClient implements IMqttClient {
     List<String> subscriptionTopics; // TODO: Support QoS
 
     @Getter
+    List<TopicMessagePair> publishedMessages;
+
+    @Getter
     MqttConnectOptions connectOptions;
     @Getter
     int connectCount = 0;
     final Object connectMonitor;
     boolean isConnected;
 
+    public class TopicMessagePair {
+        @Getter
+        String topic;
+        @Getter
+        MqttMessage message;
+
+        TopicMessagePair(String topic, MqttMessage message) {
+            this.topic = topic;
+            this.message = message;
+        }
+    }
+
     FakeMqttClient(String clientId) {
         this.clientId = clientId;
         this.subscriptionTopics = new ArrayList<>();
+        this.publishedMessages = new ArrayList<>();
         this.connectMonitor = new Object();
     }
 
@@ -245,12 +261,12 @@ public class FakeMqttClient implements IMqttClient {
     @Override
     public void publish(String topicFilter, byte[] bytes, int qos, boolean retained) throws MqttException,
             MqttPersistenceException {
-
+        throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public void publish(String topicFilter, MqttMessage mqttMessage) throws MqttException, MqttPersistenceException {
-
+    public void publish(String topic, MqttMessage mqttMessage) throws MqttException, MqttPersistenceException {
+        publishedMessages.add(new TopicMessagePair(topic, mqttMessage));
     }
 
     @Override
