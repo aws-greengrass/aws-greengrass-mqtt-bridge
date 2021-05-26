@@ -10,14 +10,10 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.hamcrest.Matchers;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,28 +28,16 @@ import javax.net.ssl.SSLSocketFactory;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientTest {
-
-    private static final String SERVER_URI = "ssl://localhost:8883";
-    private static final String CLIENT_ID = "mqttBridge";
-
-    @Mock
-    private Topics mockTopics;
-
-    @Mock
-    private MqttClient mockMqttClient;
+    private Topics configTopics;
 
     private FakeMqttClient fakeMqttClient;
 
@@ -64,21 +48,13 @@ public class MQTTClientTest {
 
     @BeforeEach
     void setup() {
-        // TODO: Are these needed or can we use the class defaults? Maybe just create a real Topics?
-        when(mockTopics
-                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.BROKER_URI_KEY)))
-                .thenReturn(SERVER_URI);
-        when(mockTopics
-                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.CLIENT_ID_KEY)))
-                .thenReturn(CLIENT_ID);
-
+        configTopics = Topics.of(null, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         fakeMqttClient = new FakeMqttClient("clientId");
-        lenient().when(mockMqttClient.isConnected()).thenReturn(true); // TODO: remove
     }
 
     @Test
     void GIVEN_mqttClient_WHEN_start_THEN_clientConnects() {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -86,8 +62,8 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+    void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() {
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -106,7 +82,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_updateSubscriptions_THEN_subscriptionsUpdated() {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -155,7 +131,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_mqttMessageReceived_THEN_messageRoutedToHandler() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -182,34 +158,27 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_publish_THEN_routedToBroker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, mockMqttClient);
-
-        Set<String> topics = new HashSet<>();
-        topics.add("mqtt/topic");
-        topics.add("mqtt/topic2");
-        mqttClient.updateSubscriptions(topics, message -> {
-        });
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
 
         byte[] messageFromPubsub = "message from pusub".getBytes();
         byte[] messageFromIotCore = "message from iotcore".getBytes();
 
-        mqttClient.publish(new Message("mapped/topic/from/pubsub", messageFromPubsub));
-        mqttClient.publish(new Message("mapped/topic/from/iotcore", messageFromIotCore));
+        mqttClient.publish(new Message("from/pubsub", messageFromPubsub));
+        mqttClient.publish(new Message("from/iotcore", messageFromIotCore));
 
-        ArgumentCaptor<MqttMessage> messageCapture = ArgumentCaptor.forClass(MqttMessage.class);
-        ArgumentCaptor<String> topicStringArgumentCaptor = ArgumentCaptor.forClass(String.class);
-        verify(mockMqttClient, times(2)).publish(topicStringArgumentCaptor.capture(), messageCapture.capture());
-
-        assertThat(topicStringArgumentCaptor.getAllValues().get(0), is(Matchers.equalTo("mapped/topic/from/pubsub")));
-        Assertions.assertArrayEquals(messageFromPubsub, messageCapture.getAllValues().get(0).getPayload());
-
-        assertThat(topicStringArgumentCaptor.getAllValues().get(1), is(Matchers.equalTo("mapped/topic/from/iotcore")));
-        Assertions.assertArrayEquals(messageFromIotCore, messageCapture.getAllValues().get(1).getPayload());
+        List<FakeMqttClient.TopicMessagePair> publishedMessages = fakeMqttClient.getPublishedMessages();
+        assertThat(publishedMessages.size(), is(2));
+        assertThat(publishedMessages.get(0).getTopic(), equalTo("from/pubsub"));
+        assertThat(publishedMessages.get(0).getMessage().getPayload(), equalTo(messageFromPubsub));
+        assertThat(publishedMessages.get(1).getTopic(), equalTo("from/iotcore"));
+        assertThat(publishedMessages.get(1).getMessage().getPayload(), equalTo(messageFromIotCore));
     }
 
     @Test
     void GIVEN_mqttClient_WHEN_connectionLost_THEN_clientReconnectsAndResubscribes() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -229,7 +198,7 @@ public class MQTTClientTest {
     @Test
     void GIVEN_mqttClient_WHEN_reset_THEN_connectsWithUpdatedSslContext() throws Exception {
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
-        MQTTClient mqttClient = new MQTTClient(mockTopics, mockKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
