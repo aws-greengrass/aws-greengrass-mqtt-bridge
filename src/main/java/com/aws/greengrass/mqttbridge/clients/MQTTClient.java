@@ -27,9 +27,8 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.security.KeyStoreException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.net.ssl.SSLSocketFactory;
@@ -50,8 +49,8 @@ public class MQTTClient implements MessageClient {
     private final String clientId;
 
     private final MqttClientPersistence dataStore;
-    private final ScheduledExecutorService ses;
-    private ScheduledFuture<?> connectFuture;
+    private final ExecutorService executorService;
+    private Future<?> connectFuture;
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
@@ -88,13 +87,13 @@ public class MQTTClient implements MessageClient {
      *
      * @param topics             topics passed in by Nucleus
      * @param mqttClientKeyStore KeyStore for MQTT Client
-     * @param ses                Scheduled executor service
+     * @param executorService    Executor service
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */
     @Inject
-    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ScheduledExecutorService ses)
+    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService)
             throws MQTTClientException {
-        this(topics, mqttClientKeyStore, ses, null);
+        this(topics, mqttClientKeyStore, executorService, null);
         // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(serverUri, clientId, dataStore);
@@ -103,7 +102,7 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ScheduledExecutorService ses,
+    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService,
                          IMqttClient mqttClient) {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
@@ -114,7 +113,7 @@ public class MQTTClient implements MessageClient {
                 topics.findOrDefault(DEFAULT_CLIENT_ID, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
-        this.ses = ses;
+        this.executorService = executorService;
     }
 
     void reset() {
@@ -254,7 +253,7 @@ public class MQTTClient implements MessageClient {
         }
 
         LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
-        connectFuture = ses.schedule(this::reconnectAndResubscribe, 0, TimeUnit.SECONDS);
+        connectFuture = executorService.submit(this::reconnectAndResubscribe);
     }
 
     private synchronized void doConnect() throws MqttException {
