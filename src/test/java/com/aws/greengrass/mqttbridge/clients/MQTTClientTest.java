@@ -73,9 +73,12 @@ public class MQTTClientTest {
         mqttClient.updateSubscriptions(topics, message -> {
         });
 
+        List<String> subscriptions = fakeMqttClient.getSubscriptionTopics();
+        assertThat(subscriptions, containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
+
         mqttClient.stop();
 
-        List<String> subscriptions = fakeMqttClient.getSubscriptionTopics();
+        subscriptions = fakeMqttClient.getSubscriptionTopics();
         assertThat(fakeMqttClient.isConnected(), is(false));
         assertThat(subscriptions, hasSize(0));
     }
