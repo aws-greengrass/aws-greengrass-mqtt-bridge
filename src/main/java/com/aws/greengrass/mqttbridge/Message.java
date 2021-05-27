@@ -5,14 +5,12 @@
 
 package com.aws.greengrass.mqttbridge;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Value;
 
 /**
  * Common representation of a Message.
  */
-@AllArgsConstructor
-@Getter
+@Value
 public class Message {
     private String topic;
     private byte[] payload;
