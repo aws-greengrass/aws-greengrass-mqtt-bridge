@@ -34,10 +34,10 @@ public class PubSubClient implements MessageClient {
 
     private final Consumer<PublishEvent> pubSubCallback = (message) -> {
         String topic = message.getTopic();
-        LOGGER.atTrace().kv(TOPIC, topic).log("Received PubSub message");
+        LOGGER.atTrace().kv(TOPIC, topic).log("Received local pub/sub message");
 
         if (messageHandler == null) {
-            LOGGER.atWarn().kv(TOPIC, topic).log("PubSub message received but message handler not set");
+            LOGGER.atWarn().kv(TOPIC, topic).log("Local pub/sub message received but message handler not set");
         } else {
             Message msg = new Message(topic, message.getPayload());
             messageHandler.accept(msg);
@@ -73,11 +73,11 @@ public class PubSubClient implements MessageClient {
     }
 
     private void unsubscribeAll() {
-        LOGGER.atDebug().kv("mapping", subscribedPubSubTopics).log("unsubscribe from pubsub topics");
+        LOGGER.atDebug().kv("mapping", subscribedPubSubTopics).log("Unsubscribe from local pub/sub topics");
 
         this.subscribedPubSubTopics.forEach(s -> {
             unsubscribeFromPubSub(s);
-            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
         });
     }
 
@@ -102,13 +102,13 @@ public class PubSubClient implements MessageClient {
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
-        LOGGER.atDebug().kv("topics", topics).log("Subscribing to pubsub topics");
+        LOGGER.atDebug().kv("topics", topics).log("Subscribing to local pub/sub topics");
 
         Set<String> topicsToRemove = new HashSet<>(subscribedPubSubTopics);
         topicsToRemove.removeAll(topics);
         topicsToRemove.forEach(s -> {
             unsubscribeFromPubSub(s);
-            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+            LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
             subscribedPubSubTopics.remove(s);
         });
 
