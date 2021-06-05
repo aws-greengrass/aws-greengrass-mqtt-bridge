@@ -101,7 +101,8 @@ public class MessageBridge {
                     LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
                             .kv(LOG_KEY_TARGET_TYPE, destination.getRight())
                             .kv(LOG_KEY_TARGET_TOPIC, destination.getLeft())
-                            .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Client not found for destType");
+                            .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic)
+                            .log("Message client not found for target type");
                 } else {
                     Message msg = new Message(targetTopic, message.getPayload());
                     try {

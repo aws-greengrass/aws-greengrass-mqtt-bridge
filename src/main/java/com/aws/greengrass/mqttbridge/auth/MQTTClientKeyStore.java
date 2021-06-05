@@ -87,7 +87,7 @@ public class MQTTClientKeyStore {
         try {
             keyStore.load(null, DEFAULT_KEYSTORE_PASSWORD);
         } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
-            throw new KeyStoreException("unable to load keystore", e);
+            throw new KeyStoreException("Unable to load keystore", e);
         }
 
         String csr;
@@ -95,7 +95,7 @@ public class MQTTClientKeyStore {
             //client cert doesn't require SANs
             csr = CertificateRequestGenerator.createCSR(keyPair, DEFAULT_CN, null,  null);
         } catch (IOException | OperatorCreationException e) {
-            throw new CsrGeneratingException("unable to generate CSR from keypair", e);
+            throw new CsrGeneratingException("Unable to generate CSR from keypair", e);
         }
         certificateManager.subscribeToClientCertificateUpdates(csr, this::updateCert);
     }
@@ -178,7 +178,7 @@ public class MQTTClientKeyStore {
             sc.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
             return sc.getSocketFactory();
         } catch (NoSuchAlgorithmException | KeyStoreException | UnrecoverableKeyException | KeyManagementException e) {
-            throw new KeyStoreException("unable to create SocketFactory from KeyStore", e);
+            throw new KeyStoreException("Unable to create SocketFactory from KeyStore", e);
         }
     }
 }

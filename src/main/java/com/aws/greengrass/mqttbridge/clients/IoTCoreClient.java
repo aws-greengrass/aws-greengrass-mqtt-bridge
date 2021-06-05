@@ -38,10 +38,10 @@ public class IoTCoreClient implements MessageClient {
 
     private final Consumer<MqttMessage> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
-        LOGGER.atTrace().kv(TOPIC, topic).log("Received IoTCore message");
+        LOGGER.atTrace().kv(TOPIC, topic).log("Received IoT Core message");
 
         if (messageHandler == null) {
-            LOGGER.atWarn().kv(TOPIC, topic).log("IoTCore message received but message handler not set");
+            LOGGER.atWarn().kv(TOPIC, topic).log("IoT Core message received but message handler not set");
         } else {
             Message msg = new Message(topic, message.getPayload());
             messageHandler.accept(msg);
@@ -77,12 +77,12 @@ public class IoTCoreClient implements MessageClient {
     }
 
     private void unsubscribeAll() {
-        LOGGER.atDebug().kv("mapping", subscribedIotCoreTopics).log("unsubscribe from iot core topics");
+        LOGGER.atDebug().kv("mapping", subscribedIotCoreTopics).log("Unsubscribe from IoT Core topics");
 
         this.subscribedIotCoreTopics.forEach(s -> {
             try {
                 unsubscribeFromIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 LOGGER.atWarn().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
             }
@@ -117,7 +117,7 @@ public class IoTCoreClient implements MessageClient {
         topicsToRemove.forEach(s -> {
             try {
                 unsubscribeFromIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed to topic");
+                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
                 subscribedIotCoreTopics.remove(s);
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
