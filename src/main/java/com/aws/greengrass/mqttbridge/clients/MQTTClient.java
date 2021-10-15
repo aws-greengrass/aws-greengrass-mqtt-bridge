@@ -37,7 +37,7 @@ public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
-    public static final String BROKER_URI_KEY = "brokerServerUri";
+    public static final String BROKER_URI_KEY = "brokerUri";
     public static final String CLIENT_ID_KEY = "clientId";
     public static final String TOPIC = "topic";
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
