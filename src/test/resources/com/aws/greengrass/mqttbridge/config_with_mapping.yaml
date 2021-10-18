@@ -1,7 +1,7 @@
 services:
   aws.greengrass.clientdevices.mqtt.Bridge:
     configuration:
-      brokerServerUri: 'tcp://localhost:8883'
+      brokerUri: 'tcp://localhost:8883'
       mqttTopicMapping:
         mapping1:
           topic: topic/to/map/from/local/to/cloud
