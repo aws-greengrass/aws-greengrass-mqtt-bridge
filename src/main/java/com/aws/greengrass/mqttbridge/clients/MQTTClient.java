@@ -37,6 +37,7 @@ public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
+    private static final String DEPRECATED_BROKER_URI_KEY = "brokerServerUri"; // DO NOT USE
     public static final String BROKER_URI_KEY = "brokerUri";
     public static final String CLIENT_ID_KEY = "clientId";
     public static final String TOPIC = "topic";
@@ -104,11 +105,15 @@ public class MQTTClient implements MessageClient {
 
     protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService,
                          IMqttClient mqttClient) {
+        // serverUri should take precedence since brokerServerUri is deprecated
+        String tmpUri = Coerce.toString(
+                topics.findOrDefault(DEFAULT_BROKER_URI, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
+                        DEPRECATED_BROKER_URI_KEY));
+        this.serverUri = Coerce.toString(
+                topics.findOrDefault(tmpUri, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
+                        BROKER_URI_KEY));
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
-        this.serverUri = Coerce.toString(
-                topics.findOrDefault(DEFAULT_BROKER_URI, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
-                        BROKER_URI_KEY));
         this.clientId = Coerce.toString(
                 topics.findOrDefault(DEFAULT_CLIENT_ID, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
         this.mqttClientKeyStore = mqttClientKeyStore;
