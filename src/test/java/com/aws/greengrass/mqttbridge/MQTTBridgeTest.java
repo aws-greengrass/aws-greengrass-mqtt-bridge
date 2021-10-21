@@ -10,6 +10,7 @@ import com.aws.greengrass.certificatemanager.CertificateManager;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
@@ -53,8 +54,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -236,18 +235,18 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
+
+        Topics config = Topics.of(new Context(), KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTClient.BROKER_URI_KEY)
+                .dflt("tcp://localhost:8883");
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTTClient.CLIENT_ID_KEY)
+                .dflt(MQTTBridge.SERVICE_NAME);
+
         try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
             mqttBridge =
                     new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
                             mockKernel, mockMqttClientKeyStore, ses);
         }
-
-        when(config
-                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.BROKER_URI_KEY)))
-                .thenReturn("tcp://localhost:8883");
-        when(config
-                .findOrDefault(any(), eq(KernelConfigResolver.CONFIGURATION_CONFIG_KEY), eq(MQTTClient.CLIENT_ID_KEY)))
-                .thenReturn(MQTTBridge.SERVICE_NAME);
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
         when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
