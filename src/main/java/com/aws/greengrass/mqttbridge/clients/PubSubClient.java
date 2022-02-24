@@ -96,7 +96,7 @@ public class PubSubClient implements MessageClient {
 
     @Override
     public boolean supportsTopicFilters() {
-        return false;
+        return true;
     }
 
     @Override
