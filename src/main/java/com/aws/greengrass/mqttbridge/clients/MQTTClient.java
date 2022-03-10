@@ -5,14 +5,12 @@
 
 package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttbridge.BridgeConfig;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
-import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
@@ -24,6 +22,8 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.KeyStoreException;
 import java.util.HashSet;
 import java.util.Set;
@@ -35,18 +35,14 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
-    private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
-    private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
-    private static final String DEPRECATED_BROKER_URI_KEY = "brokerServerUri"; // DO NOT USE
-    public static final String BROKER_URI_KEY = "brokerUri";
-    public static final String CLIENT_ID_KEY = "clientId";
+
     public static final String TOPIC = "topic";
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     private final MqttConnectOptions connOpts = new MqttConnectOptions();
     private Consumer<Message> messageHandler;
-    private final String serverUri;
+    private final URI brokerUri;
     private final String clientId;
 
     private final MqttClientPersistence dataStore;
@@ -92,30 +88,27 @@ public class MQTTClient implements MessageClient {
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */
     @Inject
-    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService)
-            throws MQTTClientException {
+    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore,
+                      ExecutorService executorService) throws MQTTClientException {
         this(topics, mqttClientKeyStore, executorService, null);
         // TODO: Handle the case when serverUri is modified
         try {
-            this.mqttClientInternal = new MqttClient(serverUri, clientId, dataStore);
+            this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
             throw new MQTTClientException("Unable to create an MQTT client", e);
         }
     }
 
-    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService,
-                         IMqttClient mqttClient) {
-        // serverUri should take precedence since brokerServerUri is deprecated
-        String tmpUri = Coerce.toString(
-                topics.findOrDefault(DEFAULT_BROKER_URI, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
-                        DEPRECATED_BROKER_URI_KEY));
-        this.serverUri = Coerce.toString(
-                topics.findOrDefault(tmpUri, KernelConfigResolver.CONFIGURATION_CONFIG_KEY,
-                        BROKER_URI_KEY));
+    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore,
+                         ExecutorService executorService, IMqttClient mqttClient) throws MQTTClientException {
+        try {
+            this.brokerUri = BridgeConfig.getBrokerUri(topics);
+        } catch (URISyntaxException e) {
+            throw new MQTTClientException("Invalid brokerUri configuration", e);
+        }
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
-        this.clientId = Coerce.toString(
-                topics.findOrDefault(DEFAULT_CLIENT_ID, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, CLIENT_ID_KEY));
+        this.clientId = BridgeConfig.getClientId(topics);
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(this::reset);
         this.executorService = executorService;
@@ -252,19 +245,19 @@ public class MQTTClient implements MessageClient {
         //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
-        if (serverUri.startsWith("ssl")) {
+        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }
 
-        LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connecting to broker");
+        LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connecting to broker");
         connectFuture = executorService.submit(this::reconnectAndResubscribe);
     }
 
     private synchronized void doConnect() throws MqttException {
         if (!mqttClientInternal.isConnected()) {
             mqttClientInternal.connect(connOpts);
-            LOGGER.atInfo().kv("uri", serverUri).kv(CLIENT_ID_KEY, clientId).log("Connected to broker");
+            LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connected to broker");
         }
     }
 

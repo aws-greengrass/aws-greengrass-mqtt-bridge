@@ -7,7 +7,6 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
@@ -54,13 +53,12 @@ public class MQTTBridge extends PluginService {
     private IoTCoreClient ioTCoreClient;
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
-    static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
     private Topics mappingConfigTopics;
 
     /**
      * Ctr for MQTTBridge.
      *
-     * @param topics             topics passed by by the Nucleus
+     * @param topics             topics passed by the Nucleus
      * @param topicMapping       mapping of mqtt topics to iotCore/pubsub topics
      * @param pubSubIPCAgent     IPC agent for pubsub
      * @param iotMqttClient      mqtt client for iot core
@@ -91,8 +89,7 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        mappingConfigTopics =
-                this.config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
+        mappingConfigTopics = config.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
 
         mappingConfigTopics.subscribe((whatHappened, node) -> {
             if (mappingConfigTopics.isEmpty()) {
@@ -150,7 +147,7 @@ public class MQTTBridge extends PluginService {
 
         try {
             if (mqttClient == null) {
-                mqttClient = new MQTTClient(this.config, mqttClientKeyStore, this.executorService);
+                mqttClient = new MQTTClient(config, mqttClientKeyStore, executorService);
             }
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
