@@ -19,29 +19,29 @@ import java.net.URISyntaxException;
 public final class BridgeConfig {
 
     @Deprecated
-    public static final String KEY_DEPRECATED_BROKER_URI = "brokerServerUri";
-    public static final String KEY_BROKER_URI = "brokerUri";
+    static final String KEY_DEPRECATED_BROKER_URI = "brokerServerUri";
+    static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
-    public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
-    public static final String[] ALL_KEYS = {
+    static final String[] ALL_KEYS = {
             KEY_DEPRECATED_BROKER_URI,
             KEY_BROKER_URI,
             KEY_CLIENT_ID,
             KEY_MQTT_TOPIC_MAPPING
     };
 
-    public static final String[] PATH_DEPRECATED_BROKER_URI =
+    static final String[] PATH_DEPRECATED_BROKER_URI =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_DEPRECATED_BROKER_URI};
-    public static final String[] PATH_BROKER_URI =
+    static final String[] PATH_BROKER_URI =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_URI};
-    public static final String[] PATH_CLIENT_ID =
+    static final String[] PATH_CLIENT_ID =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_CLIENT_ID};
-    public static final String[] PATH_MQTT_TOPIC_MAPPING =
+    static final String[] PATH_MQTT_TOPIC_MAPPING =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_MQTT_TOPIC_MAPPING};
 
-    public static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
-    public static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
+    private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
+    private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
 
     private BridgeConfig(){
     }
