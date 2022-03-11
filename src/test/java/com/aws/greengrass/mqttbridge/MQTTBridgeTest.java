@@ -122,7 +122,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
                 bridgeRestarted.countDown();
             }
         });
@@ -140,7 +140,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
                 bridgeRestarted.countDown();
             }
         });
@@ -158,7 +158,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
                 bridgeRestarted.countDown();
             }
         });
