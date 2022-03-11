@@ -22,6 +22,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -51,6 +53,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -246,8 +249,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, InvalidFormatException.class);
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));

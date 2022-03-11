@@ -123,9 +123,8 @@ public class MQTTBridge extends PluginService {
             logger.atInfo().kv("mapping", mapping).log("Updating mapping");
             topicMapping.updateMapping(mapping);
         } catch (IllegalArgumentException e) {
-            logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
             // Currently, Nucleus spills all exceptions in std err which junit consider failures
-            serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+            serviceErrored(e);
         }
     }
 
@@ -145,18 +144,14 @@ public class MQTTBridge extends PluginService {
                 try {
                     List<String> caPemList = (List<String>) newv.toPOJO();
                     if (Utils.isEmpty(caPemList)) {
-                        logger.debug("CA list null or empty");
                         return;
                     }
                     mqttClientKeyStore.updateCA(caPemList);
                 } catch (IOException | CertificateException | KeyStoreException e) {
-                    logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
-                    serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
+                    serviceErrored(e);
                 }
             });
         } catch (ServiceLoadException e) {
-            logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
-                    ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME);
             serviceErrored(e);
             return;
         }
