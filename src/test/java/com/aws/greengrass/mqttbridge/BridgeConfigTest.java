@@ -8,9 +8,11 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -20,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+@ExtendWith(GGExtension.class)
 class BridgeConfigTest {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
