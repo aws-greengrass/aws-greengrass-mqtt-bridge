@@ -165,7 +165,7 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            if (mqttClient == null) {
+            if (mqttClient == null || mqttClient.isStopped()) {
                 mqttClient = new MQTTClient(config, mqttClientKeyStore, executorService);
             }
             mqttClient.start();

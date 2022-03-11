@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +60,15 @@ public class MQTTClientTest {
         fakeMqttClient.waitForConnect(1000);
 
         assertThat(fakeMqttClient.isConnected(), is(true));
+    }
+
+    @Test
+    void GIVEN_mqttClient_WHEN_start_after_stop_THEN_exception() throws MQTTClientException {
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
+        mqttClient.stop();
+        assertThrows(MQTTClientException.class, mqttClient::start);
     }
 
     @Test

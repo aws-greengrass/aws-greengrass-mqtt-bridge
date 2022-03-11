@@ -41,6 +41,7 @@ public class MQTTClient implements MessageClient {
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     private final MqttConnectOptions connOpts = new MqttConnectOptions();
+    private final MQTTClientKeyStore.UpdateListener updateListener = this::reset;
     private Consumer<Message> messageHandler;
     private final URI brokerUri;
     private final String clientId;
@@ -52,6 +53,8 @@ public class MQTTClient implements MessageClient {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+    @Getter
+    private boolean isStopped;
 
     private final MQTTClientKeyStore mqttClientKeyStore;
 
@@ -109,7 +112,7 @@ public class MQTTClient implements MessageClient {
         this.dataStore = new MemoryPersistence();
         this.clientId = BridgeConfig.getClientId(topics);
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(this::reset);
+        this.mqttClientKeyStore.listenToUpdates(updateListener);
         this.executorService = executorService;
     }
 
@@ -134,8 +137,12 @@ public class MQTTClient implements MessageClient {
      * Start the {@link MQTTClient}.
      *
      * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
+     * @throws MQTTClientException if client is already closed
      */
-    public void start() {
+    public void start() throws MQTTClientException {
+        if (isStopped) {
+            throw new MQTTClientException("client is closed");
+        }
         mqttClientInternal.setCallback(mqttCallback);
         try {
             connectAndSubscribe();
@@ -158,6 +165,9 @@ public class MQTTClient implements MessageClient {
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
+
+        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
+        isStopped = true;
     }
 
     private synchronized void removeMappingAndSubscriptions() {

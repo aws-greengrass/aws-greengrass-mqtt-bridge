@@ -154,10 +154,18 @@ public class MQTTClientKeyStore {
 
     /**
      * Add listener to listen to KeyStore updates.
-     * @param listener listener method
+     * @param listener listener callback
      */
     public synchronized void listenToUpdates(UpdateListener listener) {
         updateListeners.add(listener);
+    }
+
+    /**
+     * Stop listening to KeyStore updates for a given listener.
+     * @param listener callback
+     */
+    public synchronized void unsubscribeToUpdates(UpdateListener listener) {
+        updateListeners.remove(listener);
     }
 
     /**

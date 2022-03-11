@@ -147,6 +147,31 @@ public class MQTTClientKeyStoreTest {
         assertThat(socketFactory, is(instanceOf(SSLSocketFactory.class)));
     }
 
+    @Test
+    void GIVEN_MQTTClientKeyStore_WHEN_unsubscribed_THEN_callback_not_triggered() throws Exception {
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        mqttClientKeyStore.init();
+
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        MQTTClientKeyStore.UpdateListener updateListener = updateLatch::countDown;
+        mqttClientKeyStore.listenToUpdates(updateListener);
+        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
+
+        ArgumentCaptor<Consumer<X509Certificate[]>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockCertificateManager, times(1))
+                .subscribeToClientCertificateUpdates(any(String.class), cbArgumentCaptor.capture());
+        Consumer<X509Certificate[]> certCallback = cbArgumentCaptor.getValue();
+
+        KeyStore keyStore = mqttClientKeyStore.getKeyStore();
+        assertThat(keyStore.size(), is(0));
+
+        X509Certificate certificate = pemToX509Certificate(CERTIFICATE);
+        X509Certificate[] chain = {certificate, certificate};
+        certCallback.accept(chain);
+
+        assertThat(updateLatch.await(100, TimeUnit.MILLISECONDS), is(false));
+    }
+
     private byte[] encodeToBase64Pem(byte[] content, byte[] header, byte[] footer) throws IOException {
         byte[] encodedBytes = Base64.getMimeEncoder(64, "\r\n".getBytes(StandardCharsets.UTF_8)).encode(content);
         try (ByteArrayOutputStream contentStream = new ByteArrayOutputStream()) {
