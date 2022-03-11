@@ -91,7 +91,6 @@ public class MQTTClient implements MessageClient {
     public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) throws MQTTClientException {
         this(topics, mqttClientKeyStore, executorService, null);
-        // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
