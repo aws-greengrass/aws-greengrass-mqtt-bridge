@@ -188,6 +188,7 @@ public class MQTTBridge extends PluginService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
+            mqttClient = null;
         }
 
         messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
