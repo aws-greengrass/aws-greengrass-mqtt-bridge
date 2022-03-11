@@ -104,8 +104,6 @@ public class MQTTBridge extends PluginService {
 
             // otherwise, reinstall to completely refresh this plugin
             if (Arrays.stream(BridgeConfig.ALL_KEYS).anyMatch(child::childOf)) {
-                logger.atInfo().kv("config-key", child.getName())
-                        .log("configuration change detected, reinstalling bridge");
                 requestReinstall();
             }
         });
@@ -113,7 +111,6 @@ public class MQTTBridge extends PluginService {
 
     private void onMqttTopicMappingChange(Topics mappingConfigTopics) {
         if (mappingConfigTopics.isEmpty()) {
-            logger.debug("Mapping empty");
             topicMapping.updateMapping(Collections.emptyMap());
             return;
         }
