@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
@@ -32,6 +33,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +55,6 @@ public class MQTTBridge extends PluginService {
     private IoTCoreClient ioTCoreClient;
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
-    private Topics mappingConfigTopics;
 
     /**
      * Ctr for MQTTBridge.
@@ -85,32 +86,50 @@ public class MQTTBridge extends PluginService {
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
         this.executorService = executorService;
-    }
 
-    @Override
-    public void install() {
-        mappingConfigTopics = config.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
-
-        mappingConfigTopics.subscribe((whatHappened, node) -> {
-            if (mappingConfigTopics.isEmpty()) {
-                logger.debug("Mapping empty");
-                topicMapping.updateMapping(Collections.emptyMap());
+        // handle configuration changes
+        Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
+        topics.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).subscribe((what, child) -> {
+            // initialization
+            if (child == null) {
+                onMqttTopicMappingChange(mappingConfigTopics);
                 return;
             }
 
-            try {
-                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                        .convertValue(mappingConfigTopics.toPOJO(),
-                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                                });
-                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-                topicMapping.updateMapping(mapping);
-            } catch (IllegalArgumentException e) {
-                logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
-                // Currently, Nucleus spills all exceptions in std err which junit consider failures
-                serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+            // handle mqtt topic mapping changes dynamically
+            if (child.childOf(BridgeConfig.KEY_MQTT_TOPIC_MAPPING)) {
+                onMqttTopicMappingChange(mappingConfigTopics);
+                return;
+            }
+
+            // otherwise, reinstall to completely refresh this plugin
+            if (Arrays.stream(BridgeConfig.ALL_KEYS).anyMatch(child::childOf)) {
+                logger.atInfo().kv("config-key", child.getName())
+                        .log("configuration change detected, reinstalling bridge");
+                requestReinstall();
             }
         });
+    }
+
+    private void onMqttTopicMappingChange(Topics mappingConfigTopics) {
+        if (mappingConfigTopics.isEmpty()) {
+            logger.debug("Mapping empty");
+            topicMapping.updateMapping(Collections.emptyMap());
+            return;
+        }
+
+        try {
+            Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
+                    .convertValue(mappingConfigTopics.toPOJO(),
+                            new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                            });
+            logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+            topicMapping.updateMapping(mapping);
+        } catch (IllegalArgumentException e) {
+            logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
+            // Currently, Nucleus spills all exceptions in std err which junit consider failures
+            serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+        }
     }
 
     @Override

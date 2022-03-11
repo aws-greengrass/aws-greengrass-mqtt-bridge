@@ -10,6 +10,7 @@ import com.aws.greengrass.certificatemanager.CertificateManager;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
@@ -48,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,6 +64,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTBridgeTest extends GGServiceTestUtil {
     private static final long TEST_TIME_OUT_SEC = 30L;
+
+    private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
+            () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     private Kernel kernel;
     private GlobalStateChangeListener listener;
@@ -109,6 +114,60 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_start_kernel_THEN_bridge_starts_successfully() throws Exception {
         startKernelWithConfig("config.yaml");
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls() throws Exception {
+        startKernelWithConfig("config.yaml");
+
+        CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+                bridgeRestarted.countDown();
+            }
+        });
+
+        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbrokeruri"), MERGE_UPDATE_BEHAVIOR.get());
+
+        Assertions.assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_clientId_config_changes_THEN_bridge_reinstalls() throws Exception {
+        startKernelWithConfig("config.yaml");
+
+        CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+                bridgeRestarted.countDown();
+            }
+        });
+
+        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
+
+        Assertions.assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_unknown_config_changes_THEN_no_action() throws Exception {
+        startKernelWithConfig("config.yaml");
+
+        CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+                bridgeRestarted.countDown();
+            }
+        });
+
+        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+        config.updateFromMap(Utils.immutableMap("unknown_config_key", "value"), MERGE_UPDATE_BEHAVIOR.get());
+
+        Assertions.assertFalse(bridgeRestarted.await(5L, TimeUnit.SECONDS));
     }
 
     @Test
