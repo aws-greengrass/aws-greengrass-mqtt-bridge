@@ -22,7 +22,6 @@ import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClientException;
 import com.aws.greengrass.mqttbridge.clients.PubSubClient;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
