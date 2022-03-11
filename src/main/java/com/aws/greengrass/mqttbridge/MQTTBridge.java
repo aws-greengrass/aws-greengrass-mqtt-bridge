@@ -9,6 +9,7 @@ import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
@@ -92,6 +93,11 @@ public class MQTTBridge extends PluginService {
             // initialization
             if (child == null) {
                 onMqttTopicMappingChange(mappingConfigTopics);
+                return;
+            }
+
+            // ignore irrelevant changes
+            if (what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded) {
                 return;
             }
 
