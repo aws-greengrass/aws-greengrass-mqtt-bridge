@@ -53,8 +53,6 @@ public class MQTTClient implements MessageClient {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
-    @Getter
-    private boolean isStopped;
 
     private final MQTTClientKeyStore mqttClientKeyStore;
 
@@ -140,9 +138,6 @@ public class MQTTClient implements MessageClient {
      * @throws MQTTClientException if client is already closed
      */
     public void start() throws MQTTClientException {
-        if (isStopped) {
-            throw new MQTTClientException("client is closed");
-        }
         mqttClientInternal.setCallback(mqttCallback);
         try {
             connectAndSubscribe();
@@ -166,8 +161,6 @@ public class MQTTClient implements MessageClient {
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
-
-        isStopped = true;
     }
 
     private synchronized void removeMappingAndSubscriptions() {
