@@ -155,6 +155,7 @@ public class MQTTClient implements MessageClient {
      * Stop the {@link MQTTClient}.
      */
     public void stop() {
+        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
         removeMappingAndSubscriptions();
 
         try {
@@ -166,7 +167,6 @@ public class MQTTClient implements MessageClient {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
 
-        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
         isStopped = true;
     }
 
