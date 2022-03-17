@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttbridge.clients;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -49,7 +50,7 @@ public class MQTTClientTest {
 
     @BeforeEach
     void setup() {
-        configTopics = Topics.of(null, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        configTopics = Topics.of(new Context(), KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         fakeMqttClient = new FakeMqttClient("clientId");
         ses = new ScheduledThreadPoolExecutor(1);
     }
