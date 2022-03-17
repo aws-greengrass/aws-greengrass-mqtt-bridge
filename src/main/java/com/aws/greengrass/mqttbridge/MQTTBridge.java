@@ -8,6 +8,8 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Subscriber;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -57,6 +59,10 @@ public class MQTTBridge extends PluginService {
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
+    private boolean ssl;
+    private Topic certificateAuthoritiesTopic;
+    private Subscriber onCertificateAuthoritiesChange;
+
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
 
@@ -143,7 +149,6 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void startup() {
-        boolean ssl;
         try {
             URI brokerUri = BridgeConfig.getBrokerUri(config);
             ssl = brokerUri.getScheme().equalsIgnoreCase("ssl");
@@ -181,24 +186,34 @@ public class MQTTBridge extends PluginService {
     private void initializeMqttClientKeyStore() throws
             CsrProcessingException, CsrGeneratingException, KeyStoreException, ServiceLoadException {
         mqttClientKeyStore.init();
-        kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+
+        certificateAuthoritiesTopic = kernel
+                .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME)
+                .getConfig()
                 .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
-                        ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                .subscribe((why, newv) -> {
-                    try {
-                        List<String> caPemList = (List<String>) newv.toPOJO();
-                        if (Utils.isEmpty(caPemList)) {
-                            return;
-                        }
-                        mqttClientKeyStore.updateCA(caPemList);
-                    } catch (IOException | CertificateException | KeyStoreException e) {
-                        serviceErrored(e);
-                    }
-                });
+                        ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC);
+        onCertificateAuthoritiesChange = (why, newv) -> {
+            try {
+                List<String> caPemList = (List<String>) newv.toPOJO();
+                if (Utils.isEmpty(caPemList)) {
+                    return;
+                }
+                mqttClientKeyStore.updateCA(caPemList);
+            } catch (IOException | CertificateException | KeyStoreException e) {
+                serviceErrored(e);
+            }
+        };
+
+        certificateAuthoritiesTopic.subscribe(onCertificateAuthoritiesChange);
     }
 
     @Override
     public void shutdown() {
+        if (ssl) {
+            certificateAuthoritiesTopic.remove(onCertificateAuthoritiesChange);
+        }
+
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
