@@ -97,6 +97,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     void cleanup() {
         kernel.shutdown();
         broker.stopServer();
+        ses.shutdownNow();
     }
 
     private void startKernelWithConfig(String configFileName) throws InterruptedException {
