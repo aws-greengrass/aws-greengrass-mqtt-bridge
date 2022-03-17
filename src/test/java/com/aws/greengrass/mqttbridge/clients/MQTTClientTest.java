@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge.clients;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.mqttbridge.BridgeConfig;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 
@@ -224,5 +226,18 @@ public class MQTTClientTest {
 
         assertThat(fakeMqttClient.getConnectOptions().getSocketFactory(), is(mockSocketFactory));
         assertThat(fakeMqttClient.getConnectCount(), is(2));
+    }
+
+    @Test
+    void GIVEN_mqttClient_WHEN_tcp_THEN_KeyStore_ignored() throws MQTTClientException {
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+                .dflt("tcp://localhost:8883");
+
+        MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
+
+        verifyNoInteractions(mockKeyStore);
     }
 }

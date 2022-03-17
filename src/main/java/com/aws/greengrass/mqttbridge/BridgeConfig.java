@@ -20,7 +20,7 @@ public final class BridgeConfig {
 
     @Deprecated
     static final String KEY_DEPRECATED_BROKER_URI = "brokerServerUri";
-    static final String KEY_BROKER_URI = "brokerUri";
+    public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 

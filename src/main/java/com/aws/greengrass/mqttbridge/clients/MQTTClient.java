@@ -45,11 +45,13 @@ public class MQTTClient implements MessageClient {
     private Consumer<Message> messageHandler;
     private final URI brokerUri;
     private final String clientId;
+    private final boolean ssl;
 
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
     private Future<?> connectFuture;
     private IMqttClient mqttClientInternal;
+
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
@@ -109,9 +111,12 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.clientId = BridgeConfig.getClientId(topics);
-        this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(updateListener);
         this.executorService = executorService;
+        this.mqttClientKeyStore = mqttClientKeyStore;
+        this.ssl = "ssl".equalsIgnoreCase(brokerUri.getScheme());
+        if (this.ssl) {
+            this.mqttClientKeyStore.listenToUpdates(updateListener);
+        }
     }
 
     void reset() {
@@ -150,7 +155,9 @@ public class MQTTClient implements MessageClient {
      * Stop the {@link MQTTClient}.
      */
     public void stop() {
-        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
+        if (ssl) {
+            mqttClientKeyStore.unsubscribeToUpdates(updateListener);
+        }
         removeMappingAndSubscriptions();
 
         try {
@@ -247,7 +254,7 @@ public class MQTTClient implements MessageClient {
         //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
-        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
+        if (ssl) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }

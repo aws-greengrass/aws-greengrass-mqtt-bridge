@@ -29,8 +29,11 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
@@ -38,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -49,12 +53,18 @@ public class MQTTBridge extends PluginService {
     private final MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
-    private final ExecutorService executorService;
+    @Setter(AccessLevel.PACKAGE) // Setter for unit tests
+    private MQTTClientFactory mqttClientFactory;
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
+
+    @FunctionalInterface
+    interface MQTTClientFactory {
+        MQTTClient get() throws MQTTClientException;
+    }
 
     /**
      * Ctr for MQTTBridge.
@@ -85,14 +95,33 @@ public class MQTTBridge extends PluginService {
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
-        this.executorService = executorService;
+        this.mqttClientFactory = () -> new MQTTClient(config, mqttClientKeyStore, executorService);
 
         // handle configuration changes
+        Consumer<Topics> mqttTopicMappingChangeHandler = mqttTopicMapping -> {
+            if (mqttTopicMapping.isEmpty()) {
+                topicMapping.updateMapping(Collections.emptyMap());
+                return;
+            }
+
+            try {
+                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
+                        .convertValue(mqttTopicMapping.toPOJO(),
+                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                                });
+                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+                topicMapping.updateMapping(mapping);
+            } catch (IllegalArgumentException e) {
+                // Currently, Nucleus spills all exceptions in std err which junit consider failures
+                serviceErrored(e);
+            }
+        };
+
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
         topics.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).subscribe((what, child) -> {
             // initialization
             if (child == null) {
-                onMqttTopicMappingChange(mappingConfigTopics);
+                mqttTopicMappingChangeHandler.accept(mappingConfigTopics);
                 return;
             }
 
@@ -103,7 +132,7 @@ public class MQTTBridge extends PluginService {
 
             // handle mqtt topic mapping changes dynamically
             if (child.childOf(BridgeConfig.KEY_MQTT_TOPIC_MAPPING)) {
-                onMqttTopicMappingChange(mappingConfigTopics);
+                mqttTopicMappingChangeHandler.accept(mappingConfigTopics);
                 return;
             }
 
@@ -114,55 +143,28 @@ public class MQTTBridge extends PluginService {
         });
     }
 
-    private void onMqttTopicMappingChange(Topics mappingConfigTopics) {
-        if (mappingConfigTopics.isEmpty()) {
-            topicMapping.updateMapping(Collections.emptyMap());
-            return;
-        }
-
-        try {
-            Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                    .convertValue(mappingConfigTopics.toPOJO(),
-                            new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                            });
-            logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-            topicMapping.updateMapping(mapping);
-        } catch (IllegalArgumentException e) {
-            // Currently, Nucleus spills all exceptions in std err which junit consider failures
-            serviceErrored(e);
-        }
-    }
-
     @Override
     public void startup() {
+        boolean ssl;
         try {
-            mqttClientKeyStore.init();
-        } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
+            URI brokerUri = BridgeConfig.getBrokerUri(config);
+            ssl = brokerUri.getScheme().equalsIgnoreCase("ssl");
+        } catch (URISyntaxException e) {
             serviceErrored(e);
             return;
         }
 
-        try {
-            kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                            ClientDevicesAuthService.AUTHORITIES_TOPIC).subscribe((why, newv) -> {
-                try {
-                    List<String> caPemList = (List<String>) newv.toPOJO();
-                    if (Utils.isEmpty(caPemList)) {
-                        return;
-                    }
-                    mqttClientKeyStore.updateCA(caPemList);
-                } catch (IOException | CertificateException | KeyStoreException e) {
-                    serviceErrored(e);
-                }
-            });
-        } catch (ServiceLoadException e) {
-            serviceErrored(e);
-            return;
+        if (ssl) {
+            try {
+                initializeMqttClientKeyStore();
+            } catch (CsrProcessingException | CsrGeneratingException | KeyStoreException | ServiceLoadException e) {
+                serviceErrored(e);
+                return;
+            }
         }
 
         try {
-            mqttClient = new MQTTClient(config, mqttClientKeyStore, executorService);
+            mqttClient = mqttClientFactory.get();
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
@@ -176,6 +178,25 @@ public class MQTTBridge extends PluginService {
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
         reportState(State.RUNNING);
+    }
+
+    private void initializeMqttClientKeyStore() throws
+            CsrProcessingException, CsrGeneratingException, KeyStoreException, ServiceLoadException {
+        mqttClientKeyStore.init();
+        kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+                .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                        ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC)
+                .subscribe((why, newv) -> {
+                    try {
+                        List<String> caPemList = (List<String>) newv.toPOJO();
+                        if (Utils.isEmpty(caPemList)) {
+                            return;
+                        }
+                        mqttClientKeyStore.updateCA(caPemList);
+                    } catch (IOException | CertificateException | KeyStoreException e) {
+                        serviceErrored(e);
+                    }
+                });
     }
 
     @Override

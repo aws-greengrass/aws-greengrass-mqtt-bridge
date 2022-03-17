@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -62,6 +63,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -121,7 +123,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
@@ -289,6 +293,32 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_tcp_connection_THEN_KeyStore_ignored() {
+        Topics config = Topics.of(new Context(), KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+                .dflt("tcp://localhost:8883");
+
+        MQTTClientKeyStore clientKeyStore = mock(MQTTClientKeyStore.class);
+
+        MQTTBridge mqttBridge = new MQTTBridge(
+                config,
+                mock(TopicMapping.class),
+                mock(MessageBridge.class),
+                mock(PubSubIPCEventStreamAgent.class),
+                mock(MqttClient.class),
+                mock(Kernel.class),
+                clientKeyStore,
+                ses
+        );
+        mqttBridge.setMqttClientFactory(() -> mock(MQTTClient.class));
+
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+
+        verifyNoInteractions(clientKeyStore);
+    }
+
+    @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
@@ -301,7 +331,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         Topics config = Topics.of(new Context(), KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .dflt("tcp://localhost:8883");
+                .dflt("ssl://localhost:8883");
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                 .dflt(MQTTBridge.SERVICE_NAME);
 
@@ -309,6 +339,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             mqttBridge =
                     new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
                             mockKernel, mockMqttClientKeyStore, ses);
+            mqttBridge.setMqttClientFactory(() -> mock(MQTTClient.class));
         }
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
