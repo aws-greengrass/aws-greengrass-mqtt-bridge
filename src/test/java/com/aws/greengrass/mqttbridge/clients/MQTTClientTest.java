@@ -11,6 +11,7 @@ import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,12 +45,19 @@ public class MQTTClientTest {
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
 
-    ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
+    private ScheduledExecutorService ses;
 
     @BeforeEach
     void setup() {
         configTopics = Topics.of(null, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         fakeMqttClient = new FakeMqttClient("clientId");
+        ses = new ScheduledThreadPoolExecutor(1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        configTopics.getContext().shutdown();
+        ses.shutdownNow();
     }
 
     @Test
