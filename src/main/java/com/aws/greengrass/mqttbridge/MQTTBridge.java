@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -98,30 +97,11 @@ public class MQTTBridge extends PluginService {
         this.mqttClientFactory = () -> new MQTTClient(config, mqttClientKeyStore, executorService);
 
         // handle configuration changes
-        Consumer<Topics> mqttTopicMappingChangeHandler = mqttTopicMapping -> {
-            if (mqttTopicMapping.isEmpty()) {
-                topicMapping.updateMapping(Collections.emptyMap());
-                return;
-            }
-
-            try {
-                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                        .convertValue(mqttTopicMapping.toPOJO(),
-                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                                });
-                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-                topicMapping.updateMapping(mapping);
-            } catch (IllegalArgumentException e) {
-                // Currently, Nucleus spills all exceptions in std err which junit consider failures
-                serviceErrored(e);
-            }
-        };
-
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
         topics.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).subscribe((what, child) -> {
             // initialization
             if (child == null) {
-                mqttTopicMappingChangeHandler.accept(mappingConfigTopics);
+                handleMqttTopicMappingChange(mappingConfigTopics);
                 return;
             }
 
@@ -132,7 +112,7 @@ public class MQTTBridge extends PluginService {
 
             // handle mqtt topic mapping changes dynamically
             if (child.childOf(BridgeConfig.KEY_MQTT_TOPIC_MAPPING)) {
-                mqttTopicMappingChangeHandler.accept(mappingConfigTopics);
+                handleMqttTopicMappingChange(mappingConfigTopics);
                 return;
             }
 
@@ -141,6 +121,24 @@ public class MQTTBridge extends PluginService {
                 requestReinstall();
             }
         });
+    }
+
+    private void handleMqttTopicMappingChange(Topics mqttTopicMapping) {
+        if (mqttTopicMapping.isEmpty()) {
+            topicMapping.updateMapping(Collections.emptyMap());
+            return;
+        }
+
+        try {
+            Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER.convertValue(
+                    mqttTopicMapping.toPOJO(),
+                    new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                    });
+            logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+            topicMapping.updateMapping(mapping);
+        } catch (IllegalArgumentException e) {
+            serviceErrored(e);
+        }
     }
 
     @Override
