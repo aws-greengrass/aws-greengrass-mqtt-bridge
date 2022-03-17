@@ -266,7 +266,7 @@ public class MQTTClient implements MessageClient {
     private void reconnectAndResubscribe() {
         int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
 
-        while (!mqttClientInternal.isConnected()) {
+        while (!mqttClientInternal.isConnected() && !Thread.interrupted()) {
             try {
                 // TODO: Clean up this loop
                 doConnect();
@@ -276,6 +276,7 @@ public class MQTTClient implements MessageClient {
                 try {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
+                    Thread.currentThread().interrupt();
                     LOGGER.atError().setCause(er).log("Failed to reconnect");
                     return;
                 }
