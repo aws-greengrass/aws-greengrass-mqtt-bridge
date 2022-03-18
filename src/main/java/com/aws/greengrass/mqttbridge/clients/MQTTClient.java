@@ -266,7 +266,12 @@ public class MQTTClient implements MessageClient {
     private void reconnectAndResubscribe() {
         int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
 
-        while (!mqttClientInternal.isConnected() && !Thread.interrupted()) {
+        while (!mqttClientInternal.isConnected()) {
+            // prevent connection attempt when interrupted
+            if (Thread.interrupted()) {
+                return;
+            }
+
             try {
                 // TODO: Clean up this loop
                 doConnect();
