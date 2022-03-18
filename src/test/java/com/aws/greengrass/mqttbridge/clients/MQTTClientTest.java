@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge.clients;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.mqttbridge.BridgeConfig;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -224,5 +226,41 @@ public class MQTTClientTest {
 
         assertThat(fakeMqttClient.getConnectOptions().getSocketFactory(), is(mockSocketFactory));
         assertThat(fakeMqttClient.getConnectCount(), is(2));
+    }
+
+    @Test
+    void GIVEN_mqttClient_WHEN_credentials_provided_THEN_connectsWithCredentials() throws Exception {
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_USERNAME)
+                .dflt("user");
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_PASSWORD)
+                .dflt("password");
+
+        MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
+        SSLSocketFactory mockSocketFactory = mock(SSLSocketFactory.class);
+        when(mockKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory);
+
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
+
+        assertThat(fakeMqttClient.getConnectOptions().getUserName(), is("user"));
+        assertThat(fakeMqttClient.getConnectOptions().getPassword(), is("password".toCharArray()));
+    }
+
+    @Test
+    void GIVEN_mqttClient_WHEN_only_password_provided_THEN_connectsAnonymously() throws Exception {
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_PASSWORD)
+                .dflt("password");
+
+        MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
+        SSLSocketFactory mockSocketFactory = mock(SSLSocketFactory.class);
+        when(mockKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory);
+
+        MQTTClient mqttClient = new MQTTClient(configTopics, mockKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
+
+        assertNull(fakeMqttClient.getConnectOptions().getUserName());
+        assertNull(fakeMqttClient.getConnectOptions().getPassword());
     }
 }

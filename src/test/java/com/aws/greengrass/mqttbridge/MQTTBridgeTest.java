@@ -121,6 +121,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_credentials_provided_THEN_bridge_starts_successfully() throws Exception {
+        startKernelWithConfig("config_with_credentials.yaml");
+    }
+
+    @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls() throws Exception {
         startKernelWithConfig("config.yaml");
 

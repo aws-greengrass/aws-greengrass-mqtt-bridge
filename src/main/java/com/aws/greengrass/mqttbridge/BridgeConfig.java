@@ -23,12 +23,16 @@ public final class BridgeConfig {
     static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    public static final String KEY_USERNAME = "username";
+    public static final String KEY_PASSWORD = "password";
 
     static final String[] ALL_KEYS = {
             KEY_DEPRECATED_BROKER_URI,
             KEY_BROKER_URI,
             KEY_CLIENT_ID,
-            KEY_MQTT_TOPIC_MAPPING
+            KEY_MQTT_TOPIC_MAPPING,
+            KEY_USERNAME,
+            KEY_PASSWORD
     };
 
     static final String[] PATH_DEPRECATED_BROKER_URI =
@@ -39,9 +43,15 @@ public final class BridgeConfig {
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_CLIENT_ID};
     static final String[] PATH_MQTT_TOPIC_MAPPING =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_MQTT_TOPIC_MAPPING};
+    private static final String[] PATH_USERNAME =
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_USERNAME};
+    private static final String[] PATH_PASSWORD =
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_PASSWORD};
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
+    private static final String DEFAULT_USERNAME = "";
+    private static final String DEFAULT_PASSWORD = "";
 
     private BridgeConfig(){
     }
@@ -70,5 +80,25 @@ public final class BridgeConfig {
      */
     public static String getClientId(Topics topics) {
         return Coerce.toString(topics.findOrDefault(DEFAULT_CLIENT_ID, PATH_CLIENT_ID));
+    }
+
+    /**
+     * Get mqtt username configuration.
+     *
+     * @param topics config topics
+     * @return username value
+     */
+    public static String getUsername(Topics topics) {
+        return Coerce.toString(topics.findOrDefault(DEFAULT_USERNAME, PATH_USERNAME));
+    }
+
+    /**
+     * Get mqtt password configuration.
+     *
+     * @param topics config topics
+     * @return password value
+     */
+    public static String getPassword(Topics topics) {
+        return Coerce.toString(topics.findOrDefault(DEFAULT_PASSWORD, PATH_PASSWORD));
     }
 }

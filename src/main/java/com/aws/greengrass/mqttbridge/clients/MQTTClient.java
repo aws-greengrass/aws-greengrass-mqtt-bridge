@@ -45,6 +45,8 @@ public class MQTTClient implements MessageClient {
     private Consumer<Message> messageHandler;
     private final URI brokerUri;
     private final String clientId;
+    private final String username;
+    private final String password;
 
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
@@ -109,6 +111,8 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.clientId = BridgeConfig.getClientId(topics);
+        this.username = BridgeConfig.getUsername(topics);
+        this.password = BridgeConfig.getPassword(topics);
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(updateListener);
         this.executorService = executorService;
@@ -250,6 +254,17 @@ public class MQTTClient implements MessageClient {
         if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
+        }
+
+        if (!username.isEmpty()) {
+            connOpts.setUserName(username);
+            if (!password.isEmpty()) {
+                connOpts.setPassword(password.toCharArray());
+            }
+        }
+
+        if (username.isEmpty() && !password.isEmpty()) {
+            LOGGER.atWarn().log("Username missing for provided password, defaulting to anonymous connection");
         }
 
         LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connecting to broker");
