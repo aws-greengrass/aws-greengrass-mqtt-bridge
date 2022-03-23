@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -61,7 +62,7 @@ public class MQTTBridge extends PluginService {
     private IoTCoreClient ioTCoreClient;
     private boolean ssl;
     private Topic certificateAuthoritiesTopic;
-    private Subscriber onCertificateAuthoritiesChange;
+    private Subscriber certificateAuthoritiesTopicSubscriber;
 
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
@@ -159,8 +160,23 @@ public class MQTTBridge extends PluginService {
 
         if (ssl) {
             try {
-                initializeMqttClientKeyStore();
-            } catch (CsrProcessingException | CsrGeneratingException | KeyStoreException | ServiceLoadException e) {
+                mqttClientKeyStore.init();
+            } catch (CsrProcessingException | CsrGeneratingException | KeyStoreException e) {
+                serviceErrored(e);
+                return;
+            }
+
+            try {
+                subscribeToCertificateAuthoritiesTopic(caPemList -> {
+                    try {
+                        if (!Utils.isEmpty(caPemList)) {
+                            mqttClientKeyStore.updateCA(caPemList);
+                        }
+                    } catch (IOException | CertificateException | KeyStoreException e) {
+                        serviceErrored(e);
+                    }
+                });
+            } catch (ServiceLoadException e) {
                 serviceErrored(e);
                 return;
             }
@@ -183,36 +199,9 @@ public class MQTTBridge extends PluginService {
         reportState(State.RUNNING);
     }
 
-    private void initializeMqttClientKeyStore() throws
-            CsrProcessingException, CsrGeneratingException, KeyStoreException, ServiceLoadException {
-        mqttClientKeyStore.init();
-
-        certificateAuthoritiesTopic = kernel
-                .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME)
-                .getConfig()
-                .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
-                        ClientDevicesAuthService.CERTIFICATES_KEY,
-                        ClientDevicesAuthService.AUTHORITIES_TOPIC);
-        onCertificateAuthoritiesChange = (why, newv) -> {
-            try {
-                List<String> caPemList = (List<String>) newv.toPOJO();
-                if (Utils.isEmpty(caPemList)) {
-                    return;
-                }
-                mqttClientKeyStore.updateCA(caPemList);
-            } catch (IOException | CertificateException | KeyStoreException e) {
-                serviceErrored(e);
-            }
-        };
-
-        certificateAuthoritiesTopic.subscribe(onCertificateAuthoritiesChange);
-    }
-
     @Override
     public void shutdown() {
-        if (ssl) {
-            certificateAuthoritiesTopic.remove(onCertificateAuthoritiesChange);
-        }
+        unsubscribeFromCertificateAuthoritiesTopic();
 
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
@@ -227,6 +216,26 @@ public class MQTTBridge extends PluginService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCaChange) throws ServiceLoadException {
+        certificateAuthoritiesTopic = kernel
+                .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+                .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                        ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC);
+
+        certificateAuthoritiesTopicSubscriber = (what, caPemList) ->
+            onCaChange.accept((List<String>) caPemList.toPOJO());
+
+        certificateAuthoritiesTopic.subscribe(certificateAuthoritiesTopicSubscriber);
+    }
+
+    private void unsubscribeFromCertificateAuthoritiesTopic() {
+        if (certificateAuthoritiesTopic != null && certificateAuthoritiesTopicSubscriber != null) {
+            certificateAuthoritiesTopic.remove(certificateAuthoritiesTopicSubscriber);
         }
     }
 }
