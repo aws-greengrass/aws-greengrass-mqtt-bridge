@@ -61,6 +61,8 @@ public class MQTTBridge extends PluginService {
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
     private boolean ssl;
+    private URI brokerUri;
+    private String clientId;
     private Topic certificateAuthoritiesTopic;
     private Subscriber certificateAuthoritiesTopicSubscriber;
 
@@ -101,7 +103,7 @@ public class MQTTBridge extends PluginService {
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
-        this.mqttClientFactory = () -> new MQTTClient(config, mqttClientKeyStore, executorService);
+        this.mqttClientFactory = () -> new MQTTClient(brokerUri, clientId, mqttClientKeyStore, executorService);
 
         // handle configuration changes
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
@@ -149,15 +151,19 @@ public class MQTTBridge extends PluginService {
     }
 
     @Override
-    public void startup() {
+    public void install() {
         try {
-            URI brokerUri = BridgeConfig.getBrokerUri(config);
-            ssl = brokerUri.getScheme().equalsIgnoreCase("ssl");
+            this.brokerUri = BridgeConfig.getBrokerUri(config);
         } catch (URISyntaxException e) {
             serviceErrored(e);
             return;
         }
+        this.ssl = brokerUri.getScheme().equalsIgnoreCase("ssl");
+        this.clientId = BridgeConfig.getClientId(config);
+    }
 
+    @Override
+    public void startup() {
         if (ssl) {
             try {
                 mqttClientKeyStore.init();

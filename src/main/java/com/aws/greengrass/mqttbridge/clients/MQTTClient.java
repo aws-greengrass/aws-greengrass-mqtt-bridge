@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttbridge.BridgeConfig;
@@ -23,14 +22,13 @@ import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.KeyStoreException;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
-import javax.inject.Inject;
 import javax.net.ssl.SSLSocketFactory;
 
 public class MQTTClient implements MessageClient {
@@ -83,17 +81,17 @@ public class MQTTClient implements MessageClient {
     };
 
     /**
-     * Ctr for MQTTClient.
+     * Construct an MQTTClient.
      *
-     * @param topics             topics passed in by Nucleus
+     * @param brokerUri          broker uri
+     * @param clientId           client id
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
      * @throws MQTTClientException if unable to create client for the mqtt broker
      */
-    @Inject
-    public MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore,
+    public MQTTClient(URI brokerUri, String clientId, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) throws MQTTClientException {
-        this(topics, mqttClientKeyStore, executorService, null);
+        this(brokerUri, clientId, mqttClientKeyStore, executorService, null);
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
@@ -101,16 +99,14 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    protected MQTTClient(Topics topics, MQTTClientKeyStore mqttClientKeyStore,
-                         ExecutorService executorService, IMqttClient mqttClient) throws MQTTClientException {
-        try {
-            this.brokerUri = BridgeConfig.getBrokerUri(topics);
-        } catch (URISyntaxException e) {
-            throw new MQTTClientException("Invalid brokerUri configuration", e);
-        }
+    protected MQTTClient(URI brokerUri, String clientId, MQTTClientKeyStore mqttClientKeyStore,
+                         ExecutorService executorService, IMqttClient mqttClient) {
+        Objects.requireNonNull(brokerUri);
+        Objects.requireNonNull(clientId);
+        this.brokerUri = brokerUri;
+        this.clientId = clientId;
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
-        this.clientId = BridgeConfig.getClientId(topics);
         this.executorService = executorService;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.ssl = "ssl".equalsIgnoreCase(brokerUri.getScheme());
@@ -139,7 +135,7 @@ public class MQTTClient implements MessageClient {
     /**
      * Start the {@link MQTTClient}.
      *
-     * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
+     * @throws RuntimeException    if the client cannot load the KeyStore used to connect to the broker.
      * @throws MQTTClientException if client is already closed
      */
     public void start() throws MQTTClientException {

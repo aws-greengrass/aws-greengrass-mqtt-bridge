@@ -352,6 +352,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         when(mockClientAuthConfig
                 .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        mqttBridge.install();
         mqttBridge.startup();
         mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
