@@ -24,13 +24,6 @@ public final class BridgeConfig {
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
-    static final String[] ALL_KEYS = {
-            KEY_DEPRECATED_BROKER_URI,
-            KEY_BROKER_URI,
-            KEY_CLIENT_ID,
-            KEY_MQTT_TOPIC_MAPPING
-    };
-
     static final String[] PATH_DEPRECATED_BROKER_URI =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_DEPRECATED_BROKER_URI};
     static final String[] PATH_BROKER_URI =
