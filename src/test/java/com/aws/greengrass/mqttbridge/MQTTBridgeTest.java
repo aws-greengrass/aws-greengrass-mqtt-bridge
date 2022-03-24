@@ -347,6 +347,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
+        mqttBridge.install();
         mqttBridge.startup();
         mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
