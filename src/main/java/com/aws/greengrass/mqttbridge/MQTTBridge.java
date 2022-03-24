@@ -59,7 +59,7 @@ public class MQTTBridge extends PluginService {
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
-    private boolean ssl;
+    private boolean isSSL;
     private URI brokerUri;
     private String clientId;
     private Topic certificateAuthoritiesTopic;
@@ -155,13 +155,13 @@ public class MQTTBridge extends PluginService {
             serviceErrored(e);
             return;
         }
-        this.ssl = brokerUri.getScheme().equalsIgnoreCase("ssl");
+        this.isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
         this.clientId = BridgeConfig.getClientId(config);
     }
 
     @Override
     public void startup() {
-        if (ssl) {
+        if (isSSL) {
             try {
                 mqttClientKeyStore.init();
             } catch (CsrProcessingException | CsrGeneratingException | KeyStoreException e) {

@@ -294,6 +294,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         );
         mqttBridge.setMqttClientFactory(() -> mock(MQTTClient.class));
 
+        mqttBridge.install();
         mqttBridge.startup();
         mqttBridge.shutdown();
 

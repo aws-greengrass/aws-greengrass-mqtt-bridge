@@ -43,7 +43,7 @@ public class MQTTClient implements MessageClient {
     private Consumer<Message> messageHandler;
     private final URI brokerUri;
     private final String clientId;
-    private final boolean ssl;
+    private final boolean isSSL;
 
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
@@ -101,16 +101,16 @@ public class MQTTClient implements MessageClient {
 
     protected MQTTClient(URI brokerUri, String clientId, MQTTClientKeyStore mqttClientKeyStore,
                          ExecutorService executorService, IMqttClient mqttClient) {
-        Objects.requireNonNull(brokerUri);
-        Objects.requireNonNull(clientId);
+        Objects.requireNonNull(brokerUri, "Broker URI cannot be null");
+        Objects.requireNonNull(clientId, "Client ID cannot be null");
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.executorService = executorService;
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.ssl = "ssl".equalsIgnoreCase(brokerUri.getScheme());
-        if (this.ssl) {
+        this.isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
+        if (this.isSSL) {
             this.mqttClientKeyStore.listenToUpdates(updateListener);
         }
     }
@@ -151,7 +151,7 @@ public class MQTTClient implements MessageClient {
      * Stop the {@link MQTTClient}.
      */
     public void stop() {
-        if (ssl) {
+        if (isSSL) {
             mqttClientKeyStore.unsubscribeToUpdates(updateListener);
         }
         removeMappingAndSubscriptions();
@@ -250,7 +250,7 @@ public class MQTTClient implements MessageClient {
         //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
-        if (ssl) {
+        if (isSSL) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }
