@@ -148,6 +148,7 @@ public class MQTTBridge extends PluginService {
                     if (Utils.isEmpty(caPemList)) {
                         return;
                     }
+                    logger.atDebug().kv("numCaCerts", caPemList.size()).log("CA update received");
                     mqttClientKeyStore.updateCA(caPemList);
                 } catch (IOException | CertificateException | KeyStoreException e) {
                     serviceErrored(e);
