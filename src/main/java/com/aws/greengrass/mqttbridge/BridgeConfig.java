@@ -23,6 +23,7 @@ public final class BridgeConfig {
     static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    public static final String KEY_BROKER_CONNECTION_OPTIONS = "brokerConnectionOptions";
     public static final String KEY_USERNAME = "username";
     public static final String KEY_PASSWORD = "password";
 
@@ -35,9 +36,9 @@ public final class BridgeConfig {
     static final String[] PATH_MQTT_TOPIC_MAPPING =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_MQTT_TOPIC_MAPPING};
     private static final String[] PATH_USERNAME =
-            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_USERNAME};
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_CONNECTION_OPTIONS, KEY_USERNAME};
     private static final String[] PATH_PASSWORD =
-            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_PASSWORD};
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_CONNECTION_OPTIONS, KEY_PASSWORD};
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);

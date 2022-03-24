@@ -230,9 +230,11 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_credentials_provided_THEN_connectsWithCredentials() throws Exception {
-        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_USERNAME)
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_CONNECTION_OPTIONS,
+                        BridgeConfig.KEY_USERNAME)
                 .dflt("user");
-        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_PASSWORD)
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_CONNECTION_OPTIONS,
+                        BridgeConfig.KEY_PASSWORD)
                 .dflt("password");
 
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
@@ -249,7 +251,8 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_only_password_provided_THEN_connectsAnonymously() throws Exception {
-        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_PASSWORD)
+        configTopics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_CONNECTION_OPTIONS,
+                        BridgeConfig.KEY_PASSWORD)
                 .dflt("password");
 
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
