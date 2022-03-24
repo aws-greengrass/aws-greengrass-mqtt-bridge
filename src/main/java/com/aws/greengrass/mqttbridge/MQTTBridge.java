@@ -108,9 +108,7 @@ public class MQTTBridge extends PluginService {
             }
 
             // otherwise, reinstall to completely refresh this plugin
-            if (Arrays.stream(BridgeConfig.ALL_KEYS).anyMatch(child::childOf)) {
-                requestReinstall();
-            }
+            requestReinstall();
         });
     }
 

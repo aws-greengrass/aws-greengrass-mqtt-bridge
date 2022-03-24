@@ -157,24 +157,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_unknown_config_changes_THEN_no_action() throws Exception {
-        startKernelWithConfig("config.yaml");
-
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
-
-        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
-        config.updateFromMap(Utils.immutableMap("unknown_config_key", "value"), MERGE_UPDATE_BEHAVIOR.get());
-
-        Assertions.assertFalse(bridgeRestarted.await(5L, TimeUnit.SECONDS));
-    }
-
-    @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated() throws Exception {
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
