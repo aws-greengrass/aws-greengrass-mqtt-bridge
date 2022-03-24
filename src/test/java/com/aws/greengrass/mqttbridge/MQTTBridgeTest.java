@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -288,7 +289,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         Topics config = Topics.of(new Context(), KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .dflt("tcp://localhost:8883");
+                .dflt("ssl://localhost:8883");
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                 .dflt(MQTTBridge.SERVICE_NAME);
 
@@ -296,6 +297,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             mqttBridge =
                     new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
                             mockKernel, mockMqttClientKeyStore, ses);
+            mqttBridge.setMqttClientFactory(() -> mock(MQTTClient.class));
         }
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
@@ -308,6 +310,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         when(mockClientAuthConfig
                 .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        mqttBridge.install();
         mqttBridge.startup();
         mqttBridge.shutdown();
         ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
@@ -319,6 +322,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
         reset(mockMqttClientKeyStore);
+        mqttBridge.install();
         mqttBridge.startup();
         mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());

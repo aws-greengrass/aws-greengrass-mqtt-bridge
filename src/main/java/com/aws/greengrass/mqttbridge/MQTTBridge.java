@@ -8,6 +8,8 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Subscriber;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -29,14 +31,18 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -48,12 +54,25 @@ public class MQTTBridge extends PluginService {
     private final MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
-    private final ExecutorService executorService;
+    @Setter(AccessLevel.PACKAGE) // Setter for unit tests
+    private MQTTClientFactory mqttClientFactory;
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
+    private URI brokerUri;
+    private String clientId;
+    private String username;
+    private String password;
+    private Topic certificateAuthoritiesTopic;
+    private Subscriber certificateAuthoritiesTopicSubscriber;
+
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
+
+    @FunctionalInterface
+    interface MQTTClientFactory {
+        MQTTClient get() throws MQTTClientException;
+    }
 
     /**
      * Ctr for MQTTBridge.
@@ -84,7 +103,8 @@ public class MQTTBridge extends PluginService {
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
-        this.executorService = executorService;
+        this.mqttClientFactory = () -> new MQTTClient(brokerUri, clientId, username, password,
+                mqttClientKeyStore, executorService);
 
         // handle configuration changes
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
@@ -131,6 +151,19 @@ public class MQTTBridge extends PluginService {
     }
 
     @Override
+    public void install() {
+        try {
+            this.brokerUri = BridgeConfig.getBrokerUri(config);
+        } catch (URISyntaxException e) {
+            serviceErrored(e);
+            return;
+        }
+        this.clientId = BridgeConfig.getClientId(config);
+        this.username = BridgeConfig.getUsername(config);
+        this.password = BridgeConfig.getPassword(config);
+    }
+
+    @Override
     public void startup() {
         try {
             mqttClientKeyStore.init();
@@ -140,15 +173,12 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                            ClientDevicesAuthService.AUTHORITIES_TOPIC).subscribe((why, newv) -> {
+            subscribeToCertificateAuthoritiesTopic(caPemList -> {
                 try {
-                    List<String> caPemList = (List<String>) newv.toPOJO();
-                    if (Utils.isEmpty(caPemList)) {
-                        return;
+                    if (!Utils.isEmpty(caPemList)) {
+                        logger.atDebug().kv("numCaCerts", caPemList.size()).log("CA update received");
+                        mqttClientKeyStore.updateCA(caPemList);
                     }
-                    mqttClientKeyStore.updateCA(caPemList);
                 } catch (IOException | CertificateException | KeyStoreException e) {
                     serviceErrored(e);
                 }
@@ -159,7 +189,7 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            mqttClient = new MQTTClient(config, mqttClientKeyStore, executorService);
+            mqttClient = mqttClientFactory.get();
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
@@ -177,6 +207,8 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void shutdown() {
+        unsubscribeFromCertificateAuthoritiesTopic();
+
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
@@ -190,6 +222,26 @@ public class MQTTBridge extends PluginService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCaChange) throws ServiceLoadException {
+        certificateAuthoritiesTopic = kernel
+                .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+                .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                        ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC);
+
+        certificateAuthoritiesTopicSubscriber = (what, caPemList) ->
+                onCaChange.accept((List<String>) caPemList.toPOJO());
+
+        certificateAuthoritiesTopic.subscribe(certificateAuthoritiesTopicSubscriber);
+    }
+
+    private void unsubscribeFromCertificateAuthoritiesTopic() {
+        if (certificateAuthoritiesTopic != null && certificateAuthoritiesTopicSubscriber != null) {
+            certificateAuthoritiesTopic.remove(certificateAuthoritiesTopicSubscriber);
         }
     }
 }
