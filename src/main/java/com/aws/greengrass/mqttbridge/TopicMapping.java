@@ -73,4 +73,8 @@ public class TopicMapping {
     public void listenToUpdates(UpdateListener listener) {
         updateListeners.add(listener);
     }
+
+    public void unsubscribeFromUpdates(UpdateListener listener) {
+        updateListeners.remove(listener);
+    }
 }

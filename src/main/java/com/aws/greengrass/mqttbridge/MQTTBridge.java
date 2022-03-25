@@ -201,24 +201,24 @@ public class MQTTBridge extends PluginService {
         ioTCoreClient.start();
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
+        messageBridge.start();
+
         reportState(State.RUNNING);
     }
 
     @Override
     public void shutdown() {
         unsubscribeFromCertificateAuthoritiesTopic();
+        messageBridge.stop();
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
         }
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
         if (pubSubClient != null) {
             pubSubClient.stop();
         }
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
         }
