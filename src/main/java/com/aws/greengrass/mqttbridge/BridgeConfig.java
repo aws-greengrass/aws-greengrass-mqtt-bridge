@@ -18,13 +18,13 @@ import java.net.URISyntaxException;
  */
 public final class BridgeConfig {
 
-    static final String BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
+    static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
     static final String[] PATH_BROKER_SERVER_URI =
-            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_SERVER_URI};
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_SERVER_URI};
     static final String[] PATH_BROKER_URI =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_URI};
     static final String[] PATH_CLIENT_ID =
