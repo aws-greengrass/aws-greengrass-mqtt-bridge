@@ -21,6 +21,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class TopicMappingTest {
@@ -53,10 +54,28 @@ public class TopicMappingTest {
     }
 
     @Test
-    void GIVEN_null_mapping_as_json_string_WHEN_updateMapping_THEN_NPE_thrown() throws Exception {
+    void GIVEN_null_mapping_as_json_string_WHEN_updateMapping_THEN_NPE_thrown() {
         TopicMapping mapping = new TopicMapping();
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
         Assertions.assertThrows(NullPointerException.class, () -> mapping.updateMapping(null));
         assertThat(mapping.getMapping().size(), is(equalTo(0)));
+    }
+
+
+    @Test
+    void GIVEN_mapping_WHEN_unsubscribe_from_udpdates_THEN_callback_not_triggered() throws InterruptedException {
+        TopicMapping mapping = new TopicMapping();
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        TopicMapping.UpdateListener listener = updateLatch::countDown;
+        mapping.listenToUpdates(listener);
+        mapping.unsubscribeFromUpdates(listener);
+        mapping.updateMapping(Utils.immutableMap(
+                "m1", new TopicMapping.MappingEntry(
+                        "mqtt/topic", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore),
+                "m2", new TopicMapping.MappingEntry(
+                        "mqtt/topic2", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.Pubsub),
+                "m3", new TopicMapping.MappingEntry(
+                        "mqtt/topic3", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore)));
+        assertFalse(updateLatch.await(1, TimeUnit.SECONDS));
     }
 }
