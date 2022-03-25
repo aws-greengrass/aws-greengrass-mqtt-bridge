@@ -18,14 +18,13 @@ import java.net.URISyntaxException;
  */
 public final class BridgeConfig {
 
-    @Deprecated
-    static final String KEY_DEPRECATED_BROKER_URI = "brokerServerUri";
+    static final String BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 
-    static final String[] PATH_DEPRECATED_BROKER_URI =
-            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_DEPRECATED_BROKER_URI};
+    static final String[] PATH_BROKER_SERVER_URI =
+            {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BROKER_SERVER_URI};
     static final String[] PATH_BROKER_URI =
             {KernelConfigResolver.CONFIGURATION_CONFIG_KEY, KEY_BROKER_URI};
     static final String[] PATH_CLIENT_ID =
@@ -47,11 +46,11 @@ public final class BridgeConfig {
      * @throws URISyntaxException for invalid brokerUri format
      */
     public static URI getBrokerUri(Topics topics) throws URISyntaxException {
-        // brokerUri should take precedence since brokerServerUri is deprecated
-        String deprecatedBrokerUri = Coerce.toString(
-                topics.findOrDefault(DEFAULT_BROKER_URI, PATH_DEPRECATED_BROKER_URI));
+        // brokerUri takes precedence since brokerServerUri is deprecated
+        String brokerServerUri = Coerce.toString(
+                topics.findOrDefault(DEFAULT_BROKER_URI, PATH_BROKER_SERVER_URI));
         String brokerUri = Coerce.toString(
-                topics.findOrDefault(deprecatedBrokerUri, PATH_BROKER_URI));
+                topics.findOrDefault(brokerServerUri, PATH_BROKER_URI));
         return new URI(brokerUri);
     }
 

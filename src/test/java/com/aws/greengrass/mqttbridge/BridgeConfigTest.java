@@ -55,7 +55,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_bridgeConfig_WHEN_brokerUri_and_brokerServerUri_provided_THEN_brokerUri_returned() throws URISyntaxException {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_DEPRECATED_BROKER_URI)
+        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.BROKER_SERVER_URI)
                 .dflt(BROKER_SERVER_URI);
         topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                 .dflt(BROKER_URI);
@@ -66,7 +66,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_bridgeConfig_WHEN_brokerServerUri_provided_THEN_brokerServerUri_returned() throws URISyntaxException {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_DEPRECATED_BROKER_URI)
+        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.BROKER_SERVER_URI)
                 .dflt(BROKER_SERVER_URI);
 
         URI uri = BridgeConfig.getBrokerUri(topics);
