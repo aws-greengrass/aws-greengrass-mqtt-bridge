@@ -17,6 +17,7 @@ import com.aws.greengrass.device.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -30,7 +31,6 @@ import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,13 +52,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -68,9 +68,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTBridgeTest extends GGServiceTestUtil {
     private static final long TEST_TIME_OUT_SEC = 30L;
-
-    private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
-            () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     private Kernel kernel;
     private GlobalStateChangeListener listener;
@@ -102,18 +99,22 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     private void startKernelWithConfig(String configFileName) throws InterruptedException {
+        startKernelWithConfig(configFileName, State.RUNNING);
+    }
+
+    private void startKernelWithConfig(String configFileName, State expectedStartingState) throws InterruptedException {
         CountDownLatch bridgeRunning = new CountDownLatch(1);
         kernel.parseArgs("-r", rootDir.toAbsolutePath().toString(), "-i",
                 getClass().getResource(configFileName).toString());
         listener = (GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.RUNNING)) {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(expectedStartingState)) {
                 bridgeRunning.countDown();
             }
         };
         kernel.getContext().addGlobalStateChangeListener(listener);
         kernel.launch();
 
-        Assertions.assertTrue(bridgeRunning.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeRunning.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -122,8 +123,19 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_credentials_provided_THEN_bridge_starts_successfully() throws Exception {
-        startKernelWithConfig("config_with_credentials.yaml");
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_credential_config_is_fixed_THEN_bridge_automatically_reinstalls(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IllegalArgumentException.class);
+        startKernelWithConfig("config_with_invalid_credentials.yaml", State.BROKEN);
+
+        CountDownLatch bridgeRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+                bridgeRunning.countDown();
+            }
+        });
+        updateConfig(new String[]{"configuration", "brokerConnectionOptions", "username"}, "a_username");
+
+        assertTrue(bridgeRunning.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -136,12 +148,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 bridgeRestarted.countDown();
             }
         });
+        updateConfig(new String[]{"configuration", "brokerUri"}, "tcp://newbrokeruri");
 
-        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbrokeruri"), MERGE_UPDATE_BEHAVIOR.get());
-
-        Assertions.assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -154,12 +163,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 bridgeRestarted.countDown();
             }
         });
+        updateConfig(new String[]{"configuration", "clientId"}, "new_client_id");
 
-        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
-
-        Assertions.assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -273,7 +279,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         });
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
-        Assertions.assertTrue(bridgeErrored.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeErrored.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -326,5 +332,16 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         mqttBridge.startup();
         mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
+    }
+
+    private void updateConfig(String[] config, String value) throws ServiceLoadException {
+        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(
+                UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
+
+        String[] configPath = Arrays.copyOfRange(config, 0, config.length - 1);
+        String configName = config[config.length - 1];
+
+        kernel.locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(configPath)
+                .updateFromMap(Utils.immutableMap(configName, value), updateBehavior);
     }
 }

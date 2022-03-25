@@ -109,6 +109,11 @@ public class MQTTClient implements MessageClient {
         Objects.requireNonNull(clientId, "Client ID cannot be null");
         Objects.requireNonNull(username, "Username cannot be null");
         Objects.requireNonNull(password, "Password cannot be null");
+
+        if (username.isEmpty() && !password.isEmpty()) {
+            throw new IllegalArgumentException("Password provided without username.");
+        }
+
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientInternal = mqttClient;
@@ -263,10 +268,6 @@ public class MQTTClient implements MessageClient {
             if (!password.isEmpty()) {
                 connOpts.setPassword(password.toCharArray());
             }
-        }
-
-        if (username.isEmpty() && !password.isEmpty()) {
-            LOGGER.atWarn().log("Username missing for provided password, defaulting to anonymous connection");
         }
 
         LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connecting to broker");

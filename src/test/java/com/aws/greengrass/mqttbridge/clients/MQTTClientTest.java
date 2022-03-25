@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -264,19 +264,10 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqttClient_WHEN_only_password_provided_THEN_connectsAnonymously() throws Exception {
-        MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
-        SSLSocketFactory mockSocketFactory = mock(SSLSocketFactory.class);
-        when(mockKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory);
-
-        MQTTClient mqttClient = new MQTTClient(
-                ENCRYPTED_URI, CLIENT_ID, "", "password",
-                mockKeyStore, ses, fakeMqttClient
-        );
-        mqttClient.start();
-        fakeMqttClient.waitForConnect(1000);
-
-        assertNull(fakeMqttClient.getConnectOptions().getUserName());
-        assertNull(fakeMqttClient.getConnectOptions().getPassword());
+    void GIVEN_mqttClient_WHEN_only_password_provided_THEN_exception_thrown(){
+        assertThrows(IllegalArgumentException.class, () ->
+            new MQTTClient(
+                    ENCRYPTED_URI, CLIENT_ID, "", "password",
+                    mockMqttClientKeyStore, ses, fakeMqttClient));
     }
 }
