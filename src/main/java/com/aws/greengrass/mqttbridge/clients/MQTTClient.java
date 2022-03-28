@@ -12,6 +12,7 @@ import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -24,7 +25,6 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.net.URI;
 import java.security.KeyStoreException;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -99,10 +99,8 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    protected MQTTClient(URI brokerUri, String clientId, MQTTClientKeyStore mqttClientKeyStore,
+    protected MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
                          ExecutorService executorService, IMqttClient mqttClient) {
-        Objects.requireNonNull(brokerUri, "Broker URI cannot be null");
-        Objects.requireNonNull(clientId, "Client ID cannot be null");
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientInternal = mqttClient;
