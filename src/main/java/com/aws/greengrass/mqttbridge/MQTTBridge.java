@@ -221,7 +221,7 @@ public class MQTTBridge extends PluginService {
     }
 
     @SuppressWarnings("unchecked")
-    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCaChange) throws ServiceLoadException {
+    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCAChange) throws ServiceLoadException {
         certificateAuthoritiesTopic = kernel
                 .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
                 .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
@@ -229,7 +229,7 @@ public class MQTTBridge extends PluginService {
                         ClientDevicesAuthService.AUTHORITIES_TOPIC);
 
         certificateAuthoritiesTopicSubscriber = (what, caPemList) ->
-                onCaChange.accept((List<String>) caPemList.toPOJO());
+                onCAChange.accept((List<String>) caPemList.toPOJO());
 
         certificateAuthoritiesTopic.subscribe(certificateAuthoritiesTopicSubscriber);
     }
