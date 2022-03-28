@@ -106,8 +106,7 @@ public class MQTTBridge extends PluginService {
         // handle configuration changes
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
         topics.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).subscribe((what, child) -> {
-            // initialization
-            if (child == null) {
+            if (what == WhatHappened.initialized) {
                 onMqttTopicMappingChange(mappingConfigTopics);
                 return;
             }
@@ -123,7 +122,8 @@ public class MQTTBridge extends PluginService {
                 return;
             }
 
-            // otherwise, reinstall to completely refresh this plugin
+            logger.atInfo("service-config-change").kv("config", child.getFullName())
+                    .log("Requesting reinstallation of bridge");
             requestReinstall();
         });
     }
@@ -139,7 +139,7 @@ public class MQTTBridge extends PluginService {
                     .convertValue(mappingConfigTopics.toPOJO(),
                             new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
                             });
-            logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+            logger.atInfo("service-config-change").kv("mapping", mapping).log("Updating mapping");
             topicMapping.updateMapping(mapping);
         } catch (IllegalArgumentException e) {
             // Currently, Nucleus spills all exceptions in std err which junit consider failures
