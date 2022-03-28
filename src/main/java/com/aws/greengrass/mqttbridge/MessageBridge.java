@@ -56,7 +56,7 @@ public class MessageBridge {
 
     public void start() {
         topicMapping.listenToUpdates(updateListener);
-        updateListener.onUpdate();
+        processMappingAndSubscribe();
     }
 
     public void stop() {
