@@ -278,7 +278,7 @@ public class MQTTClient implements MessageClient {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
                     Thread.currentThread().interrupt();
-                    LOGGER.atError().setCause(er).log("Failed to reconnect");
+                    LOGGER.atInfo().setCause(er).log("Aborting connection due to interrupt");
                     return;
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
