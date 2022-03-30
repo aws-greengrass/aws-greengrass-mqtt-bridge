@@ -7,7 +7,6 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
@@ -39,6 +38,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
@@ -55,7 +56,7 @@ public class MQTTBridge extends PluginService {
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
-    private Topics mappingConfigTopics;
+    private Topics configTopics;
 
     /**
      * Ctr for MQTTBridge.
@@ -91,10 +92,10 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        mappingConfigTopics =
-                this.config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
+        configTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY);
 
-        mappingConfigTopics.subscribe((whatHappened, node) -> {
+        configTopics.subscribe((whatHappened, node) -> {
+            Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
             if (mappingConfigTopics.isEmpty()) {
                 logger.debug("Mapping empty");
                 topicMapping.updateMapping(Collections.emptyMap());
