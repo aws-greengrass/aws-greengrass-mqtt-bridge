@@ -45,9 +45,11 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -127,45 +129,30 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         ignoreExceptionOfType(context, IllegalArgumentException.class);
         startKernelWithConfig("config_with_invalid_credentials.yaml", State.BROKEN);
 
-        CountDownLatch bridgeRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
-                bridgeRunning.countDown();
-            }
-        });
+        CountDownLatch stateChangesOccurred = trackServiceStateChanges(State.NEW, State.RUNNING);
         updateConfig(new String[]{"configuration", "brokerConnectionOptions", "username"}, "a_username");
 
-        assertTrue(bridgeRunning.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(stateChangesOccurred.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls() throws Exception {
         startKernelWithConfig("config.yaml");
 
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
+        CountDownLatch stateChangesOccurred = trackServiceStateChanges(State.NEW, State.RUNNING);
         updateConfig(new String[]{"configuration", "brokerUri"}, "tcp://newbrokeruri");
 
-        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(stateChangesOccurred.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_clientId_config_changes_THEN_bridge_reinstalls() throws Exception {
         startKernelWithConfig("config.yaml");
 
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
+        CountDownLatch stateChangesOccurred = trackServiceStateChanges(State.NEW, State.RUNNING);
         updateConfig(new String[]{"configuration", "clientId"}, "new_client_id");
 
-        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(stateChangesOccurred.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
     @Test
@@ -252,15 +239,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
         kernel.getContext().removeGlobalStateChangeListener(listener);
-        CountDownLatch bridgeErrored = new CountDownLatch(1);
 
-        GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.ERRORED)) {
-                bridgeErrored.countDown();
-            }
-        };
-
-        kernel.getContext().addGlobalStateChangeListener(listener);
+        CountDownLatch bridgeErrored = trackServiceStateChanges(State.RUNNING);
 
         // Updating with invalid mapping (Providing type as Pubsub-Invalid)
         Topics mappingConfigTopics = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
@@ -343,5 +323,30 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(configPath)
                 .updateFromMap(Utils.immutableMap(configName, value), updateBehavior);
+    }
+
+    private CountDownLatch trackServiceStateChanges(State... expectedStates) {
+        final Queue<State> states = new LinkedList<>(Arrays.asList(expectedStates));
+        CountDownLatch stateChangesOccurred = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (!service.getName().equals(MQTTBridge.SERVICE_NAME)) {
+                return;
+            }
+            synchronized (states) {
+                if (states.isEmpty()) {
+                    return;
+                }
+
+                State nextState = states.peek();
+                if (newState.equals(nextState)) {
+                    states.poll();
+                }
+
+                if (states.isEmpty()) {
+                    stateChangesOccurred.countDown();
+                }
+            }
+        });
+        return stateChangesOccurred;
     }
 }
