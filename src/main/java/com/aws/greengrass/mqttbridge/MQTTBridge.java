@@ -92,9 +92,7 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        configTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY);
-
-        configTopics.subscribe((whatHappened, node) -> {
+        this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
             Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
             if (mappingConfigTopics.isEmpty()) {
                 logger.debug("Mapping empty");
