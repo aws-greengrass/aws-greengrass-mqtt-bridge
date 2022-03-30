@@ -20,9 +20,11 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
+import com.aws.greengrass.mqttbridge.clients.MQTTClientException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
@@ -126,8 +128,19 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_credential_config_is_fixed_THEN_bridge_automatically_reinstalls(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, IllegalArgumentException.class);
-        startKernelWithConfig("config_with_invalid_credentials.yaml", State.BROKEN);
+        ignoreExceptionOfType(context, MQTTClientException.class);
+
+        CountDownLatch logLatch = new CountDownLatch(1);
+        try (AutoCloseable listener = TestUtils.createCloseableLogListener(message -> {
+            if (message.getCause() instanceof MQTTClientException &&
+                    message.getCause().getMessage().contains(MQTTClient.ERROR_MISSING_USERNAME)) {
+                logLatch.countDown();
+            }
+        })) {
+            startKernelWithConfig("config_with_invalid_credentials.yaml", State.BROKEN);
+        }
+
+        assertTrue(logLatch.await(2, TimeUnit.SECONDS));
 
         CountDownLatch stateChangesOccurred = trackServiceStateChanges(State.NEW, State.RUNNING);
         updateConfig(new String[]{"configuration", "brokerConnectionOptions", "username"}, "a_username");

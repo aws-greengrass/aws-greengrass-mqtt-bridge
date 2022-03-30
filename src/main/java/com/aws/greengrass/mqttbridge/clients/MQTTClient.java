@@ -36,6 +36,8 @@ import javax.net.ssl.SSLSocketFactory;
 public class MQTTClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
 
+    public static final String ERROR_MISSING_USERNAME = "Password provided without username";
+
     public static final String TOPIC = "topic";
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
@@ -97,12 +99,11 @@ public class MQTTClient implements MessageClient {
      * Construct an MQTTClient.
      *
      * @param config MQTTClient configuration
-     * @throws IllegalArgumentException for malformed configuration
      * @throws MQTTClientException      if unable to create client for the mqtt broker
      */
     public MQTTClient(Config config) throws MQTTClientException {
         if (config.getUsername().isEmpty() && !config.getPassword().isEmpty()) {
-            throw new IllegalArgumentException("Password provided without username.");
+            throw new MQTTClientException(ERROR_MISSING_USERNAME);
         }
 
         this.config = config;
