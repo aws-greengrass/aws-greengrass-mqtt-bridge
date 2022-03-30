@@ -96,7 +96,7 @@ public class MQTTBridge extends PluginService {
     public void install() {
         this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
             if (!skipUpdatingMqttTopicMapping(whatHappened, node)) {
-                logger.atDebug().kv("why", whatHappened).kv("node", node).log();
+                logger.atTrace().kv("why", whatHappened).kv("node", node).log();
                 Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
                 if (mappingConfigTopics.isEmpty()) {
                     logger.debug("Mapping empty");
@@ -193,8 +193,8 @@ public class MQTTBridge extends PluginService {
         if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
             return true;
         }
-        if (node != null && node.getName().equals(BROKER_URI_KEY)) {
-            logger.atDebug().kv("why", whatHappened).kv("node", node)
+        if (node != null && BROKER_URI_KEY.equals(node.getName())) {
+            logger.atTrace().kv("why", whatHappened).kv("node", node)
                     .log("Broker URI update. Skip updating topic mapping");
             return true;
         }
