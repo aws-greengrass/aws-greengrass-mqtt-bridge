@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
@@ -92,6 +93,9 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
+            if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
+                return;
+            }
             Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
             if (mappingConfigTopics.isEmpty()) {
                 logger.debug("Mapping empty");
