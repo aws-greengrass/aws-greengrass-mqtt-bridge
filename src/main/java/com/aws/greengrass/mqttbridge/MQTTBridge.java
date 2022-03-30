@@ -103,8 +103,14 @@ public class MQTTBridge extends PluginService {
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
-        this.mqttClientFactory = () -> new MQTTClient(brokerUri, clientId, username, password,
-                mqttClientKeyStore, executorService);
+        this.mqttClientFactory = () -> new MQTTClient(MQTTClient.Config.builder()
+                .brokerUri(brokerUri)
+                .clientId(clientId)
+                .username(username)
+                .password(password)
+                .mqttClientKeyStore(mqttClientKeyStore)
+                .executorService(executorService)
+                .build());
 
         // handle configuration changes
         Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);

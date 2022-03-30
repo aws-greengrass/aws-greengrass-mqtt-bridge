@@ -11,7 +11,10 @@ import com.aws.greengrass.mqttbridge.BridgeConfig;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
+import lombok.Value;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -24,7 +27,6 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.net.URI;
 import java.security.KeyStoreException;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -41,20 +43,14 @@ public class MQTTClient implements MessageClient {
     private final MqttConnectOptions connOpts = new MqttConnectOptions();
     private final MQTTClientKeyStore.UpdateListener updateListener = this::reset;
     private Consumer<Message> messageHandler;
-    private final URI brokerUri;
-    private final String clientId;
-    private final String username;
-    private final String password;
+    private final Config config;
 
     private final MqttClientPersistence dataStore;
-    private final ExecutorService executorService;
     private Future<?> connectFuture;
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
-
-    private final MQTTClientKeyStore mqttClientKeyStore;
 
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
@@ -80,49 +76,53 @@ public class MQTTClient implements MessageClient {
         }
     };
 
+    @Value
+    @Builder
+    public static class Config {
+        @NonNull
+        URI brokerUri;
+        @NonNull
+        String clientId;
+        @NonNull
+        String username;
+        @NonNull
+        String password;
+        MQTTClientKeyStore mqttClientKeyStore;
+        @NonNull
+        ExecutorService executorService;
+        IMqttClient internalMqttClientOverride;
+    }
+
     /**
      * Construct an MQTTClient.
      *
-     * @param brokerUri          broker uri
-     * @param clientId           client id
-     * @param username           optional username
-     * @param password           optional password
-     * @param mqttClientKeyStore KeyStore for MQTT Client
-     * @param executorService    Executor service
-     * @throws MQTTClientException if unable to create client for the mqtt broker
+     * @param config MQTTClient configuration
+     * @throws IllegalArgumentException for malformed configuration
+     * @throws MQTTClientException      if unable to create client for the mqtt broker
      */
-    public MQTTClient(URI brokerUri, String clientId, String username, String password,
-                      MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService)
-            throws MQTTClientException {
-        this(brokerUri, clientId, username, password, mqttClientKeyStore, executorService, null);
-        try {
-            this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
-        } catch (MqttException e) {
-            throw new MQTTClientException("Unable to create an MQTT client", e);
-        }
-    }
-
-    protected MQTTClient(URI brokerUri, String clientId, String username, String password,
-                         MQTTClientKeyStore mqttClientKeyStore, ExecutorService executorService,
-                         IMqttClient mqttClient) {
-        Objects.requireNonNull(brokerUri, "Broker URI cannot be null");
-        Objects.requireNonNull(clientId, "Client ID cannot be null");
-        Objects.requireNonNull(username, "Username cannot be null");
-        Objects.requireNonNull(password, "Password cannot be null");
-
-        if (username.isEmpty() && !password.isEmpty()) {
+    public MQTTClient(Config config) throws MQTTClientException {
+        if (config.getUsername().isEmpty() && !config.getPassword().isEmpty()) {
             throw new IllegalArgumentException("Password provided without username.");
         }
 
-        this.brokerUri = brokerUri;
-        this.clientId = clientId;
-        this.mqttClientInternal = mqttClient;
+        this.config = config;
         this.dataStore = new MemoryPersistence();
-        this.username = username;
-        this.password = password;
-        this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(updateListener);
-        this.executorService = executorService;
+
+        if (this.config.getInternalMqttClientOverride() == null) {
+            try {
+                this.mqttClientInternal = new MqttClient(
+                        this.config.getBrokerUri().toString(),
+                        this.config.getClientId(),
+                        this.dataStore
+                );
+            } catch (MqttException e) {
+                throw new MQTTClientException("Unable to create an MQTT client", e);
+            }
+        } else {
+            this.mqttClientInternal = this.config.getInternalMqttClientOverride();
+        }
+
+        this.config.getMqttClientKeyStore().listenToUpdates(updateListener);
     }
 
     void reset() {
@@ -161,7 +161,7 @@ public class MQTTClient implements MessageClient {
      * Stop the {@link MQTTClient}.
      */
     public void stop() {
-        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
+        config.getMqttClientKeyStore().unsubscribeToUpdates(updateListener);
         removeMappingAndSubscriptions();
 
         try {
@@ -258,26 +258,28 @@ public class MQTTClient implements MessageClient {
         //TODO: persistent session could be used
         connOpts.setCleanSession(true);
 
-        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
-            SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
+        if ("ssl".equalsIgnoreCase(config.getBrokerUri().getScheme())) {
+            SSLSocketFactory ssf = config.getMqttClientKeyStore().getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }
 
-        if (!username.isEmpty()) {
-            connOpts.setUserName(username);
-            if (!password.isEmpty()) {
-                connOpts.setPassword(password.toCharArray());
+        if (!config.getUsername().isEmpty()) {
+            connOpts.setUserName(config.getUsername());
+            if (!config.getPassword().isEmpty()) {
+                connOpts.setPassword(config.getPassword().toCharArray());
             }
         }
 
-        LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connecting to broker");
-        connectFuture = executorService.submit(this::reconnectAndResubscribe);
+        LOGGER.atInfo().kv("uri", config.getBrokerUri()).kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
+                .log("Connecting to broker");
+        connectFuture = config.getExecutorService().submit(this::reconnectAndResubscribe);
     }
 
     private synchronized void doConnect() throws MqttException {
         if (!mqttClientInternal.isConnected()) {
             mqttClientInternal.connect(connOpts);
-            LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connected to broker");
+            LOGGER.atInfo().kv("uri", config.getBrokerUri()).kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
+                    .log("Connected to broker");
         }
     }
 
