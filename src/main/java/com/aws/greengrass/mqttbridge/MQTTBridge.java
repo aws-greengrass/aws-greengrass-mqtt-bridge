@@ -56,7 +56,6 @@ public class MQTTBridge extends PluginService {
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
-    private Topics configTopics;
 
     /**
      * Ctr for MQTTBridge.
