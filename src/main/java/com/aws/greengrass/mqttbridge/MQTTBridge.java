@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -57,6 +58,7 @@ public class MQTTBridge extends PluginService {
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    static final String BROKER_URI_KEY = "brokerUri";
 
     /**
      * Ctr for MQTTBridge.
@@ -93,27 +95,27 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
-            if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
-                return;
-            }
-            Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
-            if (mappingConfigTopics.isEmpty()) {
-                logger.debug("Mapping empty");
-                topicMapping.updateMapping(Collections.emptyMap());
-                return;
-            }
+            if (!skipUpdatingMqttTopicMapping(whatHappened, node)) {
+                logger.atDebug().kv("why", whatHappened).kv("node", node).log();
+                Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
+                if (mappingConfigTopics.isEmpty()) {
+                    logger.debug("Mapping empty");
+                    topicMapping.updateMapping(Collections.emptyMap());
+                    return;
+                }
 
-            try {
-                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                        .convertValue(mappingConfigTopics.toPOJO(),
-                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                                });
-                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-                topicMapping.updateMapping(mapping);
-            } catch (IllegalArgumentException e) {
-                logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
-                // Currently, Nucleus spills all exceptions in std err which junit consider failures
-                serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+                try {
+                    Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
+                            .convertValue(mappingConfigTopics.toPOJO(),
+                                    new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                                    });
+                    logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+                    topicMapping.updateMapping(mapping);
+                } catch (IllegalArgumentException e) {
+                    logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
+                    // Currently, Nucleus spills all exceptions in std err which junit consider failures
+                    serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
+                }
             }
         });
     }
@@ -185,5 +187,17 @@ public class MQTTBridge extends PluginService {
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
         }
+    }
+
+    private boolean skipUpdatingMqttTopicMapping(WhatHappened whatHappened, Node node) {
+        if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
+            return true;
+        }
+        if (node != null && node.getName().equals(BROKER_URI_KEY)) {
+            logger.atDebug().kv("why", whatHappened).kv("node", node)
+                    .log("Broker URI update. Skip updating topic mapping");
+            return true;
+        }
+        return false;
     }
 }
