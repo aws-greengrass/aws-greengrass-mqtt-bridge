@@ -205,7 +205,9 @@ public class MQTTBridge extends PluginService {
     @Override
     public void shutdown() {
         unsubscribeFromCertificateAuthoritiesTopic();
+
         messageBridge.stop();
+        messageBridge.removeAllMessageClients();
 
         if (mqttClient != null) {
             mqttClient.stop();

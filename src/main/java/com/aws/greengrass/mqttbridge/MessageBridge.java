@@ -54,13 +54,24 @@ public class MessageBridge {
         this.topicMapping = topicMapping;
     }
 
+    /**
+     * Start message bridge.
+     *
+     * <br><br><p>All registered {@link MessageClient}s will have their
+     * subscriptions updated immediately.  Changes to {@link TopicMapping} will
+     * trigger subscription updates as well.
+     */
     public void start() {
         topicMapping.listenToUpdates(updateListener);
         processMappingAndSubscribe();
     }
 
+    /**
+     * Stop the message bridge.
+     *
+     * <br><br><p>{@link MessageClient} subscriptions will stop being updated.
+     */
     public void stop() {
-        messageClientMap.clear();
         topicMapping.unsubscribeFromUpdates(updateListener);
     }
 
@@ -73,6 +84,13 @@ public class MessageBridge {
      */
     public void addOrReplaceMessageClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
         messageClientMap.put(clientType, messageClient);
+    }
+
+    /**
+     * Remove all {@link MessageClient}s from the bridge.
+     */
+    public void removeAllMessageClients() {
+        messageClientMap.clear();
     }
 
     /**
