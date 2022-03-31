@@ -22,6 +22,7 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttClientPersistence;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.net.URI;
@@ -164,13 +165,18 @@ public class MQTTClient implements MessageClient {
         config.getMqttClientKeyStore().unsubscribeToUpdates(updateListener);
         removeMappingAndSubscriptions();
 
-        try {
-            if (mqttClientInternal.isConnected()) {
+        if (mqttClientInternal.isConnected()) {
+            try {
                 mqttClientInternal.disconnect();
+            } catch (MqttException e) {
+                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
             }
+        }
+
+        try {
             dataStore.close();
-        } catch (MqttException e) {
-            LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
+        } catch (MqttPersistenceException e) {
+            LOGGER.atError().setCause(e).log("Failed to close data store");
         }
     }
 
