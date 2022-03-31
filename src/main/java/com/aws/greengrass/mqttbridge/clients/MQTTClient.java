@@ -122,8 +122,6 @@ public class MQTTClient implements MessageClient {
         } catch (MqttException e) {
             throw new MQTTClientException("Unable to create an MQTT client", e);
         }
-
-        this.config.getMqttClientKeyStore().listenToUpdates(updateListener);
     }
 
     void reset() {
@@ -151,6 +149,7 @@ public class MQTTClient implements MessageClient {
      */
     public void start() throws MQTTClientException {
         mqttClientInternal.setCallback(mqttCallback);
+        config.getMqttClientKeyStore().listenToUpdates(updateListener);
         try {
             connectAndSubscribe();
         } catch (KeyStoreException e) {
