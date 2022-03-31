@@ -95,27 +95,31 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
-            if (!skipUpdatingMqttTopicMapping(whatHappened, node)) {
-                logger.atTrace().kv("why", whatHappened).kv("node", node).log();
-                Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
-                if (mappingConfigTopics.isEmpty()) {
-                    logger.debug("Mapping empty");
-                    topicMapping.updateMapping(Collections.emptyMap());
-                    return;
-                }
+            // Skip updating MQTT topic mapping if the event is WhatHappened.timestampUpdated
+            // or WhatHappened.interiorAdded.
+            // Also skip if the event is updating brokerUri.
+            if (skipUpdatingMqttTopicMapping(whatHappened, node)) {
+                return;
+            }
+            logger.atDebug().kv("why", whatHappened).kv("node", node).log();
+            Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
+            if (mappingConfigTopics.isEmpty()) {
+                logger.debug("Mapping empty");
+                topicMapping.updateMapping(Collections.emptyMap());
+                return;
+            }
 
-                try {
-                    Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                            .convertValue(mappingConfigTopics.toPOJO(),
-                                    new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                                    });
-                    logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-                    topicMapping.updateMapping(mapping);
-                } catch (IllegalArgumentException e) {
-                    logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
-                    // Currently, Nucleus spills all exceptions in std err which junit consider failures
-                    serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
-                }
+            try {
+                Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
+                        .convertValue(mappingConfigTopics.toPOJO(),
+                                new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                                });
+                logger.atInfo().kv("mapping", mapping).log("Updating mapping");
+                topicMapping.updateMapping(mapping);
+            } catch (IllegalArgumentException e) {
+                logger.atError("Invalid topic mapping").kv("TopicMapping", mappingConfigTopics.toString()).log();
+                // Currently, Nucleus spills all exceptions in std err which junit consider failures
+                serviceErrored(String.format("Invalid topic mapping. %s", e.getMessage()));
             }
         });
     }
