@@ -69,8 +69,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -86,8 +85,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -116,8 +114,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -173,8 +170,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -208,8 +204,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
 
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -237,8 +232,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockMqttClientKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
 
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -266,8 +260,7 @@ public class MQTTClientTest {
                 .password("")
                 .mqttClientKeyStore(mockKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
 
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -297,8 +290,7 @@ public class MQTTClientTest {
                 .password("password")
                 .mqttClientKeyStore(mockKeyStore)
                 .executorService(ses)
-                .internalMqttClientOverride(fakeMqttClient)
-                .build());
+                .build(), fakeMqttClient);
 
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -317,7 +309,6 @@ public class MQTTClientTest {
                         .password("password")
                         .mqttClientKeyStore(mockMqttClientKeyStore)
                         .executorService(ses)
-                        .internalMqttClientOverride(fakeMqttClient)
-                        .build()));
+                        .build(), fakeMqttClient));
     }
 }

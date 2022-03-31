@@ -89,38 +89,37 @@ public class MQTTClient implements MessageClient {
         String username;
         @NonNull
         String password;
+        @NonNull
         MQTTClientKeyStore mqttClientKeyStore;
         @NonNull
         ExecutorService executorService;
-        IMqttClient internalMqttClientOverride;
     }
 
     /**
      * Construct an MQTTClient.
      *
      * @param config MQTTClient configuration
-     * @throws MQTTClientException      if unable to create client for the mqtt broker
+     * @throws MQTTClientException if unable to create client for the mqtt broker
      */
     public MQTTClient(Config config) throws MQTTClientException {
+        this(config, null);
+    }
+
+    protected MQTTClient(Config config, IMqttClient mqttClient) throws MQTTClientException {
         if (config.getUsername().isEmpty() && !config.getPassword().isEmpty()) {
             throw new MQTTClientException(ERROR_MISSING_USERNAME);
         }
-
         this.config = config;
         this.dataStore = new MemoryPersistence();
 
-        if (this.config.getInternalMqttClientOverride() == null) {
-            try {
-                this.mqttClientInternal = new MqttClient(
-                        this.config.getBrokerUri().toString(),
-                        this.config.getClientId(),
-                        this.dataStore
-                );
-            } catch (MqttException e) {
-                throw new MQTTClientException("Unable to create an MQTT client", e);
-            }
-        } else {
-            this.mqttClientInternal = this.config.getInternalMqttClientOverride();
+        try {
+            this.mqttClientInternal = mqttClient == null ? new MqttClient(
+                    config.getBrokerUri().toString(),
+                    config.getClientId(),
+                    this.dataStore
+            ) : mqttClient;
+        } catch (MqttException e) {
+            throw new MQTTClientException("Unable to create an MQTT client", e);
         }
 
         this.config.getMqttClientKeyStore().listenToUpdates(updateListener);
