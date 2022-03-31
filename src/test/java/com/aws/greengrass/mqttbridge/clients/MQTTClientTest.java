@@ -309,7 +309,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_only_password_provided_THEN_exception_thrown() {
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(MQTTClientException.class, () ->
                 new MQTTClient(MQTTClient.Config.builder()
                         .brokerUri(ENCRYPTED_URI)
                         .clientId(CLIENT_ID)

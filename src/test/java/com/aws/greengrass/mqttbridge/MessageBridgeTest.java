@@ -96,6 +96,57 @@ public class MessageBridgeTest {
     }
 
     @Test
+    void GIVEN_mqtt_bridge_and_clients_WHEN_bridge_restarted_THEN_subscribed() {
+        TopicMapping mapping = new TopicMapping();
+        MessageBridge messageBridge = new MessageBridge(mapping);
+
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.start();
+
+        // restart
+        messageBridge.stop();
+        messageBridge.start();
+
+        reset(mockMessageClient);
+        reset(mockMessageClient2);
+        reset(mockMessageClient3);
+
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore), "m2",
+                new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub), "m3",
+                new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m4",
+                new TopicMapping.MappingEntry("mqtt/topic4", TopicMapping.TopicType.Pubsub,
+                        TopicMapping.TopicType.LocalMqtt), "m5",
+                new TopicMapping.MappingEntry("mqtt/+/topic", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt), "m6",
+                new TopicMapping.MappingEntry("mqtt/topic/#", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore));
+        mapping.updateMapping(mappingToUpdate);
+
+        ArgumentCaptor<Set<String>> topicsArgumentCaptorLocalMqtt = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptorLocalMqtt.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorLocalMqtt.getValue(), Matchers.hasSize(3));
+        MatcherAssert.assertThat(topicsArgumentCaptorLocalMqtt.getValue(),
+                Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2", "mqtt/topic/#"));
+
+        ArgumentCaptor<Set<String>> topicsArgumentCaptorPubsub = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient2, times(1)).updateSubscriptions(topicsArgumentCaptorPubsub.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorPubsub.getValue(), Matchers.hasSize(1));
+        MatcherAssert.assertThat(topicsArgumentCaptorPubsub.getValue(), Matchers.containsInAnyOrder("mqtt/topic4"));
+
+        ArgumentCaptor<Set<String>> topicsArgumentCaptorIotCore = ArgumentCaptor.forClass(Set.class);
+        verify(mockMessageClient3, times(1)).updateSubscriptions(topicsArgumentCaptorIotCore.capture(), any());
+        MatcherAssert.assertThat(topicsArgumentCaptorIotCore.getValue(), Matchers.hasSize(2));
+        MatcherAssert.assertThat(topicsArgumentCaptorIotCore.getValue(),
+                Matchers.containsInAnyOrder("mqtt/topic3", "mqtt/+/topic"));
+    }
+
+    @Test
     void GIVEN_mqtt_bridge_and_client_WHEN_client_removed_THEN_no_subscriptions_made() {
         TopicMapping mapping = new TopicMapping();
         MessageBridge messageBridge = new MessageBridge(mapping);

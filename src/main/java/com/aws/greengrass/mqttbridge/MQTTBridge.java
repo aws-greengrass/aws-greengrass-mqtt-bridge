@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -24,6 +25,7 @@ import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClientException;
 import com.aws.greengrass.mqttbridge.clients.PubSubClient;
+import com.aws.greengrass.mqttbridge.util.BatchedSubscriber;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -38,11 +40,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
@@ -56,6 +58,7 @@ public class MQTTBridge extends PluginService {
     private final MQTTClientKeyStore mqttClientKeyStore;
     @Setter(AccessLevel.PACKAGE) // Setter for unit tests
     private MQTTClientFactory mqttClientFactory;
+    private final ConfigurationChangeHandler configurationChangeHandler;
     private MQTTClient mqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
@@ -111,53 +114,13 @@ public class MQTTBridge extends PluginService {
                 .mqttClientKeyStore(mqttClientKeyStore)
                 .executorService(executorService)
                 .build());
-
-        // handle configuration changes
-        Topics mappingConfigTopics = topics.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
-        topics.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).subscribe((what, child) -> {
-            // initialization
-            if (child == null) {
-                onMqttTopicMappingChange(mappingConfigTopics);
-                return;
-            }
-
-            // ignore irrelevant changes
-            if (what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded) {
-                return;
-            }
-
-            // handle mqtt topic mapping changes dynamically
-            if (child.childOf(BridgeConfig.KEY_MQTT_TOPIC_MAPPING)) {
-                onMqttTopicMappingChange(mappingConfigTopics);
-                return;
-            }
-
-            // otherwise, reinstall to completely refresh this plugin
-            requestReinstall();
-        });
-    }
-
-    private void onMqttTopicMappingChange(Topics mappingConfigTopics) {
-        if (mappingConfigTopics.isEmpty()) {
-            topicMapping.updateMapping(Collections.emptyMap());
-            return;
-        }
-
-        try {
-            Map<String, TopicMapping.MappingEntry> mapping = OBJECT_MAPPER
-                    .convertValue(mappingConfigTopics.toPOJO(),
-                            new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
-                            });
-            logger.atInfo().kv("mapping", mapping).log("Updating mapping");
-            topicMapping.updateMapping(mapping);
-        } catch (IllegalArgumentException e) {
-            // Currently, Nucleus spills all exceptions in std err which junit consider failures
-            serviceErrored(e);
-        }
+        this.configurationChangeHandler = new ConfigurationChangeHandler();
     }
 
     @Override
     public void install() {
+        configurationChangeHandler.listen();
+
         try {
             this.brokerUri = BridgeConfig.getBrokerUri(config);
         } catch (URISyntaxException e) {
@@ -216,7 +179,9 @@ public class MQTTBridge extends PluginService {
     @Override
     public void shutdown() {
         unsubscribeFromCertificateAuthoritiesTopic();
+
         messageBridge.stop();
+        messageBridge.removeAllMessageClients();
 
         if (mqttClient != null) {
             mqttClient.stop();
@@ -232,7 +197,7 @@ public class MQTTBridge extends PluginService {
     }
 
     @SuppressWarnings("unchecked")
-    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCaChange) throws ServiceLoadException {
+    private void subscribeToCertificateAuthoritiesTopic(Consumer<List<String>> onCAChange) throws ServiceLoadException {
         certificateAuthoritiesTopic = kernel
                 .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
                 .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
@@ -240,7 +205,7 @@ public class MQTTBridge extends PluginService {
                         ClientDevicesAuthService.AUTHORITIES_TOPIC);
 
         certificateAuthoritiesTopicSubscriber = (what, caPemList) ->
-                onCaChange.accept((List<String>) caPemList.toPOJO());
+                onCAChange.accept((List<String>) caPemList.toPOJO());
 
         certificateAuthoritiesTopic.subscribe(certificateAuthoritiesTopicSubscriber);
     }
@@ -248,6 +213,56 @@ public class MQTTBridge extends PluginService {
     private void unsubscribeFromCertificateAuthoritiesTopic() {
         if (certificateAuthoritiesTopic != null && certificateAuthoritiesTopicSubscriber != null) {
             certificateAuthoritiesTopic.remove(certificateAuthoritiesTopicSubscriber);
+        }
+    }
+
+    /**
+     * Responsible for handling all bridge config changes.
+     */
+    public class ConfigurationChangeHandler {
+
+        private final Topics configurationTopics = config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+        private final Topics mappingConfigTopics = config.lookupTopics(BridgeConfig.PATH_MQTT_TOPIC_MAPPING);
+
+        private final BatchedSubscriber subscriber = new BatchedSubscriber(configurationTopics, (what, whatChanged) -> {
+
+            if (what == WhatHappened.initialized
+                    || whatChanged.stream().allMatch(n -> n.childOf(BridgeConfig.KEY_MQTT_TOPIC_MAPPING))) {
+
+                Map<String, TopicMapping.MappingEntry> mapping;
+                try {
+                    mapping = getMapping();
+                } catch (IllegalArgumentException e) {
+                    serviceErrored(e);
+                    return;
+                }
+
+                logger.atInfo("service-config-change").kv("mapping", mapping).log("Updating mapping");
+                topicMapping.updateMapping(mapping);
+                return;
+            }
+
+            logger.atInfo("service-config-change")
+                    .kv("changes", whatChanged.stream().map(Node::getName).collect(Collectors.toList()))
+                    .log("Requesting reinstallation of bridge");
+            requestReinstall();
+        });
+
+        private Map<String, TopicMapping.MappingEntry> getMapping() {
+            return OBJECT_MAPPER.convertValue(
+                    mappingConfigTopics.toPOJO(),
+                    new TypeReference<Map<String, TopicMapping.MappingEntry>>() {
+                    }
+            );
+        }
+
+        /**
+         * Begin listening and responding to bridge configuration changes.
+         *
+         * <p>This operation is idempotent.
+         */
+        public void listen() {
+            subscriber.subscribe();
         }
     }
 }
