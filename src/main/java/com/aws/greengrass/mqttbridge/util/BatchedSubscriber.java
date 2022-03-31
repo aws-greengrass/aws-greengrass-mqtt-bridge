@@ -21,8 +21,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 /**
- * NOTE: This class is copied from nucleus, so that we can maintain compatibility with older versions
- * of nucleus.
+ * NOTE: In order to maintain backwards compatibility with nucleus and prevent bumping its version,
+ * the decision has been made to simply duplicate BatchedSubscriber here.  If we bump the nucleus version
+ * in the future then we can likely remove this class.
  *
  * {@link BatchedSubscriber} is a subscriber that fires once for a <i>batch</i> of changes
  * (and on subscription initialization).
