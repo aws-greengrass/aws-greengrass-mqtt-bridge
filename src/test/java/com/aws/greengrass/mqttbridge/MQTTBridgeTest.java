@@ -378,8 +378,15 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     private CountDownLatch trackServiceStateChanges(State... expectedStates) {
-        final Queue<State> states = new LinkedList<>(Arrays.asList(expectedStates));
         CountDownLatch stateChangesOccurred = new CountDownLatch(1);
+
+        if (expectedStates == null || expectedStates.length == 0) {
+            stateChangesOccurred.countDown();
+            return stateChangesOccurred;
+        }
+
+        final Queue<State> states = new LinkedList<>(Arrays.asList(expectedStates));
+
         kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
             if (!service.getName().equals(MQTTBridge.SERVICE_NAME)) {
                 return;
