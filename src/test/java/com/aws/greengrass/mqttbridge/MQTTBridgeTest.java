@@ -51,7 +51,9 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -59,6 +61,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -123,23 +126,53 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_brokerUri_config_changes_THEN_bridge_reinstalls(ExtensionContext context)
-            throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        AtomicInteger numRestarts = new AtomicInteger();
+
         kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
+                numRestarts.incrementAndGet();
                 bridgeRestarted.countDown();
             }
         });
 
         Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbrokeruri"), MERGE_UPDATE_BEHAVIOR.get());
+
+        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
+        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbroker:1234"), MERGE_UPDATE_BEHAVIOR.get());
 
         Assertions.assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertEquals(1, numRestarts.get());
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, InterruptedException.class);
+        startKernelWithConfig("config.yaml");
+
+        Semaphore bridgeRestarted = new Semaphore(1);
+        bridgeRestarted.acquire();
+
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
+                bridgeRestarted.release();
+            }
+        });
+
+        Topics config = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+
+        int numRestarts = 5;
+        for (int i = 0; i < numRestarts; i++) {
+            // change the configuration and wait for bridge to restart
+            config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, String.format("tcp://brokeruri:%d", i)), MERGE_UPDATE_BEHAVIOR.get());
+            Assertions.assertTrue(bridgeRestarted.tryAcquire(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        }
     }
 
     @Test
@@ -166,6 +199,13 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
+        CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
+                bridgeRestarted.countDown();
+            }
+        });
+
         Topics mappingConfigTopics = kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_TOPIC_MAPPING);
 
@@ -180,6 +220,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
         assertThat(topicMapping.getMapping().size(), is(equalTo(3)));
+        assertFalse(bridgeRestarted.await(2, TimeUnit.SECONDS));
     }
 
     @Test
