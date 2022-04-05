@@ -7,8 +7,9 @@ package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
@@ -39,6 +40,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
@@ -55,7 +58,7 @@ public class MQTTBridge extends PluginService {
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
     static final String MQTT_TOPIC_MAPPING = "mqttTopicMapping";
-    private Topics mappingConfigTopics;
+    static final String BROKER_URI_KEY = "brokerUri";
 
     /**
      * Ctr for MQTTBridge.
@@ -91,10 +94,15 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        mappingConfigTopics =
-                this.config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
-
-        mappingConfigTopics.subscribe((whatHappened, node) -> {
+        this.config.lookupTopics(CONFIGURATION_CONFIG_KEY).subscribe((whatHappened, node) -> {
+            // Skip updating MQTT topic mapping if the event is WhatHappened.timestampUpdated
+            // or WhatHappened.interiorAdded.
+            // Also skip if the event is updating brokerUri.
+            if (skipUpdatingMqttTopicMapping(whatHappened, node)) {
+                return;
+            }
+            logger.atDebug().kv("why", whatHappened).kv("node", node).log();
+            Topics mappingConfigTopics = this.config.lookupTopics(CONFIGURATION_CONFIG_KEY, MQTT_TOPIC_MAPPING);
             if (mappingConfigTopics.isEmpty()) {
                 logger.debug("Mapping empty");
                 topicMapping.updateMapping(Collections.emptyMap());
@@ -183,5 +191,16 @@ public class MQTTBridge extends PluginService {
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
         }
+    }
+
+    private boolean skipUpdatingMqttTopicMapping(WhatHappened whatHappened, Node node) {
+        if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
+            return true;
+        }
+        if (node != null && !node.childOf(MQTT_TOPIC_MAPPING)) {
+            logger.atTrace().kv("why", whatHappened).kv("node", node).log("Skip updating topic mapping");
+            return true;
+        }
+        return false;
     }
 }
