@@ -197,9 +197,8 @@ public class MQTTBridge extends PluginService {
         if (whatHappened == WhatHappened.timestampUpdated || whatHappened == WhatHappened.interiorAdded) {
             return true;
         }
-        if (node != null && BROKER_URI_KEY.equals(node.getName())) {
-            logger.atTrace().kv("why", whatHappened).kv("node", node)
-                    .log("Broker URI update. Skip updating topic mapping");
+        if (node != null && !node.childOf(MQTT_TOPIC_MAPPING)) {
+            logger.atTrace().kv("why", whatHappened).kv("node", node).log("Skip updating topic mapping");
             return true;
         }
         return false;
