@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -243,15 +244,22 @@ class BatchedSubscriberTest {
      * @param queueChanges action that modifies the provided topic(s)
      */
     private void waitForChangesToQueue(Node node, Runnable queueChanges) {
+        AtomicReference<Exception> exception = new AtomicReference<>();
         CountDownLatch waitForChangesToQueue = new CountDownLatch(1);
         node.context.runOnPublishQueue(() -> {
             try {
                 waitForChangesToQueue.await();
             } catch (InterruptedException e) {
-                fail(e);
+                exception.set(e);
             }
         });
         queueChanges.run();
         waitForChangesToQueue.countDown();
+
+        // propagate exceptions encountered on publish thread
+        Exception e = exception.get();
+        if (e != null) {
+            fail(e);
+        }
     }
 }
