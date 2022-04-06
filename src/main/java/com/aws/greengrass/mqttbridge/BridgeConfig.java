@@ -19,7 +19,7 @@ import java.net.URISyntaxException;
 public final class BridgeConfig {
 
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
-    static final String KEY_BROKER_URI = "brokerUri";
+    public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
 

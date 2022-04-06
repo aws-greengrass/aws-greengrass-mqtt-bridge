@@ -244,14 +244,21 @@ public class MQTTClient implements MessageClient {
             connOpts.setSocketFactory(ssf);
         }
 
-        LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connecting to broker");
+        LOGGER.atInfo()
+                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .log("Connecting to broker");
+
         connectFuture = executorService.submit(this::reconnectAndResubscribe);
     }
 
     private synchronized void doConnect() throws MqttException {
         if (!mqttClientInternal.isConnected()) {
             mqttClientInternal.connect(connOpts);
-            LOGGER.atInfo().kv("uri", brokerUri).kv(BridgeConfig.KEY_CLIENT_ID, clientId).log("Connected to broker");
+            LOGGER.atInfo()
+                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .log("Connected to broker");
         }
     }
 
