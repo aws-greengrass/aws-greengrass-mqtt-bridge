@@ -5,25 +5,25 @@
 
 package com.aws.greengrass.mqttbridge.clients;
 
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.net.ssl.SSLSocketFactory;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import javax.net.ssl.SSLSocketFactory;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -37,24 +37,31 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientTest {
-    private Topics configTopics;
+
+    private static final URI ENCRYPTED_URI = URI.create("ssl://localhost:8883");
+    private static final String CLIENT_ID = "mqtt-bridge-1234";
 
     private FakeMqttClient fakeMqttClient;
 
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
 
-    ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
+    private ScheduledExecutorService ses;
 
     @BeforeEach
     void setup() {
-        configTopics = Topics.of(null, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
-        fakeMqttClient = new FakeMqttClient("clientId");
+        fakeMqttClient = new FakeMqttClient(CLIENT_ID);
+        ses = new ScheduledThreadPoolExecutor(1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ses.shutdownNow();
     }
 
     @Test
     void GIVEN_mqttClient_WHEN_start_THEN_clientConnects() {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -63,7 +70,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -85,7 +92,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_updateSubscriptions_THEN_subscriptionsUpdated() {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -134,7 +141,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_mqttMessageReceived_THEN_messageRoutedToHandler() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -161,7 +168,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_publish_THEN_routedToBroker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -181,7 +188,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_connectionLost_THEN_clientReconnectsAndResubscribes() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -201,7 +208,7 @@ public class MQTTClientTest {
     @Test
     void GIVEN_mqttClient_WHEN_reset_THEN_connectsWithUpdatedSslContext() throws Exception {
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
-        MQTTClient mqttClient = new MQTTClient(configTopics, mockKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
