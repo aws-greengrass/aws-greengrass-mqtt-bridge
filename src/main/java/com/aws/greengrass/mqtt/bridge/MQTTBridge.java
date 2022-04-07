@@ -37,6 +37,7 @@ import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
@@ -162,27 +163,19 @@ public class MQTTBridge extends PluginService {
 
         private BatchedSubscriber subscriber;
 
-        @SuppressWarnings({"unchecked", "PMD.UnusedFormalParameter"})
+        @SuppressWarnings("PMD.UnusedFormalParameter")
         private void onCAChange(WhatHappened what, Set<Node> whatChanged) {
-            Topic caTopic;
-            try {
-                caTopic = findCATopic();
-            } catch (ServiceLoadException e) {
-                serviceErrored(e);
-                return;
-            }
-
-            List<String> caCerts = (List<String>) caTopic.toPOJO();
-            if (Utils.isEmpty(caCerts)) {
-                return;
-            }
-
-            logger.atDebug().kv("numCaCerts", caCerts.size()).log("CA update received");
-            try {
-                mqttClientKeyStore.updateCA(caCerts);
-            } catch (IOException | CertificateException | KeyStoreException e) {
-                serviceErrored(e);
-            }
+            maybeFindCATopic()
+                    .map(Coerce::toStringList)
+                    .filter(certs -> !Utils.isEmpty(certs))
+                    .ifPresent(certs -> {
+                        logger.atDebug().kv("numCaCerts", certs.size()).log("CA update received");
+                        try {
+                            mqttClientKeyStore.updateCA(certs);
+                        } catch (IOException | CertificateException | KeyStoreException e) {
+                            serviceErrored(e);
+                        }
+                    });
         }
 
         /**
@@ -197,6 +190,15 @@ public class MQTTBridge extends PluginService {
                 subscriber = new BatchedSubscriber(findCATopic(), this::onCAChange);
             }
             subscriber.subscribe();
+        }
+
+        private Optional<Topic> maybeFindCATopic() {
+            try {
+                return Optional.of(findCATopic());
+            } catch (ServiceLoadException e) {
+                serviceErrored(e);
+                return Optional.empty();
+            }
         }
 
         private Topic findCATopic() throws ServiceLoadException {
