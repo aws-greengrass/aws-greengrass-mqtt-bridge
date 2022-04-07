@@ -35,7 +35,9 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
@@ -161,12 +163,16 @@ public class MQTTBridge extends PluginService {
         private BatchedSubscriber subscriber;
 
         @SuppressWarnings({"unchecked", "PMD.UnusedFormalParameter"})
-        private void onCAChange(WhatHappened what, List<Node> whatChanged) {
-            if (whatChanged.isEmpty()) {
+        private void onCAChange(WhatHappened what, Set<Node> whatChanged) {
+            Topic caTopic;
+            try {
+                caTopic = findCATopic();
+            } catch (ServiceLoadException e) {
+                serviceErrored(e);
                 return;
             }
 
-            List<String> caCerts = (List<String>) whatChanged.get(whatChanged.size() - 1).toPOJO();
+            List<String> caCerts = (List<String>) caTopic.toPOJO();
             if (Utils.isEmpty(caCerts)) {
                 return;
             }
