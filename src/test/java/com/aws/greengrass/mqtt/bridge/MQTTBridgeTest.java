@@ -379,10 +379,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
         assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
 
-        caTopic = Topic.of(context, "authorities", Collections.emptyList());
-        when(mockClientAuthConfig
-                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                        ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+        caTopic.withValue(Collections.emptyList());
+
         reset(mockMqttClientKeyStore);
         mqttBridge.install();
         mqttBridge.startup();

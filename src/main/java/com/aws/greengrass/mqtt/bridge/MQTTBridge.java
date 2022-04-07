@@ -10,6 +10,8 @@ import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -49,6 +51,7 @@ public class MQTTBridge extends PluginService {
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final LocalMqttClientFactory localMqttClientFactory;
     private final ConfigurationChangeHandler configurationChangeHandler;
+    private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
     private MessageClient localMqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
@@ -90,6 +93,7 @@ public class MQTTBridge extends PluginService {
         this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
         this.localMqttClientFactory = localMqttClientFactory;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
+        this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
     }
 
     @Override
@@ -107,24 +111,8 @@ public class MQTTBridge extends PluginService {
         }
 
         try {
-            kernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
-                            ClientDevicesAuthService.AUTHORITIES_TOPIC).subscribe((why, newv) -> {
-                try {
-                    List<String> caPemList = (List<String>) newv.toPOJO();
-                    if (Utils.isEmpty(caPemList)) {
-                        logger.debug("CA list null or empty");
-                        return;
-                    }
-                    mqttClientKeyStore.updateCA(caPemList);
-                } catch (IOException | CertificateException | KeyStoreException e) {
-                    logger.atError("Invalid CA list").kv("CAList", Coerce.toString(newv)).log();
-                    serviceErrored(String.format("Invalid CA list. %s", e.getMessage()));
-                }
-            });
+            certificateAuthorityChangeHandler.start();
         } catch (ServiceLoadException e) {
-            logger.atError().cause(e).log("Unable to locate {} service while subscribing to CA certificates",
-                    ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME);
             serviceErrored(e);
             return;
         }
@@ -149,6 +137,7 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void shutdown() {
+        certificateAuthorityChangeHandler.stop();
         mqttClientKeyStore.shutdown();
 
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
@@ -164,6 +153,61 @@ public class MQTTBridge extends PluginService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
+        }
+    }
+
+    public class CertificateAuthorityChangeHandler {
+
+        private BatchedSubscriber subscriber;
+
+        @SuppressWarnings({"unchecked", "PMD.UnusedFormalParameter"})
+        private void onCAChange(WhatHappened what, List<Node> whatChanged) {
+            if (whatChanged.isEmpty()) {
+                return;
+            }
+
+            List<String> caCerts = (List<String>) whatChanged.get(whatChanged.size() - 1).toPOJO();
+            if (Utils.isEmpty(caCerts)) {
+                return;
+            }
+
+            logger.atDebug().kv("numCaCerts", caCerts.size()).log("CA update received");
+            try {
+                mqttClientKeyStore.updateCA(caCerts);
+            } catch (IOException | CertificateException | KeyStoreException e) {
+                serviceErrored(e);
+            }
+        }
+
+        /**
+         * Begin listening and responding to CDA CA changes.
+         *
+         * <p>This operation is idempotent.
+         *
+         * @throws ServiceLoadException if CDA service could not be loaded
+         */
+        public void start() throws ServiceLoadException {
+            if (subscriber == null) {
+                subscriber = new BatchedSubscriber(findCATopic(), this::onCAChange);
+            }
+            subscriber.subscribe();
+        }
+
+        private Topic findCATopic() throws ServiceLoadException {
+            return kernel
+                    .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
+                    .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                            ClientDevicesAuthService.CERTIFICATES_KEY,
+                            ClientDevicesAuthService.AUTHORITIES_TOPIC);
+        }
+
+        /**
+         * Stop listening to CDA CA changes.
+         */
+        public void stop() {
+            if (subscriber != null) {
+                subscriber.unsubscribe();
+            }
         }
     }
 
