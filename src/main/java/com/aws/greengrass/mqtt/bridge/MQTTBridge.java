@@ -207,7 +207,12 @@ public class MQTTBridge extends PluginService {
                                 ClientDevicesAuthService.CERTIFICATES_KEY,
                                 ClientDevicesAuthService.AUTHORITIES_TOPIC));
             } catch (ServiceLoadException e) {
-                logger.atWarn().cause(e).log("unable to locate service");
+                logger.atWarn().cause(e).log(String.format(
+                        "Unable to locate %s. "
+                                + "MQTT Bridge may be unable to connect to the broker. "
+                                + "Ensure that %s component is deployed",
+                        ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME,
+                        ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME));
                 return Optional.empty();
             }
         }
