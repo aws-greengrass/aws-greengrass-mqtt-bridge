@@ -56,7 +56,7 @@ public class MQTTClientKeyStore {
 
     @FunctionalInterface
     public interface UpdateListener {
-        void onUpdate();
+        void onCAUpdate();
     }
 
     /**
@@ -109,8 +109,6 @@ public class MQTTClientKeyStore {
     private void updateCert(X509Certificate... certChain) {
         try {
             keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
-
-            updateListeners.forEach(UpdateListener::onUpdate); //notify MQTTClient
         } catch (KeyStoreException e) {
             LOGGER.atError("Unable to store generated cert", e);
         }
@@ -139,7 +137,7 @@ public class MQTTClientKeyStore {
             keyStore.setCertificateEntry("CA" + i, caCert);
         }
 
-        updateListeners.forEach(UpdateListener::onUpdate); //notify MQTTClient
+        updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
@@ -156,7 +154,7 @@ public class MQTTClientKeyStore {
      * Add listener to listen to KeyStore updates.
      * @param listener listener method
      */
-    public synchronized void listenToUpdates(UpdateListener listener) {
+    public synchronized void listenToCAUpdates(UpdateListener listener) {
         updateListeners.add(listener);
     }
 

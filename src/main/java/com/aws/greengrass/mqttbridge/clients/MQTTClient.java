@@ -104,7 +104,7 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(this::reset);
+        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
         this.executorService = executorService;
     }
 
