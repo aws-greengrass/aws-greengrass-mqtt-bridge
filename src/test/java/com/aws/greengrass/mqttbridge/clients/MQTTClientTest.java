@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttbridge.clients;
 import com.aws.greengrass.mqttbridge.Message;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -206,7 +207,7 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqttClient_WHEN_reset_THEN_connectsWithUpdatedSslContext() throws Exception {
+    void GIVEN_mqttClient_WHEN_caRotates_THEN_connectsWithUpdatedSslContext() throws Exception {
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
         MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockKeyStore, ses, fakeMqttClient);
         mqttClient.start();
@@ -222,5 +223,28 @@ public class MQTTClientTest {
 
         assertThat(fakeMqttClient.getConnectOptions().getSocketFactory(), is(mockSocketFactory));
         assertThat(fakeMqttClient.getConnectCount(), is(2));
+    }
+
+    @Test
+    void GIVEN_mqttClient_WHEN_clientCertRotates_THEN_newCertIsUsedUponSubsequentReconnects() throws Exception {
+        SSLSocketFactory mockSocketFactory1 = mock(SSLSocketFactory.class);
+        SSLSocketFactory mockSocketFactory2 = mock(SSLSocketFactory.class);
+        when(mockMqttClientKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory1);
+
+        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        mqttClient.start();
+        fakeMqttClient.waitForConnect(1000);
+
+        assertThat(fakeMqttClient.isConnected(), is(true));
+        MqttConnectOptions connectOptions = fakeMqttClient.getConnectOptions();
+        assertThat(connectOptions.getSocketFactory(), is(mockSocketFactory1));
+
+        // Update socket factory and inject a connection loss
+        when(mockMqttClientKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory2);
+        fakeMqttClient.injectConnectionLoss();
+
+        assertThat(fakeMqttClient.isConnected(), is(true));
+        connectOptions = fakeMqttClient.getConnectOptions();
+        assertThat(connectOptions.getSocketFactory(), is(mockSocketFactory2));
     }
 }

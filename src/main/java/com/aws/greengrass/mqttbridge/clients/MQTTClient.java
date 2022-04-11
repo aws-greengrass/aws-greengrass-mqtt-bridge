@@ -38,7 +38,6 @@ public class MQTTClient implements MessageClient {
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
-    private final MqttConnectOptions connOpts = new MqttConnectOptions();
     private Consumer<Message> messageHandler;
     private final URI brokerUri;
     private final String clientId;
@@ -104,7 +103,7 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToUpdates(this::reset);
+        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
         this.executorService = executorService;
     }
 
@@ -231,17 +230,21 @@ public class MQTTClient implements MessageClient {
         });
     }
 
-    private synchronized void connectAndSubscribe() throws KeyStoreException {
-        if (connectFuture != null) {
-            connectFuture.cancel(true);
-        }
-
-        //TODO: persistent session could be used
+    private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
+        MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(true);
 
         if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
+        }
+
+        return connOpts;
+    }
+
+    private synchronized void connectAndSubscribe() throws KeyStoreException {
+        if (connectFuture != null) {
+            connectFuture.cancel(true);
         }
 
         LOGGER.atInfo()
@@ -252,9 +255,9 @@ public class MQTTClient implements MessageClient {
         connectFuture = executorService.submit(this::reconnectAndResubscribe);
     }
 
-    private synchronized void doConnect() throws MqttException {
+    private synchronized void doConnect() throws MqttException, KeyStoreException {
         if (!mqttClientInternal.isConnected()) {
-            mqttClientInternal.connect(connOpts);
+            mqttClientInternal.connect(getConnectionOptions());
             LOGGER.atInfo()
                     .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
                     .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
@@ -269,7 +272,7 @@ public class MQTTClient implements MessageClient {
             try {
                 // TODO: Clean up this loop
                 doConnect();
-            } catch (MqttException e) {
+            } catch (MqttException | KeyStoreException e) {
                 LOGGER.atDebug().setCause(e)
                         .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
                 try {
