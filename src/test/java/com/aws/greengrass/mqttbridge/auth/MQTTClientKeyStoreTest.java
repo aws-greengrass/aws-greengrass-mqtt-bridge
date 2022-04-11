@@ -43,7 +43,7 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientKeyStoreTest {
-    public static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
+    private static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
             + "MIICujCCAaICCQCQcEEQmGoJqjANBgkqhkiG9w0BAQUFADAfMR0wGwYDVQQDDBRt\r\n"
             + "b3F1ZXR0ZS5lY2xpcHNlLm9yZzAeFw0yMDA3MjExODA2MzdaFw0yMTA3MTYxODA2\r\n"
             + "MzdaMB8xHTAbBgNVBAMMFG1vcXVldHRlLmVjbGlwc2Uub3JnMIIBIjANBgkqhkiG\r\n"
@@ -67,11 +67,9 @@ public class MQTTClientKeyStoreTest {
     private CertificateManager mockCertificateManager;
 
     @Test
-    void GIVEN_MQTTClientKeyStore_WHEN_initialized_THEN_key_and_cert_generated() throws Exception {
+    void GIVEN_MQTTClientKeyStore_WHEN_initialized_THEN_keyAndCertGenerated() throws Exception {
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
         mqttClientKeyStore.init();
-        CountDownLatch updateLatch = new CountDownLatch(1);
-        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
 
         ArgumentCaptor<Consumer<X509Certificate[]>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockCertificateManager, times(1))
@@ -84,7 +82,6 @@ public class MQTTClientKeyStoreTest {
         X509Certificate certificate = pemToX509Certificate(CERTIFICATE);
         X509Certificate[] chain = {certificate, certificate};
         certCallback.accept(chain);
-        assertThat(updateLatch.await(100, TimeUnit.MILLISECONDS), is(true));
         assertThat(keyStore.size(), is(1));
 
         PrivateKey privateKey = (PrivateKey) keyStore.getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
@@ -106,7 +103,7 @@ public class MQTTClientKeyStoreTest {
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
         mqttClientKeyStore.init();
         CountDownLatch updateLatch = new CountDownLatch(1);
-        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
+        mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
 
         KeyStore keyStore = mqttClientKeyStore.getKeyStore();
         assertThat(keyStore.size(), is(0));
@@ -122,11 +119,11 @@ public class MQTTClientKeyStoreTest {
     }
 
     @Test
-    void GIVEN_MQTTClientKeyStore_WHEN_called_getSSLSocketFactory_THEN_returns_SSLSocketFactory() throws Exception {
+    void GIVEN_MQTTClientKeyStore_WHEN_getSSLSocketFactory_THEN_returns_SSLSocketFactory() throws Exception {
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
         mqttClientKeyStore.init();
-        CountDownLatch updateLatch = new CountDownLatch(2);
-        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
 
         ArgumentCaptor<Consumer<X509Certificate[]>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockCertificateManager, times(1))
