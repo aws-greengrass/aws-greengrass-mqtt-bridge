@@ -43,7 +43,7 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class MQTTClientKeyStoreTest {
-    public static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
+    private static final String CERTIFICATE = "-----BEGIN CERTIFICATE-----\r\n"
             + "MIICujCCAaICCQCQcEEQmGoJqjANBgkqhkiG9w0BAQUFADAfMR0wGwYDVQQDDBRt\r\n"
             + "b3F1ZXR0ZS5lY2xpcHNlLm9yZzAeFw0yMDA3MjExODA2MzdaFw0yMTA3MTYxODA2\r\n"
             + "MzdaMB8xHTAbBgNVBAMMFG1vcXVldHRlLmVjbGlwc2Uub3JnMIIBIjANBgkqhkiG\r\n"

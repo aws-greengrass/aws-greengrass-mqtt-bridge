@@ -108,6 +108,7 @@ public class MQTTClientKeyStore {
 
     private void updateCert(X509Certificate... certChain) {
         try {
+            LOGGER.atDebug().log("Storing new client certificate to be used on next connect attempt");
             keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
         } catch (KeyStoreException e) {
             LOGGER.atError("Unable to store generated cert", e);
@@ -175,7 +176,7 @@ public class MQTTClientKeyStore {
             SSLContext sc = SSLContext.getInstance("TLS");
             sc.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
             return sc.getSocketFactory();
-        } catch (NoSuchAlgorithmException | KeyStoreException | UnrecoverableKeyException | KeyManagementException e) {
+        } catch (NoSuchAlgorithmException | UnrecoverableKeyException | KeyManagementException e) {
             throw new KeyStoreException("Unable to create SocketFactory from KeyStore", e);
         }
     }
