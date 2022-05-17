@@ -6,7 +6,7 @@
 import os.path
 import re
 import sys
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 
 
 # branch-rate="0.0" complexity="0.0" line-rate="1.0"
