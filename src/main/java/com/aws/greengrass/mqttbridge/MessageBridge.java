@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -43,13 +44,16 @@ public class MessageBridge {
     // LocalMqtt -> {"/sourceTopic", [{"/destinationTopic", IoTCore}, {"/destinationTopic2", Pubsub}]}
     private Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
             perClientSourceDestinationMap = new HashMap<>();
+    private final ExecutorService executorService;
 
     /**
      * Ctr for Message Bridge.
      *
      * @param topicMapping topics mapping
+     * @param executorService Executor Service
      */
-    public MessageBridge(TopicMapping topicMapping) {
+    public MessageBridge(TopicMapping topicMapping, ExecutorService executorService) {
+        this.executorService = executorService;
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
         processMappingAndSubscribe();
@@ -64,7 +68,6 @@ public class MessageBridge {
      */
     public void addOrReplaceMessageClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
         messageClientMap.put(clientType, messageClient);
-        updateSubscriptionsForClient(clientType, messageClient);
     }
 
     /**
@@ -74,6 +77,30 @@ public class MessageBridge {
      */
     public void removeMessageClient(TopicMapping.TopicType clientType) {
         messageClientMap.remove(clientType);
+    }
+
+    /**
+     * Update subscriptions for the given message client.
+     * @param clientType    type of the client (type is the `source` type). Example, it will be LocalMqtt for
+     *                      MQTTClient
+     * @param messageClient client
+     */
+    public synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
+                                                          MessageClient messageClient) {
+        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
+                perClientSourceDestinationMap.get(clientType);
+
+        Set<String> topicsToSubscribe;
+        if (srcDestMapping == null) {
+            topicsToSubscribe = new HashSet<>();
+        } else {
+            topicsToSubscribe = srcDestMapping.keySet();
+        }
+
+        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
+
+        executorService.submit(() ->
+                messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message)));
     }
 
     private void handleMessage(TopicMapping.TopicType sourceType, Message message) {
@@ -162,22 +189,5 @@ public class MessageBridge {
 
         messageClientMap.forEach(this::updateSubscriptionsForClient);
         LOGGER.atDebug().kv("topicMapping", perClientSourceDestinationMap).log("Processed mapping");
-    }
-
-    private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
-                                                           MessageClient messageClient) {
-        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
-                perClientSourceDestinationMap.get(clientType);
-
-        Set<String> topicsToSubscribe;
-        if (srcDestMapping == null) {
-            topicsToSubscribe = new HashSet<>();
-        } else {
-            topicsToSubscribe = srcDestMapping.keySet();
-        }
-
-        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
-
-        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
     }
 }

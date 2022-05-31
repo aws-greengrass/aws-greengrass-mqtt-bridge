@@ -81,8 +81,8 @@ public class MQTTBridge extends PluginService {
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-                mqttClientKeyStore, executorService);
+        this(topics, topicMapping, new MessageBridge(topicMapping, executorService), pubSubIPCAgent, iotMqttClient,
+                kernel, mqttClientKeyStore, executorService);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
@@ -148,6 +148,7 @@ public class MQTTBridge extends PluginService {
             mqttClient = new MQTTClient(brokerUri, clientId, mqttClientKeyStore, executorService);
             mqttClient.start();
             messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
+            messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
             serviceErrored(e);
             return;
