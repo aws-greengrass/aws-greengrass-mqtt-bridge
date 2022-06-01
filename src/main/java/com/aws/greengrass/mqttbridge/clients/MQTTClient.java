@@ -218,14 +218,27 @@ public class MQTTClient implements MessageClient {
         Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
         topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
 
-        // TODO: Support configurable qos, add retry
+        // TODO: Support configurable qos
         topicsToSubscribe.forEach(s -> {
-            try {
-                mqttClientInternal.subscribe(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
-                subscribedLocalMqttTopics.add(s);
-            } catch (MqttException e) {
-                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
+            int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
+            while (true) {
+                try {
+                    mqttClientInternal.subscribe(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
+                    subscribedLocalMqttTopics.add(s);
+                    break;
+                } catch (MqttException e) {
+                    LOGGER.atWarn().kv(TOPIC, s).setCause(e)
+                            .log("Caught exception while subscribing to topic, Will retry after {} seconds",
+                                    waitBeforeRetry);
+                }
+                try {
+                    Thread.sleep(waitBeforeRetry);
+                } catch (InterruptedException interruptedException) {
+                    LOGGER.atWarn().kv(TOPIC, s).log("Interrupted while subscribing to topics.");
+                    return;
+                }
+                waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
             }
         });
     }
