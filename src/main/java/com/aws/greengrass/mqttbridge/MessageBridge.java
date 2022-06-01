@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
 /**
@@ -45,6 +46,7 @@ public class MessageBridge {
     private Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
             perClientSourceDestinationMap = new HashMap<>();
     private final ExecutorService executorService;
+    private Future<?> subscribeFuture;
 
     /**
      * Ctr for Message Bridge.
@@ -87,6 +89,9 @@ public class MessageBridge {
      */
     public synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
                                                           MessageClient messageClient) {
+        if (subscribeFuture != null) {
+            subscribeFuture.cancel(true);
+        }
         Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
                 perClientSourceDestinationMap.get(clientType);
 
@@ -99,7 +104,7 @@ public class MessageBridge {
 
         LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
 
-        executorService.submit(() ->
+        subscribeFuture = executorService.submit(() ->
                 messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message)));
     }
 

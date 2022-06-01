@@ -8,17 +8,16 @@ package com.aws.greengrass.mqttbridge;
 import com.aws.greengrass.mqttbridge.clients.MessageClient;
 import com.aws.greengrass.mqttbridge.clients.MessageClientException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Utils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.Map;
@@ -31,7 +30,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -46,20 +44,7 @@ public class MessageBridgeTest {
     @Mock
     private TopicMapping mockTopicMapping;
 
-    @Mock
-    private ExecutorService mockExecutorService;
-
-    @BeforeEach
-    public void setup() {
-        // synchronously run async task submitted to ExecutorService
-        // to avoid flakiness due to thread races
-        lenient().when(mockExecutorService.submit(any(Runnable.class)))
-                .thenAnswer((Answer<Object>) invocationOnMock -> {
-                    Runnable runnable = invocationOnMock.getArgument(0);
-                    runnable.run();
-                    return null;
-                });
-    }
+    private final ExecutorService mockExecutorService = TestUtils.synchronousExecutorService();
 
     @Test
     void WHEN_call_message_bridge_constructer_THEN_does_not_throw() {

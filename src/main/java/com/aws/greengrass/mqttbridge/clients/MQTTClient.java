@@ -221,7 +221,7 @@ public class MQTTClient implements MessageClient {
         // TODO: Support configurable qos
         topicsToSubscribe.forEach(s -> {
             int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 try {
                     mqttClientInternal.subscribe(s);
                     LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
@@ -235,7 +235,7 @@ public class MQTTClient implements MessageClient {
                 try {
                     Thread.sleep(waitBeforeRetry);
                 } catch (InterruptedException interruptedException) {
-                    LOGGER.atWarn().kv(TOPIC, s).log("Interrupted while subscribing to topics.");
+                    Thread.currentThread().interrupt();
                     return;
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
