@@ -1,0 +1,26 @@
+{
+  "RecipeFormatVersion": "2020-01-25",
+  "ComponentName": "{COMPONENT_NAME}",
+  "ComponentVersion": "{COMPONENT_VERSION}",
+  "ComponentType": "aws.greengrass.plugin",
+  "ComponentDescription": "The MQTT bridge component relays MQTT messages between client devices, Greengrass components, and AWS IoT Core.",
+  "ComponentPublisher": "{COMPONENT_PUBLISHER}",
+  "ComponentDependencies": {
+    "aws.greengrass.clientdevices.Auth": {
+      "VersionRequirement": ">=2.0.0 <2.2.0",
+      "DependencyType": "HARD"
+    }
+  },
+  "Manifests": [
+    {
+      "Platform": {
+        "os": "*"
+      },
+      "Lifecycle": {},
+      "Artifacts": [
+        {
+          "URI": "s3://aws.greengrass.clientdevices.mqtt.Bridge.jar"
+        }
+      ]
+    }
+  ]}
