@@ -18,7 +18,9 @@ import lombok.NonNull;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
+import java.time.Duration;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -28,6 +30,8 @@ import javax.inject.Inject;
 public class IoTCoreClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
     public static final String TOPIC = "topic";
+    private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(1L).toMillis();
+    protected static final Random JITTER = new Random();
 
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedIotCoreTopics = new HashSet<>();
@@ -129,12 +133,33 @@ public class IoTCoreClient implements MessageClient {
         topicsToSubscribe.removeAll(subscribedIotCoreTopics);
 
         topicsToSubscribe.forEach(s -> {
-            try {
-                subscribeToIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
-                subscribedIotCoreTopics.add(s);
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    subscribeToIotCore(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
+                    subscribedIotCoreTopics.add(s);
+                    return;
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof InterruptedException) {
+                        return;
+                    } else {
+                        LOGGER.atError().kv(TOPIC, s).setCause(e)
+                                .log("Caught exception while subscribing to IoTCore topic, will retry shortly");
+                    }
+                } catch (TimeoutException e) {
+                    LOGGER.atWarn().setCause(e).log("Subscribe to IoTCore topics timed out, will retry shortly");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
+                    // retry subscribe after some time
+                    Thread.sleep(WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS + JITTER.nextInt(10_000));
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
         });
     }
