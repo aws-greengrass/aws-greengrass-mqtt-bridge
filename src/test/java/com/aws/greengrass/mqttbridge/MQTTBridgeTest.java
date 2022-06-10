@@ -239,6 +239,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                         TopicMapping.TopicType.IotCore));
 
         assertEquals(expectedMapping, topicMapping.getMapping());
+        // hacky workaround to for graceful teardown
+        // to allow enough time for MQTT client to async subscribe before it disconnects
+        Thread.sleep(1000L);
     }
 
     @Test
