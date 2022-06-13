@@ -27,6 +27,7 @@ import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -118,7 +119,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context) throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
@@ -143,7 +145,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context) throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
@@ -191,7 +194,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
@@ -221,8 +226,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 
@@ -239,14 +245,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                         TopicMapping.TopicType.IotCore));
 
         assertEquals(expectedMapping, topicMapping.getMapping());
-        // hacky workaround to for graceful teardown
-        // to allow enough time for MQTT client to async subscribe before it disconnects
-        Thread.sleep(1000L);
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
@@ -261,8 +265,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 

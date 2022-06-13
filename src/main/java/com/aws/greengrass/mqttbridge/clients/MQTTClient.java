@@ -57,7 +57,7 @@ public class MQTTClient implements MessageClient {
 
     private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
-                    .maxRetryInterval(Duration.ofMinutes(2)).maxAttempt(Integer.MAX_VALUE)
+                    .maxRetryInterval(Duration.ofSeconds(120)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Collections.singletonList(MqttException.class)).build();
 
     private final MqttCallback mqttCallback = new MqttCallback() {

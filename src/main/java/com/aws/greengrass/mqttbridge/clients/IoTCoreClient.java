@@ -30,7 +30,7 @@ import javax.inject.Inject;
 public class IoTCoreClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
     public static final String TOPIC = "topic";
-    private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(1L).toMillis();
+    private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofSeconds(60L).toMillis();
     protected static final Random JITTER = new Random();
 
     @Getter(AccessLevel.PROTECTED)
