@@ -227,6 +227,8 @@ public class MQTTClient implements MessageClient {
         Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
         topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
 
+        LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
+
         // TODO: Support configurable qos
         topicsToSubscribe.forEach(s -> {
             try {
@@ -235,7 +237,6 @@ public class MQTTClient implements MessageClient {
                     // useless return
                     return null;
                 }, "subscribe-mqtt-topic", LOGGER);
-                LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
                 subscribedLocalMqttTopics.add(s);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

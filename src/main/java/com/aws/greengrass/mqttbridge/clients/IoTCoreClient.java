@@ -136,7 +136,6 @@ public class IoTCoreClient implements MessageClient {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     subscribeToIotCore(s);
-                    LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
                     subscribedIotCoreTopics.add(s);
                     return;
                 } catch (ExecutionException e) {
