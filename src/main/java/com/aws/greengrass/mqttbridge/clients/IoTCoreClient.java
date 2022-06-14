@@ -115,7 +115,7 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
@@ -153,6 +153,8 @@ public class IoTCoreClient implements MessageClient {
                         }
                     }
                 }, "subscribe-iotcore-topic", LOGGER);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
                 LOGGER.atError().kv(TOPIC, s).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
