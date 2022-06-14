@@ -12,6 +12,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -19,8 +20,8 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -30,8 +31,10 @@ import javax.inject.Inject;
 public class IoTCoreClient implements MessageClient {
     private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
     public static final String TOPIC = "topic";
-    private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofSeconds(60L).toMillis();
-    protected static final Random JITTER = new Random();
+    private final RetryUtils.RetryConfig subscribeRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
+                    .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Arrays.asList(ExecutionException.class, TimeoutException.class)).build();
 
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedIotCoreTopics = new HashSet<>();
@@ -112,6 +115,7 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @Override
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
@@ -133,32 +137,24 @@ public class IoTCoreClient implements MessageClient {
         topicsToSubscribe.removeAll(subscribedIotCoreTopics);
 
         topicsToSubscribe.forEach(s -> {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    subscribeToIotCore(s);
-                    subscribedIotCoreTopics.add(s);
-                    return;
-                } catch (ExecutionException e) {
-                    Throwable cause = e.getCause();
-                    if (cause instanceof InterruptedException) {
-                        return;
-                    } else {
-                        LOGGER.atError().kv(TOPIC, s).setCause(e)
-                                .log("Caught exception while subscribing to IoTCore topic, will retry shortly");
+            try {
+                RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
+                    try {
+                        subscribeToIotCore(s);
+                        subscribedIotCoreTopics.add(s);
+                        // useless return
+                        return null;
+                    } catch (ExecutionException e) {
+                        Throwable cause = e.getCause();
+                        if (cause instanceof InterruptedException) {
+                            throw new InterruptedException("Interrupted while subscribing");
+                        } else {
+                            throw e;
+                        }
                     }
-                } catch (TimeoutException e) {
-                    LOGGER.atWarn().setCause(e).log("Subscribe to IoTCore topics timed out, will retry shortly");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                try {
-                    // retry subscribe after some time
-                    Thread.sleep(WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS + JITTER.nextInt(10_000));
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
+                }, "subscribe-iotcore-topic", LOGGER);
+            } catch (Exception e) {
+                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
         });
     }
