@@ -155,9 +155,11 @@ public class MQTTBridge extends PluginService {
         }
         pubSubClient.start();
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, pubSubClient);
+        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.Pubsub, pubSubClient);
 
         ioTCoreClient.start();
         messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
+        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
         reportState(State.RUNNING);
     }
