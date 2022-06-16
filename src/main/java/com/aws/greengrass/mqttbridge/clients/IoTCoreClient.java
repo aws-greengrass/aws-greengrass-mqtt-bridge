@@ -172,7 +172,7 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
-    private void subscribeToTopicsWithRetry(Set<String> topics) {
+    private synchronized void subscribeToTopicsWithRetry(Set<String> topics) {
         // retry only if client is connected; skip if offline.
         // topics left here should be subscribed when the client is back online (onConnectionResumed event)
         topics.forEach(s -> {

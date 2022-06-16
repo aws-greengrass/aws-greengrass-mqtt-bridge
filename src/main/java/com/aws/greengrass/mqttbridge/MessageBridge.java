@@ -77,29 +77,6 @@ public class MessageBridge {
         messageClientMap.remove(clientType);
     }
 
-    /**
-     * Update subscriptions for the given message client.
-     * @param clientType    type of the client (type is the `source` type). Example, it will be LocalMqtt for
-     *                      MQTTClient
-     * @param messageClient client
-     */
-    private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
-                                                          MessageClient messageClient) {
-        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
-                perClientSourceDestinationMap.get(clientType);
-
-        Set<String> topicsToSubscribe;
-        if (srcDestMapping == null) {
-            topicsToSubscribe = new HashSet<>();
-        } else {
-            topicsToSubscribe = srcDestMapping.keySet();
-        }
-
-        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
-
-        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
-    }
-
     private void handleMessage(TopicMapping.TopicType sourceType, Message message) {
         String sourceTopic = message.getTopic();
         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, sourceTopic)
@@ -186,5 +163,22 @@ public class MessageBridge {
 
         messageClientMap.forEach(this::updateSubscriptionsForClient);
         LOGGER.atDebug().kv("topicMapping", perClientSourceDestinationMap).log("Processed mapping");
+    }
+
+    private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
+                                                           MessageClient messageClient) {
+        Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
+                perClientSourceDestinationMap.get(clientType);
+
+        Set<String> topicsToSubscribe;
+        if (srcDestMapping == null) {
+            topicsToSubscribe = new HashSet<>();
+        } else {
+            topicsToSubscribe = srcDestMapping.keySet();
+        }
+
+        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
+
+        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
     }
 }

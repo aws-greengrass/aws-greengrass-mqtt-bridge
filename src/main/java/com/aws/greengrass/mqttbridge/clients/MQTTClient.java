@@ -301,7 +301,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void subscribeToTopics(Set<String> topics) {
+    private synchronized void subscribeToTopics(Set<String> topics) {
         // TODO: Support configurable qos
         // retry until interrupted
         topics.forEach(s -> {
