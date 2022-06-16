@@ -69,7 +69,7 @@ public class IoTCoreClient implements MessageClient {
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            synchronized (subscribeFuture) {
+            synchronized (this)  {
                 if (subscribeFuture != null) {
                     subscribeFuture.cancel(true);
                 }
