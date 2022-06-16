@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
 /**
@@ -45,17 +43,13 @@ public class MessageBridge {
     // LocalMqtt -> {"/sourceTopic", [{"/destinationTopic", IoTCore}, {"/destinationTopic2", Pubsub}]}
     private Map<TopicMapping.TopicType, Map<String, List<Pair<String, TopicMapping.TopicType>>>>
             perClientSourceDestinationMap = new HashMap<>();
-    private final ExecutorService executorService;
-    private Future<?> subscribeFuture;
 
     /**
      * Ctr for Message Bridge.
      *
      * @param topicMapping topics mapping
-     * @param executorService Executor Service
      */
-    public MessageBridge(TopicMapping topicMapping, ExecutorService executorService) {
-        this.executorService = executorService;
+    public MessageBridge(TopicMapping topicMapping) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
         processMappingAndSubscribe();
@@ -91,9 +85,6 @@ public class MessageBridge {
      */
     private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
                                                           MessageClient messageClient) {
-        if (subscribeFuture != null) {
-            subscribeFuture.cancel(true);
-        }
         Map<String, List<Pair<String, TopicMapping.TopicType>>> srcDestMapping =
                 perClientSourceDestinationMap.get(clientType);
 
@@ -106,8 +97,7 @@ public class MessageBridge {
 
         LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
 
-        subscribeFuture = executorService.submit(() ->
-                messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message)));
+        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
     }
 
     private void handleMessage(TopicMapping.TopicType sourceType, Message message) {

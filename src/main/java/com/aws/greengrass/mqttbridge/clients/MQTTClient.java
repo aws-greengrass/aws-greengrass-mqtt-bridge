@@ -48,6 +48,7 @@ public class MQTTClient implements MessageClient {
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
     private Future<?> connectFuture;
+    private Future<?> subscribeFuture;
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = new HashSet<>();
@@ -210,6 +211,9 @@ public class MQTTClient implements MessageClient {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private synchronized void updateSubscriptionsInternal() {
+        if (subscribeFuture != null) {
+            subscribeFuture.cancel(true);
+        }
         Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
         topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
 
@@ -229,21 +233,7 @@ public class MQTTClient implements MessageClient {
 
         LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
 
-        // TODO: Support configurable qos
-        topicsToSubscribe.forEach(s -> {
-            try {
-                RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
-                    mqttClientInternal.subscribe(s);
-                    // useless return
-                    return null;
-                }, "subscribe-mqtt-topic", LOGGER);
-                subscribedLocalMqttTopics.add(s);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
-            }
-        });
+        subscribeFuture = executorService.submit(() -> subscribeToTopics(topicsToSubscribe));
     }
 
     private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
@@ -308,5 +298,25 @@ public class MQTTClient implements MessageClient {
         subscribedLocalMqttTopics.clear();
         // Resubscribe to topics
         updateSubscriptionsInternal();
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void subscribeToTopics(Set<String> topics) {
+        // TODO: Support configurable qos
+        // retry until interrupted
+        topics.forEach(s -> {
+            try {
+                RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
+                    mqttClientInternal.subscribe(s);
+                    // useless return
+                    return null;
+                }, "subscribe-mqtt-topic", LOGGER);
+                subscribedLocalMqttTopics.add(s);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
+            }
+        });
     }
 }

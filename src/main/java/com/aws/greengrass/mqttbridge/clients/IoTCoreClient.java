@@ -16,6 +16,7 @@ import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
@@ -24,6 +25,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -38,10 +41,14 @@ public class IoTCoreClient implements MessageClient {
 
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedIotCoreTopics = new HashSet<>();
+    @Getter(AccessLevel.PROTECTED)
+    private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
 
     private Consumer<Message> messageHandler;
+    private Future<?> subscribeFuture;
 
     private final MqttClient iotMqttClient;
+    private final ExecutorService executorService;
 
     private final Consumer<MqttMessage> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
@@ -55,14 +62,31 @@ public class IoTCoreClient implements MessageClient {
         }
     };
 
+    public MqttClientConnectionEvents connectionCallbacks = new MqttClientConnectionEvents() {
+        @Override
+        public void onConnectionInterrupted(int errorCode) {
+        }
+
+        @Override
+        public void onConnectionResumed(boolean sessionPresent) {
+            // subscribe to any topics left to be subscribed
+            Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
+            topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+            subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+        }
+    };
+
     /**
      * Constructor for IoTCoreClient.
      *
      * @param iotMqttClient for interacting with IoT Core
+     * @param executorService for tasks asynchronously
      */
     @Inject
-    public IoTCoreClient(MqttClient iotMqttClient) {
+    public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService) {
         this.iotMqttClient = iotMqttClient;
+        this.executorService = executorService;
+        iotMqttClient.addToCallbackEvents(connectionCallbacks);
     }
 
     /**
@@ -115,9 +139,12 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
+        if (subscribeFuture != null) {
+            subscribeFuture.cancel(true);
+        }
         this.messageHandler = messageHandler;
+        this.toSubscribeIotCoreTopics = new HashSet<>(topics);
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
 
         Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
@@ -136,12 +163,26 @@ public class IoTCoreClient implements MessageClient {
         Set<String> topicsToSubscribe = new HashSet<>(topics);
         topicsToSubscribe.removeAll(subscribedIotCoreTopics);
 
-        topicsToSubscribe.forEach(s -> {
+        subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+    }
+
+    @Override
+    public boolean supportsTopicFilters() {
+        return true;
+    }
+
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
+    private void subscribeToTopicsWithRetry(Set<String> topics) {
+        // retry only if client is connected; skip if offline.
+        // topics left here should be subscribed when the client is back online (onConnectionResumed event)
+        topics.forEach(s -> {
             try {
                 RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
                     try {
-                        subscribeToIotCore(s);
-                        subscribedIotCoreTopics.add(s);
+                        if (iotMqttClient.connected()) {
+                            subscribeToIotCore(s);
+                            subscribedIotCoreTopics.add(s);
+                        }
                         // useless return
                         return null;
                     } catch (ExecutionException e) {
@@ -159,11 +200,6 @@ public class IoTCoreClient implements MessageClient {
                 LOGGER.atError().kv(TOPIC, s).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
         });
-    }
-
-    @Override
-    public boolean supportsTopicFilters() {
-        return true;
     }
 
     private void subscribeToIotCore(String topic) throws InterruptedException, ExecutionException, TimeoutException {

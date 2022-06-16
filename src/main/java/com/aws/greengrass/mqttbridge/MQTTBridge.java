@@ -81,7 +81,7 @@ public class MQTTBridge extends PluginService {
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) {
-        this(topics, topicMapping, new MessageBridge(topicMapping, executorService), pubSubIPCAgent, iotMqttClient,
+        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
                 kernel, mqttClientKeyStore, executorService);
     }
 
@@ -94,7 +94,7 @@ public class MQTTBridge extends PluginService {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
         this.executorService = executorService;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
     }
