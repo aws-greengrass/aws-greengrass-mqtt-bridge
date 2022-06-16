@@ -62,17 +62,22 @@ public class IoTCoreClient implements MessageClient {
         }
     };
 
-    public MqttClientConnectionEvents connectionCallbacks = new MqttClientConnectionEvents() {
+    private final MqttClientConnectionEvents connectionCallbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            // subscribe to any topics left to be subscribed
-            Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
-            topicsToSubscribe.removeAll(subscribedIotCoreTopics);
-            subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+            synchronized (subscribeFuture) {
+                if (subscribeFuture != null) {
+                    subscribeFuture.cancel(true);
+                }
+                // subscribe to any topics left to be subscribed
+                Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
+                topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+                subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+            }
         }
     };
 
