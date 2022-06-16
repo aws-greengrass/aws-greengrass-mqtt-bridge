@@ -46,6 +46,7 @@ public class IoTCoreClient implements MessageClient {
 
     private Consumer<Message> messageHandler;
     private Future<?> subscribeFuture;
+    private final Object subscribeLock = new Object();
 
     private final MqttClient iotMqttClient;
     private final ExecutorService executorService;
@@ -69,7 +70,7 @@ public class IoTCoreClient implements MessageClient {
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
-            synchronized (this)  {
+            synchronized (subscribeLock)  {
                 if (subscribeFuture != null) {
                     subscribeFuture.cancel(true);
                 }
