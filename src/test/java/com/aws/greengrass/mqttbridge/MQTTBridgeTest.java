@@ -17,6 +17,9 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqttbridge.clients.MQTTClient;
+import com.aws.greengrass.mqttbridge.clients.PubSubClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -61,6 +64,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -370,5 +375,48 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         mqttBridge.startup();
         mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_Startup_THEN_Mqtt_subscriptions_updated_for_all_clients(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, InterruptedException.class);
+        serviceFullName = MQTTBridge.SERVICE_NAME;
+        initializeMockedConfig();
+        TopicMapping mockTopicMapping = mock(TopicMapping.class);
+        MessageBridge mockMessageBridge = mock(MessageBridge.class);
+        Kernel mockKernel = mock(Kernel.class);
+        MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+
+        Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+                .dflt("tcp://localhost:8883");
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
+                .dflt(MQTTBridge.SERVICE_NAME);
+
+        MQTTBridge mqttBridge =
+                new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubIPCEventStreamAgent.class),
+                        mock(MqttClient.class), mockKernel, mockMqttClientKeyStore, ses);
+
+        ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
+        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
+                .thenReturn(mockClientAuthService);
+        Topics mockClientAuthConfig = mock(Topics.class);
+        when(mockClientAuthService.getConfig()).thenReturn(mockClientAuthConfig);
+
+        Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
+        when(mockClientAuthConfig
+                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+
+        mqttBridge.install();
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.LocalMqtt), any(MQTTClient.class));
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.Pubsub), any(PubSubClient.class));
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.IotCore), any(IoTCoreClient.class));
     }
 }

@@ -53,7 +53,7 @@ public class MessageBridgeTest {
     }
 
     @Test
-    void GIVEN_mqtt_bridge_and_mapping_populated_WHEN_update_subscriptions_THEN_subscribed() throws Exception {
+    void GIVEN_mqtt_bridge_and_mapping_populated_WHEN_add_client_THEN_subscribed() throws Exception {
         TopicMapping mapping = new TopicMapping();
         Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
                 new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
@@ -67,7 +67,7 @@ public class MessageBridgeTest {
         mapping.updateMapping(mappingToUpdate);
 
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
         ArgumentCaptor<Set<String>> topicsArgumentCaptor = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptor.capture(), any());
         MatcherAssert.assertThat(topicsArgumentCaptor.getValue(), Matchers.hasSize(2));
@@ -75,14 +75,14 @@ public class MessageBridgeTest {
                 .assertThat(topicsArgumentCaptor.getValue(), Matchers.containsInAnyOrder("mqtt/topic", "mqtt/topic2"));
 
         reset(mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.Pubsub, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient);
         topicsArgumentCaptor = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptor.capture(), any());
         MatcherAssert.assertThat(topicsArgumentCaptor.getValue(), Matchers.hasSize(1));
         MatcherAssert.assertThat(topicsArgumentCaptor.getValue(), Matchers.containsInAnyOrder("mqtt/topic4"));
 
         reset(mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.IotCore, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient);
         topicsArgumentCaptor = ArgumentCaptor.forClass(Set.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(topicsArgumentCaptor.capture(), any());
         MatcherAssert.assertThat(topicsArgumentCaptor.getValue(), Matchers.hasSize(1));
@@ -94,9 +94,9 @@ public class MessageBridgeTest {
         TopicMapping mapping = new TopicMapping();
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient3);
 
         reset(mockMessageClient);
         reset(mockMessageClient2);
@@ -140,8 +140,7 @@ public class MessageBridgeTest {
         TopicMapping mapping = new TopicMapping();
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
 
         reset(mockMessageClient);
@@ -165,9 +164,9 @@ public class MessageBridgeTest {
         TopicMapping mapping = new TopicMapping();
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient3);
         Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
                 new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt,
                         TopicMapping.TopicType.IotCore), "m2",
@@ -250,13 +249,9 @@ public class MessageBridgeTest {
 
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
-
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient3);
 
         doReturn(true).when(mockMessageClient).supportsTopicFilters();
 
@@ -317,13 +312,9 @@ public class MessageBridgeTest {
 
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
-
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient3);
 
         doReturn(true).when(mockMessageClient).supportsTopicFilters();
         doReturn(true).when(mockMessageClient3).supportsTopicFilters();
@@ -419,13 +410,9 @@ public class MessageBridgeTest {
 
         MessageBridge messageBridge = new MessageBridge(mapping, mockExecutorService);
 
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
-
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
-        messageBridge.updateSubscriptionsForClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockMessageClient3);
 
         ArgumentCaptor<Consumer> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockMessageClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
