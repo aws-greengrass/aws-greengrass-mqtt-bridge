@@ -5,22 +5,22 @@
 
 package com.aws.greengrass.mqttbridge.auth;
 
-import com.aws.greengrass.certificatemanager.CertificateManager;
-import com.aws.greengrass.certificatemanager.certificate.CertificateRequestGenerator;
-import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
+import com.aws.greengrass.device.ClientDevicesAuthServiceApi;
+import com.aws.greengrass.device.api.CertificateUpdateEvent;
+import com.aws.greengrass.device.api.GetCertificateRequest;
+import com.aws.greengrass.device.api.GetCertificateRequestOptions;
+import com.aws.greengrass.device.exception.CertificateGenerationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttbridge.MQTTBridge;
 import lombok.AccessLevel;
 import lombok.Getter;
-import org.bouncycastle.operator.OperatorCreationException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -28,9 +28,11 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -40,17 +42,12 @@ import javax.net.ssl.TrustManagerFactory;
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
     static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
-    private static final String DEFAULT_CN = "aws-greengrass-mqttbridge";
     static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
-    private static final String RSA_KEY_INSTANCE = "RSA";
-    private static final int RSA_KEY_LENGTH = 2048;
 
     @Getter(AccessLevel.PACKAGE)
     private KeyStore keyStore;
 
-    private KeyPair keyPair;
-
-    private final CertificateManager certificateManager;
+    private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
 
     private final List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
 
@@ -62,27 +59,20 @@ public class MQTTClientKeyStore {
     /**
      * Constructor for MQTTClient KeyStore.
      *
-     * @param certificateManager certificate manager for subscribing to cert updates
+     * @param clientDevicesAuthServiceApi client devices auth api for subscribing to cert updates
      */
     @Inject
-    public MQTTClientKeyStore(CertificateManager certificateManager) {
-        this.certificateManager = certificateManager;
+    public MQTTClientKeyStore(ClientDevicesAuthServiceApi clientDevicesAuthServiceApi) {
+        this.clientDevicesAuthServiceApi = clientDevicesAuthServiceApi;
     }
 
     /**
      * Initialize keypair and keystore and subscribe to cert updates.
      *
-     * @throws CsrProcessingException if unable to subscribe with csr
-     * @throws KeyStoreException      if unable to generate keypair or load keystore
-     * @throws CsrGeneratingException if unable to generate csr
+     * @throws KeyStoreException              if unable to generate keypair or load keystore
+     * @throws CertificateGenerationException if unable to request a client certificate
      */
-    public void init() throws CsrProcessingException, KeyStoreException, CsrGeneratingException {
-        try {
-            keyPair = newRSAKeyPair();
-        } catch (NoSuchAlgorithmException e) {
-            throw new KeyStoreException("unable to generate keypair for key store", e);
-        }
-
+    public void init() throws KeyStoreException, CertificateGenerationException {
         keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         try {
             keyStore.load(null, DEFAULT_KEYSTORE_PASSWORD);
@@ -90,28 +80,24 @@ public class MQTTClientKeyStore {
             throw new KeyStoreException("Unable to load keystore", e);
         }
 
-        String csr;
-        try {
-            //client cert doesn't require SANs
-            csr = CertificateRequestGenerator.createCSR(keyPair, DEFAULT_CN, null,  null);
-        } catch (IOException | OperatorCreationException e) {
-            throw new CsrGeneratingException("Unable to generate CSR from keypair", e);
-        }
-        certificateManager.subscribeToClientCertificateUpdates(csr, this::updateCert);
+        GetCertificateRequestOptions options = new GetCertificateRequestOptions();
+        options.setCertificateType(GetCertificateRequestOptions.CertificateType.CLIENT);
+        GetCertificateRequest certificateRequest =
+                new GetCertificateRequest(MQTTBridge.SERVICE_NAME, options, this::updateCert);
+        clientDevicesAuthServiceApi.subscribeToCertificateUpdates(certificateRequest);
     }
 
-    private KeyPair newRSAKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance(RSA_KEY_INSTANCE);
-        kpg.initialize(RSA_KEY_LENGTH);
-        return kpg.generateKeyPair();
-    }
-
-    private void updateCert(X509Certificate... certChain) {
+    private void updateCert(CertificateUpdateEvent certificateUpdate) {
         try {
             LOGGER.atDebug().log("Storing new client certificate to be used on next connect attempt");
-            keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
+            X509Certificate[] certChain = Stream.concat(
+                            Stream.of(certificateUpdate.getCertificate()),
+                            Arrays.stream(certificateUpdate.getCaCertificates()))
+                    .toArray(X509Certificate[]::new);
+            keyStore.setKeyEntry(
+                    KEY_ALIAS, certificateUpdate.getKeyPair().getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
         } catch (KeyStoreException e) {
-            LOGGER.atError("Unable to store generated cert", e);
+            LOGGER.atError().log("Unable to store generated cert", e);
         }
     }
 

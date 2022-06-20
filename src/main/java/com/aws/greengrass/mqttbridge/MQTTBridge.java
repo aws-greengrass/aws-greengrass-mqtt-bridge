@@ -6,7 +6,6 @@
 package com.aws.greengrass.mqttbridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
-import com.aws.greengrass.certificatemanager.certificate.CsrProcessingException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
@@ -14,10 +13,10 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.device.ClientDevicesAuthService;
+import com.aws.greengrass.device.exception.CertificateGenerationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.mqttbridge.auth.CsrGeneratingException;
 import com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqttbridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqttbridge.clients.MQTTClient;
@@ -116,7 +115,7 @@ public class MQTTBridge extends PluginService {
     public void startup() {
         try {
             mqttClientKeyStore.init();
-        } catch (CsrProcessingException | KeyStoreException | CsrGeneratingException e) {
+        } catch (KeyStoreException | CertificateGenerationException e) {
             serviceErrored(e);
             return;
         }
