@@ -46,10 +46,9 @@ public class MQTTClientKeyStore {
 
     @Getter(AccessLevel.PACKAGE)
     private KeyStore keyStore;
-
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
-
     private final List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
+    private final GetCertificateRequest clientCertificateRequest;
 
     @FunctionalInterface
     public interface UpdateListener {
@@ -63,6 +62,9 @@ public class MQTTClientKeyStore {
      */
     @Inject
     public MQTTClientKeyStore(ClientDevicesAuthServiceApi clientDevicesAuthServiceApi) {
+        GetCertificateRequestOptions options = new GetCertificateRequestOptions();
+        options.setCertificateType(GetCertificateRequestOptions.CertificateType.CLIENT);
+        this.clientCertificateRequest = new GetCertificateRequest(MQTTBridge.SERVICE_NAME, options, this::updateCert);
         this.clientDevicesAuthServiceApi = clientDevicesAuthServiceApi;
     }
 
@@ -80,11 +82,14 @@ public class MQTTClientKeyStore {
             throw new KeyStoreException("Unable to load keystore", e);
         }
 
-        GetCertificateRequestOptions options = new GetCertificateRequestOptions();
-        options.setCertificateType(GetCertificateRequestOptions.CertificateType.CLIENT);
-        GetCertificateRequest certificateRequest =
-                new GetCertificateRequest(MQTTBridge.SERVICE_NAME, options, this::updateCert);
-        clientDevicesAuthServiceApi.subscribeToCertificateUpdates(certificateRequest);
+        clientDevicesAuthServiceApi.subscribeToCertificateUpdates(clientCertificateRequest);
+    }
+
+    /**
+     * Shutdown client key store.
+     */
+    public void shutdown() {
+        clientDevicesAuthServiceApi.unsubscribeFromCertificateUpdates(clientCertificateRequest);
     }
 
     private void updateCert(CertificateUpdateEvent certificateUpdate) {

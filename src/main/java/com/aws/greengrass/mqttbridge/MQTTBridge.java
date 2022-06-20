@@ -162,6 +162,8 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void shutdown() {
+        mqttClientKeyStore.shutdown();
+
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (mqttClient != null) {
             mqttClient.stop();
