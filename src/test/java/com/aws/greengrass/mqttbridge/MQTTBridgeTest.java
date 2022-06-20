@@ -86,6 +86,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
     @BeforeEach
     void setup() throws IOException {
+        // Set this property for kernel to scan its own classpath to find plugins
+        System.setProperty("aws.greengrass.scanSelfClasspath", "true");
+
         kernel = new Kernel();
         kernel.getContext().put(CertificateManager.class, mockCertificateManager);
         IConfig defaultConfig = new MemoryConfig(new Properties());
