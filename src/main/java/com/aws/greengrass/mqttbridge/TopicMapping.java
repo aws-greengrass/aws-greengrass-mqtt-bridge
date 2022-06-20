@@ -46,6 +46,46 @@ public class TopicMapping {
         private TopicType source;
         @Getter
         private TopicType target;
+        private String targetTopicPrefix;
+
+        /**
+         * Get the configured target-topic.
+         * 
+         * <p>Hard-coded to fit the legacy implementation where target-topic wasn't 
+         * configurable. This was represented by an empty string.</p>
+         *
+         * @return configured target topic
+         */
+        public String getTargetTopic() {
+            return "";
+        }
+
+        /**
+         * Get the configured target-topic-prefix.
+         *
+         * @return configured target-topic-prefix
+         */
+        public String getTargetTopicPrefix() {
+            if (targetTopicPrefix == null) {
+                return "";
+            } else {
+                return targetTopicPrefix;
+            }
+        }
+
+        /**
+         * Create MappingEntry with no `targetTopicPrefix`.
+         * 
+         * @param topic the source-topic to map from
+         * @param source the source integration to listen on
+         * @param target the target integration to bridge to
+         */
+        MappingEntry(String topic, TopicType source, TopicType target) {
+            this.topic = topic;
+            this.source = source;
+            this.target = target;
+            this.targetTopicPrefix = "";
+        }
 
         @Override
         public String toString() {

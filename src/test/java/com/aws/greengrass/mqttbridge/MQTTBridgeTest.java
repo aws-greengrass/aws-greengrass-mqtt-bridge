@@ -226,7 +226,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(3)));
+        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
         Map<String, TopicMapping.MappingEntry> expectedMapping = new HashMap<>();
         expectedMapping.put("mapping1",
                 new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud", TopicMapping.TopicType.LocalMqtt,
@@ -237,6 +237,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         expectedMapping.put("mapping3",
                 new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud/2", TopicMapping.TopicType.LocalMqtt,
                         TopicMapping.TopicType.IotCore));
+        expectedMapping.put("mapping4",
+                new TopicMapping.MappingEntry("topic/to/map/from/local/to/pubsub/2", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub, "a-prefix"));
+        expectedMapping.put("mapping5",
+                new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud/3", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "a-prefix"));
 
         assertEquals(expectedMapping, topicMapping.getMapping());
     }
@@ -263,7 +269,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(3)));
+        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
         kernel.locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_TOPIC_MAPPING)
                 .replaceAndWait(Collections.EMPTY_MAP);

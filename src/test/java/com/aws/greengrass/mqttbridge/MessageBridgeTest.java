@@ -392,6 +392,112 @@ public class MessageBridgeTest {
         Assertions.assertArrayEquals(messageFromSatelliteForMultiLevel,
                 messagePubSubCaptor.getAllValues().get(3).getPayload());
     }
+    
+    @Test
+    void GIVEN_mqtt_bridge_and_mapping_populated_with_filters_and_target_prefix_WHEN_receive_mqtt_message_THEN_routed_correctly()
+            throws Exception {
+        TopicMapping mapping = new TopicMapping();
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+                new TopicMapping.MappingEntry("sensors/+/humidity", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "external/"), "m2",
+                new TopicMapping.MappingEntry("sensors/satellite/#", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.Pubsub, "external/"), "m3",
+                new TopicMapping.MappingEntry("sensors/satellite/altitude", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt, "external/"), "m4",
+                new TopicMapping.MappingEntry("sensors/thermostat1/humidity", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.Pubsub, "external/"), "m5",
+                // This will cause a duplicate message to IoTCore
+                // (one for sensors/+/humidity)
+                new TopicMapping.MappingEntry("sensors/thermostat1/humidity", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "external/"));
+        mapping.updateMapping(mappingToUpdate);
+
+        MessageBridge messageBridge = new MessageBridge(mapping);
+
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mockMessageClient);
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, mockMessageClient2);
+        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, mockMessageClient3);
+
+        doReturn(true).when(mockMessageClient).supportsTopicFilters();
+        doReturn(true).when(mockMessageClient3).supportsTopicFilters();
+
+        ArgumentCaptor<Consumer> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockMessageClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        ArgumentCaptor<Consumer> messageHandlerPubSubCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockMessageClient2, times(1)).updateSubscriptions(any(), messageHandlerPubSubCaptor.capture());
+        ArgumentCaptor<Consumer> messageHandlerIotCoreCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockMessageClient3, times(1)).updateSubscriptions(any(), messageHandlerIotCoreCaptor.capture());
+
+        byte[] messageFromThermostat1 = "humidity = 40%".getBytes();
+        byte[] messageFromThermostat2 = "humidity = 41%".getBytes();
+        byte[] messageFromThermostat2Temp = "temperature = 70C".getBytes();
+        messageHandlerLocalMqttCaptor.getValue()
+                .accept(new Message("sensors/thermostat1/humidity", messageFromThermostat1));
+        messageHandlerLocalMqttCaptor.getValue()
+                .accept(new Message("sensors/thermostat2/humidity", messageFromThermostat2));
+
+        // Also send for an unknown measurement
+        messageHandlerLocalMqttCaptor.getValue()
+                .accept(new Message("sensors/thermostat1/temperature", messageFromThermostat2Temp));
+        // Also send for a topic with multiple nodes to match with the filter (which should not match)
+        messageHandlerLocalMqttCaptor.getValue()
+                .accept(new Message("sensors/thermostat2/zone1/humidity", messageFromThermostat2));
+
+        verify(mockMessageClient, times(0)).publish(any());
+        ArgumentCaptor<Message> messagePubSubCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mockMessageClient2, times(1)).publish(messagePubSubCaptor.capture());
+        ArgumentCaptor<Message> messageIotCoreCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mockMessageClient3, times(3)).publish(messageIotCoreCaptor.capture());
+
+        MatcherAssert.assertThat(messagePubSubCaptor.getAllValues().get(0).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/thermostat1/humidity")));
+        Assertions.assertArrayEquals(messageFromThermostat1, messagePubSubCaptor.getAllValues().get(0).getPayload());
+
+        MatcherAssert.assertThat(messageIotCoreCaptor.getAllValues().get(0).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/thermostat1/humidity")));
+        Assertions.assertArrayEquals(messageFromThermostat1, messageIotCoreCaptor.getAllValues().get(0).getPayload());
+        MatcherAssert.assertThat(messageIotCoreCaptor.getAllValues().get(1).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/thermostat1/humidity")));
+        Assertions.assertArrayEquals(messageFromThermostat1, messageIotCoreCaptor.getAllValues().get(1).getPayload());
+        MatcherAssert.assertThat(messageIotCoreCaptor.getAllValues().get(2).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/thermostat2/humidity")));
+        Assertions.assertArrayEquals(messageFromThermostat2, messageIotCoreCaptor.getAllValues().get(2).getPayload());
+
+        byte[] messageFromSatelliteForAltitude = "altitude = 10000".getBytes();
+        byte[] messageFromSatelliteForConnectivity = "conn = 41%".getBytes();
+        byte[] messageFromSatelliteForMultiLevel = "conn = 21%".getBytes();
+        messageHandlerIotCoreCaptor.getValue()
+                .accept(new Message("sensors/satellite/altitude", messageFromSatelliteForAltitude));
+        messageHandlerIotCoreCaptor.getValue()
+                .accept(new Message("sensors/satellite/connectivity", messageFromSatelliteForConnectivity));
+        messageHandlerIotCoreCaptor.getValue()
+                .accept(new Message("sensors/satellite/device1/connectivity", messageFromSatelliteForMultiLevel));
+
+        ArgumentCaptor<Message> messageLocalMqttCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mockMessageClient, times(1)).publish(messageLocalMqttCaptor.capture());
+        messagePubSubCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mockMessageClient2, times(1 + 3)).publish(messagePubSubCaptor.capture());
+        messageIotCoreCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mockMessageClient3, times(3)).publish(messageIotCoreCaptor.capture());
+
+        MatcherAssert.assertThat(messageLocalMqttCaptor.getAllValues().get(0).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/satellite/altitude")));
+        Assertions.assertArrayEquals(messageFromSatelliteForAltitude,
+                messageLocalMqttCaptor.getAllValues().get(0).getPayload());
+
+        MatcherAssert.assertThat(messagePubSubCaptor.getAllValues().get(1).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/satellite/altitude")));
+        Assertions.assertArrayEquals(messageFromSatelliteForAltitude,
+                messagePubSubCaptor.getAllValues().get(1).getPayload());
+        MatcherAssert.assertThat(messagePubSubCaptor.getAllValues().get(2).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/satellite/connectivity")));
+        Assertions.assertArrayEquals(messageFromSatelliteForConnectivity,
+                messagePubSubCaptor.getAllValues().get(2).getPayload());
+        MatcherAssert.assertThat(messagePubSubCaptor.getAllValues().get(3).getTopic(),
+                Matchers.is(Matchers.equalTo("external/sensors/satellite/device1/connectivity")));
+        Assertions.assertArrayEquals(messageFromSatelliteForMultiLevel,
+                messagePubSubCaptor.getAllValues().get(3).getPayload());
+    }
 
     @Test
     void GIVEN_mqtt_bridge_and_mapping_populated_with_filters_in_pubsub_WHEN_receive_mqtt_message_THEN_routed_correctly()
