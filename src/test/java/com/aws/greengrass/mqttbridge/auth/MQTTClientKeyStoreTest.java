@@ -5,22 +5,30 @@
 
 package com.aws.greengrass.mqttbridge.auth;
 
-import com.aws.greengrass.certificatemanager.CertificateManager;
+import com.aws.greengrass.device.ClientDevicesAuthServiceApi;
+import com.aws.greengrass.device.api.CertificateUpdateEvent;
+import com.aws.greengrass.device.api.GetCertificateRequest;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import java.security.cert.CertificateEncodingException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -28,16 +36,12 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
 
 import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqttbridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -64,24 +68,33 @@ public class MQTTClientKeyStoreTest {
     private static final byte[] END_CERT = "\r\n-----END CERTIFICATE-----\r\n".getBytes(StandardCharsets.UTF_8);
 
     @Mock
-    private CertificateManager mockCertificateManager;
+    private ClientDevicesAuthServiceApi mockServiceApi;
+    private KeyPair keyPair;
+
+    @BeforeEach
+    void beforeEach() throws NoSuchAlgorithmException {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        keyPair = kpg.generateKeyPair();
+    }
 
     @Test
     void GIVEN_MQTTClientKeyStore_WHEN_initialized_THEN_keyAndCertGenerated() throws Exception {
-        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockServiceApi);
         mqttClientKeyStore.init();
 
-        ArgumentCaptor<Consumer<X509Certificate[]>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
-        verify(mockCertificateManager, times(1))
-                .subscribeToClientCertificateUpdates(any(String.class), cbArgumentCaptor.capture());
-        Consumer<X509Certificate[]> certCallback = cbArgumentCaptor.getValue();
+        ArgumentCaptor<GetCertificateRequest> cbArgumentCaptor = ArgumentCaptor.forClass(GetCertificateRequest.class);
+        verify(mockServiceApi, times(1))
+                .subscribeToCertificateUpdates(cbArgumentCaptor.capture());
+        GetCertificateRequest getCertificateRequest = cbArgumentCaptor.getValue();
 
         KeyStore keyStore = mqttClientKeyStore.getKeyStore();
         assertThat(keyStore.size(), is(0));
 
         X509Certificate certificate = pemToX509Certificate(CERTIFICATE);
-        X509Certificate[] chain = {certificate, certificate};
-        certCallback.accept(chain);
+        CertificateUpdateEvent certificateUpdate =
+                new CertificateUpdateEvent(keyPair, certificate, new X509Certificate[]{certificate});
+        getCertificateRequest.getCertificateUpdateConsumer().accept(certificateUpdate);
         assertThat(keyStore.size(), is(1));
 
         PrivateKey privateKey = (PrivateKey) keyStore.getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
@@ -100,7 +113,7 @@ public class MQTTClientKeyStoreTest {
 
     @Test
     void GIVEN_MQTTClientKeyStore_WHEN_called_updateCA_THEN_CA_stored() throws Exception {
-        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockServiceApi);
         mqttClientKeyStore.init();
         CountDownLatch updateLatch = new CountDownLatch(1);
         mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
@@ -120,22 +133,23 @@ public class MQTTClientKeyStoreTest {
 
     @Test
     void GIVEN_MQTTClientKeyStore_WHEN_getSSLSocketFactory_THEN_returns_SSLSocketFactory() throws Exception {
-        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockCertificateManager);
+        MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockServiceApi);
         mqttClientKeyStore.init();
         CountDownLatch updateLatch = new CountDownLatch(1);
         mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
 
-        ArgumentCaptor<Consumer<X509Certificate[]>> cbArgumentCaptor = ArgumentCaptor.forClass(Consumer.class);
-        verify(mockCertificateManager, times(1))
-                .subscribeToClientCertificateUpdates(any(String.class), cbArgumentCaptor.capture());
-        Consumer<X509Certificate[]> certCallback = cbArgumentCaptor.getValue();
+        ArgumentCaptor<GetCertificateRequest> cbArgumentCaptor = ArgumentCaptor.forClass(GetCertificateRequest.class);
+        verify(mockServiceApi, times(1))
+                .subscribeToCertificateUpdates(cbArgumentCaptor.capture());
+        GetCertificateRequest certificateRequest = cbArgumentCaptor.getValue();
 
         KeyStore keyStore = mqttClientKeyStore.getKeyStore();
         assertThat(keyStore.size(), is(0));
 
         X509Certificate certificate = pemToX509Certificate(CERTIFICATE);
-        X509Certificate[] chain = {certificate, certificate};
-        certCallback.accept(chain);
+        CertificateUpdateEvent certificateUpdate =
+                new CertificateUpdateEvent(keyPair, certificate, new X509Certificate[]{certificate});
+        certificateRequest.getCertificateUpdateConsumer().accept(certificateUpdate);
         mqttClientKeyStore.updateCA(Collections.singletonList(CERTIFICATE));
         assertThat(updateLatch.await(100, TimeUnit.MILLISECONDS), is(true));
         assertThat(keyStore.size(), is(2));
