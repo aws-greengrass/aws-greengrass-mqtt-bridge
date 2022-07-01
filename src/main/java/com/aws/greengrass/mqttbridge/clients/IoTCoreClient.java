@@ -146,30 +146,33 @@ public class IoTCoreClient implements MessageClient {
 
     @Override
     public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
-        if (subscribeFuture != null) {
-            subscribeFuture.cancel(true);
-        }
-        this.messageHandler = messageHandler;
-        this.toSubscribeIotCoreTopics = new HashSet<>(topics);
-        LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
-
-        Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
-        topicsToRemove.removeAll(topics);
-        topicsToRemove.forEach(s -> {
-            try {
-                unsubscribeFromIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
-                subscribedIotCoreTopics.remove(s);
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
-                // If we are unable to unsubscribe, leave the topic in the set so that we can try to remove next time.
+        synchronized (subscribeLock) {
+            if (subscribeFuture != null) {
+                subscribeFuture.cancel(true);
             }
-        });
+            this.messageHandler = messageHandler;
+            this.toSubscribeIotCoreTopics = new HashSet<>(topics);
+            LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
 
-        Set<String> topicsToSubscribe = new HashSet<>(topics);
-        topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+            Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
+            topicsToRemove.removeAll(topics);
+            topicsToRemove.forEach(s -> {
+                try {
+                    unsubscribeFromIotCore(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
+                    subscribedIotCoreTopics.remove(s);
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                    // If we are unable to unsubscribe, leave the topic in the set
+                    // so that we can try to remove next time.
+                }
+            });
 
-        subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+            Set<String> topicsToSubscribe = new HashSet<>(topics);
+            topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+
+            subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
+        }
     }
 
     @Override
@@ -178,7 +181,7 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
-    private synchronized void subscribeToTopicsWithRetry(Set<String> topics) {
+    private void subscribeToTopicsWithRetry(Set<String> topics) {
         // retry only if client is connected; skip if offline.
         // topics left here should be subscribed when the client is back online (onConnectionResumed event)
         topics.forEach(s -> {
