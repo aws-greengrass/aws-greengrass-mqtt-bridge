@@ -198,7 +198,7 @@ public class IoTCoreClient implements MessageClient {
                     } catch (ExecutionException e) {
                         Throwable cause = e.getCause();
                         if (cause instanceof InterruptedException) {
-                            throw new InterruptedException("Interrupted while subscribing");
+                            throw (InterruptedException) cause;
                         } else {
                             throw e;
                         }

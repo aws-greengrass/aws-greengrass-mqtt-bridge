@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
@@ -51,7 +52,7 @@ public class MQTTClient implements MessageClient {
     private Future<?> subscribeFuture;
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
-    private Set<String> subscribedLocalMqttTopics = new HashSet<>();
+    private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
 
     private final MQTTClientKeyStore mqttClientKeyStore;
@@ -198,7 +199,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @Override
-    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
 
         this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
@@ -210,7 +211,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private synchronized void updateSubscriptionsInternal() {
+    private void updateSubscriptionsInternal() {
         if (subscribeFuture != null) {
             subscribeFuture.cancel(true);
         }
@@ -294,14 +295,14 @@ public class MQTTClient implements MessageClient {
         resubscribe();
     }
 
-    private synchronized void resubscribe() {
+    private void resubscribe() {
         subscribedLocalMqttTopics.clear();
         // Resubscribe to topics
         updateSubscriptionsInternal();
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private synchronized void subscribeToTopics(Set<String> topics) {
+    private void subscribeToTopics(Set<String> topics) {
         // TODO: Support configurable qos
         // retry until interrupted
         topics.forEach(s -> {
