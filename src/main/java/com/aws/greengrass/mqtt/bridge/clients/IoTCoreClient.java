@@ -147,31 +147,32 @@ public class IoTCoreClient implements MessageClient {
 
     @Override
     public void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
-        this.messageHandler = messageHandler;
-        this.toSubscribeIotCoreTopics = new HashSet<>(topics);
-        LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
-
-        Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
-        topicsToRemove.removeAll(topics);
-        topicsToRemove.forEach(s -> {
-            try {
-                unsubscribeFromIotCore(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
-                subscribedIotCoreTopics.remove(s);
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
-                // If we are unable to unsubscribe, leave the topic in the set
-                // so that we can try to remove next time.
-            }
-        });
-
-        Set<String> topicsToSubscribe = new HashSet<>(topics);
-        topicsToSubscribe.removeAll(subscribedIotCoreTopics);
-
         synchronized (subscribeLock) {
             if (subscribeFuture != null) {
                 subscribeFuture.cancel(true);
             }
+
+            this.messageHandler = messageHandler;
+            this.toSubscribeIotCoreTopics = new HashSet<>(topics);
+            LOGGER.atDebug().kv("topics", topics).log("Subscribing to IoT Core topics");
+
+            Set<String> topicsToRemove = new HashSet<>(subscribedIotCoreTopics);
+            topicsToRemove.removeAll(topics);
+            topicsToRemove.forEach(s -> {
+                try {
+                    unsubscribeFromIotCore(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
+                    subscribedIotCoreTopics.remove(s);
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                    // If we are unable to unsubscribe, leave the topic in the set
+                    // so that we can try to remove next time.
+                }
+            });
+
+            Set<String> topicsToSubscribe = new HashSet<>(topics);
+            topicsToSubscribe.removeAll(subscribedIotCoreTopics);
+
             subscribeFuture = executorService.submit(() -> subscribeToTopicsWithRetry(topicsToSubscribe));
         }
     }

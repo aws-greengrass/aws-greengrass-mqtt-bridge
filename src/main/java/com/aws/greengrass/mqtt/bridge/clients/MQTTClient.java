@@ -48,6 +48,7 @@ public class MQTTClient implements MessageClient {
 
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
+    private final Object subscribeLock = new Object();
     private Future<?> connectFuture;
     private Future<?> subscribeFuture;
     private IMqttClient mqttClientInternal;
@@ -212,29 +213,32 @@ public class MQTTClient implements MessageClient {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void updateSubscriptionsInternal() {
-        if (subscribeFuture != null) {
-            subscribeFuture.cancel(true);
-        }
-        Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
-        topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
-
-        topicsToRemove.forEach(s -> {
-            try {
-                mqttClientInternal.unsubscribe(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
-                subscribedLocalMqttTopics.remove(s);
-            } catch (MqttException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
-                // If we are unable to unsubscribe, leave the topic in the set so that we can try to remove next time.
+        synchronized (subscribeLock) {
+            if (subscribeFuture != null) {
+                subscribeFuture.cancel(true);
             }
-        });
+            Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
+            topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
 
-        Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
-        topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
+            topicsToRemove.forEach(s -> {
+                try {
+                    mqttClientInternal.unsubscribe(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
+                    subscribedLocalMqttTopics.remove(s);
+                } catch (MqttException e) {
+                    LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                    // If we are unable to unsubscribe, leave the topic in the set
+                    // so that we can try to remove next time.
+                }
+            });
 
-        LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
+            Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
+            topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
 
-        subscribeFuture = executorService.submit(() -> subscribeToTopics(topicsToSubscribe));
+            LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
+
+            subscribeFuture = executorService.submit(() -> subscribeToTopics(topicsToSubscribe));
+        }
     }
 
     private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
