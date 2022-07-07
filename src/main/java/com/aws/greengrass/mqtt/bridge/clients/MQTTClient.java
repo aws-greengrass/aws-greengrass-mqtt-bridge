@@ -316,7 +316,7 @@ public class MQTTClient implements MessageClient {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
+                LOGGER.atError().setCause(e).kv(TOPIC, s).log("Failed to subscribe");
             }
         });
     }
