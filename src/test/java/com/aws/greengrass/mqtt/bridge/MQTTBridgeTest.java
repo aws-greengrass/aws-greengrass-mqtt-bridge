@@ -17,6 +17,9 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
+import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -27,6 +30,7 @@ import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +64,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -121,7 +127,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context) throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
@@ -146,7 +153,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context) throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
         startKernelWithConfig("config.yaml");
 
@@ -194,7 +202,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
@@ -224,8 +234,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 
@@ -251,8 +262,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
@@ -267,8 +279,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed()
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed(ExtensionContext context)
             throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
         startKernelWithConfig("config_with_mapping.yaml");
         TopicMapping topicMapping = ((MQTTBridge) kernel.locate(MQTTBridge.SERVICE_NAME)).getTopicMapping();
 
@@ -322,7 +335,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated() throws Exception {
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_CAs_updated_THEN_KeyStore_updated(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, InterruptedException.class);
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
@@ -370,5 +384,48 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         mqttBridge.startup();
         mqttBridge.shutdown();
         verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
+    }
+
+    @Test
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_Startup_THEN_Mqtt_subscriptions_updated_for_all_clients(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, InterruptedException.class);
+        serviceFullName = MQTTBridge.SERVICE_NAME;
+        initializeMockedConfig();
+        TopicMapping mockTopicMapping = mock(TopicMapping.class);
+        MessageBridge mockMessageBridge = mock(MessageBridge.class);
+        Kernel mockKernel = mock(Kernel.class);
+        MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+
+        Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+                .dflt("tcp://localhost:8883");
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
+                .dflt(MQTTBridge.SERVICE_NAME);
+
+        MQTTBridge mqttBridge =
+                new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubIPCEventStreamAgent.class),
+                        mock(MqttClient.class), mockKernel, mockMqttClientKeyStore, ses);
+
+        ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
+        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
+                .thenReturn(mockClientAuthService);
+        Topics mockClientAuthConfig = mock(Topics.class);
+        when(mockClientAuthService.getConfig()).thenReturn(mockClientAuthConfig);
+
+        Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
+        when(mockClientAuthConfig
+                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                        ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
+
+        mqttBridge.install();
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.LocalMqtt), any(MQTTClient.class));
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.Pubsub), any(PubSubClient.class));
+        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+                eq(TopicMapping.TopicType.IotCore), any(IoTCoreClient.class));
     }
 }

@@ -80,8 +80,8 @@ public class MQTTBridge extends PluginService {
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient, kernel,
-                mqttClientKeyStore, executorService);
+        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
+                kernel, mqttClientKeyStore, executorService);
     }
 
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
@@ -93,7 +93,7 @@ public class MQTTBridge extends PluginService {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
         this.executorService = executorService;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
     }
@@ -146,16 +146,16 @@ public class MQTTBridge extends PluginService {
         try {
             mqttClient = new MQTTClient(brokerUri, clientId, mqttClientKeyStore, executorService);
             mqttClient.start();
-            messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.LocalMqtt, mqttClient);
+            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mqttClient);
         } catch (MQTTClientException e) {
             serviceErrored(e);
             return;
         }
         pubSubClient.start();
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.Pubsub, pubSubClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, pubSubClient);
 
         ioTCoreClient.start();
-        messageBridge.addOrReplaceMessageClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
         reportState(State.RUNNING);
     }

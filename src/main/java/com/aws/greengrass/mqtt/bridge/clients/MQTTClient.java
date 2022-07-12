@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.Message;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -24,8 +25,11 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.net.URI;
 import java.security.KeyStoreException;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
@@ -44,13 +48,20 @@ public class MQTTClient implements MessageClient {
 
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
+    private final Object subscribeLock = new Object();
     private Future<?> connectFuture;
+    private Future<?> subscribeFuture;
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
-    private Set<String> subscribedLocalMqttTopics = new HashSet<>();
+    private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
 
     private final MQTTClientKeyStore mqttClientKeyStore;
+
+    private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
+                    .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Collections.singletonList(MqttException.class)).build();
 
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
@@ -189,7 +200,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @Override
-    public synchronized void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
 
         this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
@@ -200,34 +211,34 @@ public class MQTTClient implements MessageClient {
         }
     }
 
-    private synchronized void updateSubscriptionsInternal() {
-        Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
-        topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
-
-        topicsToRemove.forEach(s -> {
-            try {
-                mqttClientInternal.unsubscribe(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
-                subscribedLocalMqttTopics.remove(s);
-            } catch (MqttException e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
-                // If we are unable to unsubscribe, leave the topic in the set so that we can try to remove next time.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void updateSubscriptionsInternal() {
+        synchronized (subscribeLock) {
+            if (subscribeFuture != null) {
+                subscribeFuture.cancel(true);
             }
-        });
+            Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
+            topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
 
-        Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
-        topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
+            topicsToRemove.forEach(s -> {
+                try {
+                    mqttClientInternal.unsubscribe(s);
+                    LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
+                    subscribedLocalMqttTopics.remove(s);
+                } catch (MqttException e) {
+                    LOGGER.atError().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
+                    // If we are unable to unsubscribe, leave the topic in the set
+                    // so that we can try to remove next time.
+                }
+            });
 
-        // TODO: Support configurable qos, add retry
-        topicsToSubscribe.forEach(s -> {
-            try {
-                mqttClientInternal.subscribe(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Subscribed to topic");
-                subscribedLocalMqttTopics.add(s);
-            } catch (MqttException e) {
-                LOGGER.atError().kv(TOPIC, s).log("Failed to subscribe");
-            }
-        });
+            Set<String> topicsToSubscribe = new HashSet<>(toSubscribeLocalMqttTopics);
+            topicsToSubscribe.removeAll(subscribedLocalMqttTopics);
+
+            LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
+
+            subscribeFuture = executorService.submit(() -> subscribeToTopics(topicsToSubscribe));
+        }
     }
 
     private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
@@ -288,9 +299,29 @@ public class MQTTClient implements MessageClient {
         resubscribe();
     }
 
-    private synchronized void resubscribe() {
+    private void resubscribe() {
         subscribedLocalMqttTopics.clear();
         // Resubscribe to topics
         updateSubscriptionsInternal();
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void subscribeToTopics(Set<String> topics) {
+        // TODO: Support configurable qos
+        // retry until interrupted
+        topics.forEach(s -> {
+            try {
+                RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
+                    mqttClientInternal.subscribe(s);
+                    // useless return
+                    return null;
+                }, "subscribe-mqtt-topic", LOGGER);
+                subscribedLocalMqttTopics.add(s);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                LOGGER.atError().setCause(e).kv(TOPIC, s).log("Failed to subscribe");
+            }
+        });
     }
 }
