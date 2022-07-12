@@ -55,13 +55,14 @@ public class MessageBridge {
     }
 
     /**
-     * Add or replace the client of given type.
+     * Add or replace the client of given type and update subscriptions for the client.
      *
      * @param clientType    type of the client (type is the `source` type). Example, it will be LocalMqtt for
      *                      MQTTClient
      * @param messageClient client
      */
-    public void addOrReplaceMessageClient(TopicMapping.TopicType clientType, MessageClient messageClient) {
+    public void addOrReplaceMessageClientAndUpdateSubscriptions(
+            TopicMapping.TopicType clientType, MessageClient messageClient) {
         messageClientMap.put(clientType, messageClient);
         updateSubscriptionsForClient(clientType, messageClient);
     }

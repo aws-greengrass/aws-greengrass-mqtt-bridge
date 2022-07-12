@@ -8,6 +8,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.Message;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.AfterEach;
@@ -23,8 +24,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -47,12 +47,11 @@ public class MQTTClientTest {
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
 
-    private ScheduledExecutorService ses;
+    private final ExecutorService ses = TestUtils.synchronousExecutorService();
 
     @BeforeEach
     void setup() {
         fakeMqttClient = new FakeMqttClient(CLIENT_ID);
-        ses = new ScheduledThreadPoolExecutor(1);
     }
 
     @AfterEach
