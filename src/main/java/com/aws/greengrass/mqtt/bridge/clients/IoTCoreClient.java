@@ -186,13 +186,13 @@ public class IoTCoreClient implements MessageClient {
     private void subscribeToTopicsWithRetry(Set<String> topics) {
         // retry only if client is connected; skip if offline.
         // topics left here should be subscribed when the client is back online (onConnectionResumed event)
-        topics.forEach(s -> {
+        for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
                     try {
                         if (iotMqttClient.connected()) {
-                            subscribeToIotCore(s);
-                            subscribedIotCoreTopics.add(s);
+                            subscribeToIotCore(topic);
+                            subscribedIotCoreTopics.add(topic);
                         }
                         // useless return
                         return null;
@@ -207,10 +207,14 @@ public class IoTCoreClient implements MessageClient {
                 }, "subscribe-iotcore-topic", LOGGER);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                return;
             } catch (Exception e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Failed to subscribe to IoTCore topic");
+                LOGGER.atError().kv(TOPIC, topic).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
-        });
+        }
+
+        LOGGER.atDebug().kv("subscribedIotCoreTopics", String.join(",", subscribedIotCoreTopics))
+                .log("Subscription requests complete");
     }
 
     private void subscribeToIotCore(String topic) throws InterruptedException, ExecutionException, TimeoutException {
