@@ -213,7 +213,7 @@ public class IoTCoreClient implements MessageClient {
             }
         }
 
-        LOGGER.atDebug().kv("subscribedIotCoreTopics", String.join(",", subscribedIotCoreTopics))
+        LOGGER.atTrace().kv("subscribedIotCoreTopics", String.join(",", subscribedIotCoreTopics))
                 .log("Subscription requests complete");
     }
 
