@@ -45,7 +45,7 @@ public class IoTCoreClient implements MessageClient {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
 
-    private Consumer<Message> messageHandler;
+    private volatile Consumer<Message> messageHandler;
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();
 
@@ -56,11 +56,12 @@ public class IoTCoreClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received IoT Core message");
 
-        if (messageHandler == null) {
+        Consumer<Message> handler = messageHandler;
+        if (handler == null) {
             LOGGER.atWarn().kv(TOPIC, topic).log("IoT Core message received but message handler not set");
         } else {
             Message msg = new Message(topic, message.getPayload());
-            messageHandler.accept(msg);
+            handler.accept(msg);
         }
     };
 
@@ -184,16 +185,12 @@ public class IoTCoreClient implements MessageClient {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
     private void subscribeToTopicsWithRetry(Set<String> topics) {
-        // retry only if client is connected; skip if offline.
-        // topics left here should be subscribed when the client is back online (onConnectionResumed event)
         topics.forEach(s -> {
             try {
                 RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
                     try {
-                        if (iotMqttClient.connected()) {
-                            subscribeToIotCore(s);
-                            subscribedIotCoreTopics.add(s);
-                        }
+                        subscribeToIotCore(s);
+                        subscribedIotCoreTopics.add(s);
                         // useless return
                         return null;
                     } catch (ExecutionException e) {
