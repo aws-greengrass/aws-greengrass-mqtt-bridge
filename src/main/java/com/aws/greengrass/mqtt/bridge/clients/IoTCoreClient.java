@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -46,7 +45,6 @@ public class IoTCoreClient implements MessageClient {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
     private volatile Consumer<Message> messageHandler;
-    @Getter(AccessLevel.PACKAGE) // for unit testing
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();
     private final MqttClient iotMqttClient;
