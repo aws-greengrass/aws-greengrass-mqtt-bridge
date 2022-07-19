@@ -16,7 +16,6 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,22 +24,18 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
@@ -82,38 +77,19 @@ public class IoTCoreClientTest {
     }
 
     @Test
-    void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_topics_subscribe_once_client_online(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, ExecutionException.class);
+    void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_subscribe_once_online() {
         reset(mockIotMqttClient);
-        // simulate network failure on first subscription attempt
-        doThrow(ExecutionException.class).doNothing().when(mockIotMqttClient).subscribe(any());
-        IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
-        Set<String> topics = new HashSet<>();
-        topics.add("iotcore/topic");
-        topics.add("iotcore/topic2");
-        iotCoreClient.updateSubscriptions(topics, message -> {
-        });
 
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
-        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
-                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
-    }
-
-    @Test
-    void GIVEN_iotcore_client_WHEN_client_disconnected_THEN_topics_subscribe_once_client_online() throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
 
-        // simulate mqtt connection interrupt
-        iotCoreClient.getConnectionCallbacks().onConnectionInterrupted(1);
-
-        // attempt to update subscriptions, this is expected to fail
+        // attempt to update subscriptions, this is expected to fail since bridge is offline
+        when(mockIotMqttClient.connected()).thenReturn(false);
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
-        iotCoreClient.getSubscribeFuture().get(5L, TimeUnit.SECONDS);
 
         // verify no subscriptions were made
         assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(0));
@@ -121,8 +97,8 @@ public class IoTCoreClientTest {
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
 
         // simulate mqtt connection resume
+        when(mockIotMqttClient.connected()).thenReturn(true);
         iotCoreClient.getConnectionCallbacks().onConnectionResumed(false);
-        iotCoreClient.getSubscribeFuture().get(5L, TimeUnit.SECONDS);
 
         // verify subscriptions were made
         assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
