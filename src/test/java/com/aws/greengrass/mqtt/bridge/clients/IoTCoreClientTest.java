@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -93,6 +94,37 @@ public class IoTCoreClientTest {
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
+        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
+        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
+                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+    }
+
+    @Test
+    void GIVEN_iotcore_client_WHEN_client_disconnected_THEN_topics_subscribe_once_client_online() throws Exception {
+        IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
+
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        // simulate mqtt connection interrupt
+        iotCoreClient.getConnectionCallbacks().onConnectionInterrupted(1);
+
+        // attempt to update subscriptions, this is expected to fail
+        iotCoreClient.updateSubscriptions(topics, message -> {
+        });
+        iotCoreClient.getSubscribeFuture().get(5L, TimeUnit.SECONDS);
+
+        // verify no subscriptions were made
+        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(0));
+        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
+                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
+        // simulate mqtt connection resume
+        iotCoreClient.getConnectionCallbacks().onConnectionResumed(false);
+        iotCoreClient.getSubscribeFuture().get(5L, TimeUnit.SECONDS);
+
+        // verify subscriptions were made
         assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
         assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
