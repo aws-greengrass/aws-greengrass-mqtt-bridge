@@ -31,7 +31,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -77,7 +79,7 @@ public class IoTCoreClientTest {
     }
 
     @Test
-    void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_subscribe_once_online() {
+    void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_subscribe_once_online() throws Exception {
         reset(mockIotMqttClient);
 
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
@@ -92,6 +94,7 @@ public class IoTCoreClientTest {
         });
 
         // verify no subscriptions were made
+        verify(mockIotMqttClient, never()).subscribe(any(SubscribeRequest.class));
         assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(0));
         assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
