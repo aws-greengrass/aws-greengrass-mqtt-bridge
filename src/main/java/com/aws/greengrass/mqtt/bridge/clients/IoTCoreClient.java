@@ -190,7 +190,8 @@ public class IoTCoreClient implements MessageClient {
                 RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
                     try {
                         // retry only if client is connected; skip if offline.
-                        // topics left here should be subscribed when the client is back online (onConnectionResumed event)
+                        // topics left here should be subscribed when the client
+                        // is back online (onConnectionResumed event)
                         if (iotMqttClient.connected()) {
                             subscribeToIotCore(topic);
                             subscribedIotCoreTopics.add(topic);
