@@ -29,9 +29,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -79,19 +79,32 @@ public class IoTCoreClientTest {
     }
 
     @Test
-    void GIVEN_disconnected_iotcore_client_WHEN_update_subscriptions_THEN_topics_not_subscribed() throws Exception {
+    void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_subscribe_once_online() throws Exception {
         reset(mockIotMqttClient);
-        when(mockIotMqttClient.connected()).thenReturn(false);
+
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
+
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
+
+        // attempt to update subscriptions, this is expected to fail since bridge is offline
+        when(mockIotMqttClient.connected()).thenReturn(false);
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
+        // verify no subscriptions were made
         verify(mockIotMqttClient, never()).subscribe(any(SubscribeRequest.class));
         assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(0));
-        // topics left to be subscribed
+        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
+                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
+        // simulate mqtt connection resume
+        when(mockIotMqttClient.connected()).thenReturn(true);
+        iotCoreClient.getConnectionCallbacks().onConnectionResumed(false);
+
+        // verify subscriptions were made
+        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
         assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
     }
