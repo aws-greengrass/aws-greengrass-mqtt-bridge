@@ -44,11 +44,9 @@ public class IoTCoreClient implements MessageClient {
     private Set<String> subscribedIotCoreTopics = ConcurrentHashMap.newKeySet();
     @Getter(AccessLevel.PROTECTED)
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
-
-    private Consumer<Message> messageHandler;
+    private volatile Consumer<Message> messageHandler;
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();
-
     private final MqttClient iotMqttClient;
     private final ExecutorService executorService;
 
@@ -56,14 +54,16 @@ public class IoTCoreClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received IoT Core message");
 
-        if (messageHandler == null) {
+        Consumer<Message> handler = messageHandler;
+        if (handler == null) {
             LOGGER.atWarn().kv(TOPIC, topic).log("IoT Core message received but message handler not set");
         } else {
             Message msg = new Message(topic, message.getPayload());
-            messageHandler.accept(msg);
+            handler.accept(msg);
         }
     };
 
+    @Getter(AccessLevel.PACKAGE) // for unit testing
     private final MqttClientConnectionEvents connectionCallbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
@@ -93,7 +93,8 @@ public class IoTCoreClient implements MessageClient {
     public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService) {
         this.iotMqttClient = iotMqttClient;
         this.executorService = executorService;
-        iotMqttClient.addToCallbackEvents(connectionCallbacks);
+        // onConnect handler required to handle case when bridge starts offline
+        iotMqttClient.addToCallbackEvents(connectionCallbacks::onConnectionResumed, connectionCallbacks);
     }
 
     /**
@@ -184,15 +185,16 @@ public class IoTCoreClient implements MessageClient {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
     private void subscribeToTopicsWithRetry(Set<String> topics) {
-        // retry only if client is connected; skip if offline.
-        // topics left here should be subscribed when the client is back online (onConnectionResumed event)
-        topics.forEach(s -> {
+        for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(subscribeRetryConfig, () -> {
                     try {
+                        // retry only if client is connected; skip if offline.
+                        // topics left here should be subscribed when the client
+                        // is back online (onConnectionResumed event)
                         if (iotMqttClient.connected()) {
-                            subscribeToIotCore(s);
-                            subscribedIotCoreTopics.add(s);
+                            subscribeToIotCore(topic);
+                            subscribedIotCoreTopics.add(topic);
                         }
                         // useless return
                         return null;
@@ -207,10 +209,11 @@ public class IoTCoreClient implements MessageClient {
                 }, "subscribe-iotcore-topic", LOGGER);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                return;
             } catch (Exception e) {
-                LOGGER.atError().kv(TOPIC, s).setCause(e).log("Failed to subscribe to IoTCore topic");
+                LOGGER.atError().kv(TOPIC, topic).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
-        });
+        }
     }
 
     private void subscribeToIotCore(String topic) throws InterruptedException, ExecutionException, TimeoutException {
