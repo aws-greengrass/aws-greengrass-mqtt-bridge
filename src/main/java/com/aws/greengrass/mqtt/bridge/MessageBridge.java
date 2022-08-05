@@ -111,7 +111,7 @@ public class MessageBridge {
                     Message msg = new Message(targetTopic, message.getPayload());
                     try {
                         client.publish(msg);
-                        LOGGER.atInfo().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
+                        LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
                                 .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
                                 .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Published message");
