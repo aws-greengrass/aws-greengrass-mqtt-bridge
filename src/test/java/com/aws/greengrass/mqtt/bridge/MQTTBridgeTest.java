@@ -114,7 +114,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
     private void startKernelWithConfig(String configFileName) throws InterruptedException {
         CountDownLatch bridgeRunning = new CountDownLatch(1);
         kernel.parseArgs("-r", rootDir.toAbsolutePath().toString(), "-i",
-                getClass().getResource(configFileName).toString());
+                MQTTBridgeTest.class.getResource(configFileName).toString());
         listener = (GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.RUNNING)) {
                 bridgeRunning.countDown();

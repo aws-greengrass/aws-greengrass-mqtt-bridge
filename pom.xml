@@ -28,14 +28,14 @@
             <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
         </repository>
         <repository>
-            <id>bintray</id>
-            <url>https://jcenter.bintray.com</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
             <snapshots>
                 <enabled>false</enabled>
             </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
         </repository>
     </repositories>
 
@@ -73,7 +73,7 @@
         <dependency>
             <groupId>io.moquette</groupId>
             <artifactId>moquette-broker</artifactId>
-            <version>0.12.1</version>
+            <version>0.15</version>
             <scope>test</scope>
         </dependency>
         <dependency>
