@@ -165,6 +165,7 @@ public class MQTTBridge extends PluginService {
     /**
      * Responsible for handling all bridge config changes.
      */
+    @SuppressWarnings("PMD.PrematureDeclaration")
     public class ConfigurationChangeHandler {
 
         private final Topics configurationTopics = config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
