@@ -8,14 +8,18 @@ package com.aws.greengrass.mqtt.bridge;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.net.URI;
-import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,11 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BridgeConfigTest {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
+    private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
     private static final String CLIENT_ID = "clientId";
-    private static final String CLIENT_ID_PREFIX = "mqtt-bridge-";
 
     Topics topics;
 
@@ -45,60 +49,123 @@ class BridgeConfigTest {
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_brokerUri_provided_THEN_uriReturned() throws URISyntaxException {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .dflt(BROKER_URI);
+    void GIVEN_empty_config_WHEN_bridge_config_created_THEN_defaults_used() throws InvalidConfigurationException {
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap()
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
 
-        URI uri = BridgeConfig.getBrokerUri(topics);
-        assertEquals(BROKER_URI, uri.toString());
+
+    @Test
+    void GIVEN_brokerUri_config_WHEN_bridge_config_created_THEN_uri_set() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap()
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_brokerUri_and_brokerServerUri_provided_THEN_brokerUri_returned() throws URISyntaxException {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_SERVER_URI)
-                .dflt(BROKER_SERVER_URI);
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .dflt(BROKER_URI);
+    void GIVEN_brokerUri_and_brokerServerUri_config_WHEN_bridge_config_created_THEN_brokerUri_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_SERVER_URI).dflt(BROKER_SERVER_URI);
+        topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
 
-        URI uri = BridgeConfig.getBrokerUri(topics);
-        assertEquals(BROKER_URI, uri.toString());
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap()
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_brokerServerUri_provided_THEN_brokerServerUri_returned() throws URISyntaxException {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_SERVER_URI)
-                .dflt(BROKER_SERVER_URI);
+    void GIVEN_brokerServerUri_provided_WHEN_bridge_config_created_THEN_brokerServerUri_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_SERVER_URI).dflt(BROKER_SERVER_URI);
 
-        URI uri = BridgeConfig.getBrokerUri(topics);
-        assertEquals(BROKER_SERVER_URI, uri.toString());
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(BROKER_SERVER_URI),
+                config.getClientId(),
+                Collections.emptyMap()
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_brokerUri_missing_THEN_default_brokerUri_returned() throws URISyntaxException {
-        URI uri = BridgeConfig.getBrokerUri(topics);
-        assertEquals(DEFAULT_BROKER_URI, uri.toString());
+    void GIVEN_malformed_brokerUri_WHEN_bridge_config_created_THEN_exception_thrown() {
+        topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(MALFORMED_BROKER_URI);
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_brokerUri_malformed_THEN_exception_thrown() {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .dflt(MALFORMED_BROKER_URI);
+    void GIVEN_clientId_config_WHEN_bridge_config_created_THEN_clientId_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_CLIENT_ID).dflt(CLIENT_ID);
 
-        assertThrows(URISyntaxException.class, () -> BridgeConfig.getBrokerUri(topics));
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                CLIENT_ID,
+                Collections.emptyMap()
+        );
+        assertEquals(expectedConfig, config);
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_clientId_provided_THEN_clientId_returned() {
-        topics.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
-                .dflt(CLIENT_ID);
+    void GIVEN_topic_mapping_WHEN_bridge_config_created_THEN_topic_mapping_used() throws InvalidConfigurationException {
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.Pubsub.toString()),
+                        "m3",
+                        Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString())));
 
-        String clientId = BridgeConfig.getClientId(topics);
-        assertEquals(CLIENT_ID, clientId);
+        Map<String, TopicMapping.MappingEntry> expectedEntries = new HashMap<>();
+        expectedEntries.put("m1", new TopicMapping.MappingEntry("mqtt/topic", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
+        expectedEntries.put("m2", new TopicMapping.MappingEntry("mqtt/topic2", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.Pubsub));
+        expectedEntries.put("m3", new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                config.getClientId(),
+                expectedEntries
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     @Test
-    void GIVEN_bridgeConfig_WHEN_clientId_missing_THEN_default_clientId_returned() {
-        String clientId = BridgeConfig.getClientId(topics);
-        assertTrue(clientId.startsWith(CLIENT_ID_PREFIX));
+    void GIVEN_invalid_topic_mapping_WHEN_bridge_config_created_THEN_exception_thrown() {
+        String invalidSource = "INVALID_SOURCE";
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", invalidSource, "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.Pubsub.toString()),
+                        "m3",
+                        Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString())));
+
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+    }
+
+    private void assertDefaultClientId(BridgeConfig config) {
+        assertTrue(config.getClientId().startsWith(DEFAULT_CLIENT_ID_PREFIX));
     }
 }
