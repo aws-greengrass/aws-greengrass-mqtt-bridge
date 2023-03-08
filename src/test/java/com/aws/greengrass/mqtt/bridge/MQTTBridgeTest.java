@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -345,6 +346,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
+        LocalMqttClientFactory localMqttClientFactory = new LocalMqttClientFactory(mockMqttClientKeyStore, ses);
 
         Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
@@ -352,10 +354,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                 .dflt(MQTTBridge.SERVICE_NAME);
 
+        localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
+
         try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
             mqttBridge =
                     new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
-                            mockKernel, mockMqttClientKeyStore, ses);
+                            mockKernel, mockMqttClientKeyStore, localMqttClientFactory, ses);
         }
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
@@ -395,6 +399,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+        LocalMqttClientFactory localMqttClientFactory = new LocalMqttClientFactory(mockMqttClientKeyStore, ses);
 
         Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
@@ -402,9 +407,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                 .dflt(MQTTBridge.SERVICE_NAME);
 
+        localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
+
         MQTTBridge mqttBridge =
                 new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubIPCEventStreamAgent.class),
-                        mock(MqttClient.class), mockKernel, mockMqttClientKeyStore, ses);
+                        mock(MqttClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, ses);
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
         when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
