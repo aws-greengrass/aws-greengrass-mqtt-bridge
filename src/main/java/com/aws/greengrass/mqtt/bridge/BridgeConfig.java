@@ -45,14 +45,6 @@ public final class BridgeConfig {
     private final String clientId;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
 
-    /**
-     * Create a BridgeConfig from configuration topics.
-     *
-     * @param configurationTopics configuration topics
-     * @return bridge config
-     * @throws InvalidConfigurationException if config from topics is invalid
-     */
-    @SuppressWarnings("PMD.PrematureDeclaration")
     public static BridgeConfig fromTopics(Topics configurationTopics) throws InvalidConfigurationException {
         URI brokerUri;
         try {
