@@ -26,8 +26,6 @@ import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.Utils;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
@@ -44,7 +42,6 @@ import javax.inject.Inject;
 public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
-    @Getter(AccessLevel.PACKAGE) // Getter for unit tests
     private final TopicMapping topicMapping;
     private final MessageBridge messageBridge;
     private final Kernel kernel;

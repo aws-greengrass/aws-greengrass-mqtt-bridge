@@ -41,7 +41,7 @@ public final class BridgeConfig {
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
-    static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
 
