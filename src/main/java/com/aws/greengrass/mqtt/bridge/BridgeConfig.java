@@ -100,18 +100,11 @@ public final class BridgeConfig {
         }
     }
 
-    private static MqttVersion getMqttVersion(Topics configurationTopics) throws InvalidConfigurationException {
-        String versionName = Coerce.toString(configurationTopics.findOrDefault(
-                DEFAULT_MQTT_VERSION.getName(),
-                KEY_BROKER_CLIENT, KEY_VERSION));
-        MqttVersion version = MqttVersion.fromName(versionName);
-        if (version == null) {
-            LOGGER.atWarn().kv("version", versionName)
-                    .log("Unsupported value for " + KEY_BROKER_CLIENT + "." + KEY_VERSION
-                            + ". Defaulting to " + DEFAULT_MQTT_VERSION);
-            return DEFAULT_MQTT_VERSION;
-        }
-        return version;
+    private static MqttVersion getMqttVersion(Topics configurationTopics) {
+        return Coerce.toEnum(MqttVersion.class,
+                Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MQTT_VERSION.name(),
+                        KEY_BROKER_CLIENT, KEY_VERSION)).toUpperCase(),
+                DEFAULT_MQTT_VERSION);
     }
 
     /**

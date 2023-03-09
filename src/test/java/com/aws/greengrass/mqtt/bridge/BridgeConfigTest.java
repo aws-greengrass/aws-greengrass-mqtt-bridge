@@ -32,7 +32,7 @@ class BridgeConfigTest {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
-    private static final String DEFAULT_MQTT_VERSION = "mqtt3";
+    private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -57,7 +57,7 @@ class BridgeConfigTest {
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -72,7 +72,7 @@ class BridgeConfigTest {
                 URI.create(BROKER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -88,7 +88,7 @@ class BridgeConfigTest {
                 URI.create(BROKER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -103,7 +103,7 @@ class BridgeConfigTest {
                 URI.create(BROKER_SERVER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -124,7 +124,7 @@ class BridgeConfigTest {
                 URI.create(DEFAULT_BROKER_URI),
                 CLIENT_ID,
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertEquals(expectedConfig, config);
     }
@@ -150,7 +150,7 @@ class BridgeConfigTest {
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
                 expectedEntries,
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -181,7 +181,7 @@ class BridgeConfigTest {
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName("mqtt5")
+                MqttVersion.MQTT5
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -195,7 +195,7 @@ class BridgeConfigTest {
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
                 Collections.emptyMap(),
-                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
