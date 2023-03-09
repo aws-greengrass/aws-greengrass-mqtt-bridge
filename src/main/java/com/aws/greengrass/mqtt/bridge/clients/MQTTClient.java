@@ -43,6 +43,7 @@ public class MQTTClient implements MessageClient {
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     private Consumer<Message> messageHandler;
+    private final MQTTClientKeyStore.UpdateListener updateListener = this::reset;
     private final URI brokerUri;
     private final String clientId;
 
@@ -114,7 +115,7 @@ public class MQTTClient implements MessageClient {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
+        this.mqttClientKeyStore.listenToCAUpdates(updateListener);
         this.executorService = executorService;
     }
 
@@ -155,6 +156,7 @@ public class MQTTClient implements MessageClient {
      */
     @Override
     public void stop() {
+        mqttClientKeyStore.unsubscribeToUpdates(updateListener);
         removeMappingAndSubscriptions();
 
         try {
