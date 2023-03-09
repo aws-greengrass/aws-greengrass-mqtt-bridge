@@ -9,6 +9,7 @@ import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.clientdevices.auth.CertificateManager;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -49,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -72,6 +75,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -337,8 +342,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         assertTrue(bridgeErrored.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
     }
 
-    @Test
-    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated() throws Exception {
+    @Test // TODO refactor to int tests
+    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated_int() throws Exception {
         startKernelWithConfig("config.yaml");
 
         CountDownLatch keyStoreUpdated = new CountDownLatch(1);
@@ -364,6 +369,61 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                         )));
 
         assertTrue(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, InterruptedException.class);
+        serviceFullName = MQTTBridge.SERVICE_NAME;
+        initializeMockedConfig();
+        TopicMapping mockTopicMapping = mock(TopicMapping.class);
+        MessageBridge mockMessageBridge = mock(MessageBridge.class);
+        PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
+        Kernel mockKernel = mock(Kernel.class);
+        MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+        MQTTBridge mqttBridge;
+        LocalMqttClientFactory localMqttClientFactory = new LocalMqttClientFactory(mockMqttClientKeyStore, ses);
+
+        Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+                .dflt("tcp://localhost:8883");
+        config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
+                .dflt("clientId");
+
+        localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
+
+        try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
+            mqttBridge =
+                    new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
+                            mockKernel, mockMqttClientKeyStore, localMqttClientFactory, ses);
+        }
+
+        ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
+        when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
+                .thenReturn(mockClientAuthService);
+        Topics mockClientAuthConfig = mock(Topics.class);
+        when(mockClientAuthService.getRuntimeConfig()).thenReturn(mockClientAuthConfig);
+
+        Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
+        when(mockClientAuthConfig
+                .lookup(ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC))
+                .thenReturn(caTopic);
+        mqttBridge.install();
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+        ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
+        assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
+
+        caTopic = Topic.of(context, "authorities", Collections.emptyList());
+        when(mockClientAuthConfig
+                .lookup(ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC))
+                .thenReturn(caTopic);
+        reset(mockMqttClientKeyStore);
+        mqttBridge.install();
+        mqttBridge.startup();
+        mqttBridge.shutdown();
+        verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
     }
 
     @Test
