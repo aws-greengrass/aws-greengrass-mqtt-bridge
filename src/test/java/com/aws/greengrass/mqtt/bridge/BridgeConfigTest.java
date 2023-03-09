@@ -188,9 +188,17 @@ class BridgeConfigTest {
     }
 
     @Test
-    void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_exception_thrown() {
+    void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_default_version_used() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
-        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap(),
+                MqttVersion.fromName(DEFAULT_MQTT_VERSION)
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     private void assertDefaultClientId(BridgeConfig config) {

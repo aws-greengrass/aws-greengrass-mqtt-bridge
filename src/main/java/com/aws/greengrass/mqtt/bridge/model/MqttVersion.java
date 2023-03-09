@@ -7,11 +7,9 @@ package com.aws.greengrass.mqtt.bridge.model;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.ToString;
 
 import java.util.Arrays;
 
-@ToString
 @RequiredArgsConstructor
 public enum MqttVersion {
 
@@ -32,5 +30,10 @@ public enum MqttVersion {
                 .filter(v -> v.getName().equalsIgnoreCase(name))
                 .findFirst()
                 .orElse(null);
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }

@@ -6,6 +6,8 @@
 package com.aws.greengrass.mqtt.bridge;
 
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.util.Coerce;
@@ -31,6 +33,8 @@ import java.util.Objects;
 @EqualsAndHashCode
 @RequiredArgsConstructor
 public final class BridgeConfig {
+    private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
+
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
 
@@ -43,7 +47,7 @@ public final class BridgeConfig {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
-    private static final String DEFAULT_MQTT_VERSION = MqttVersion.MQTT3.getName();
+    private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
 
     private final URI brokerUri;
     private final String clientId;
@@ -98,12 +102,14 @@ public final class BridgeConfig {
 
     private static MqttVersion getMqttVersion(Topics configurationTopics) throws InvalidConfigurationException {
         String versionName = Coerce.toString(configurationTopics.findOrDefault(
-                DEFAULT_MQTT_VERSION,
+                DEFAULT_MQTT_VERSION.getName(),
                 KEY_BROKER_CLIENT, KEY_VERSION));
         MqttVersion version = MqttVersion.fromName(versionName);
         if (version == null) {
-            throw new InvalidConfigurationException(
-                    "Unsupported value for " + KEY_BROKER_CLIENT + "." + KEY_VERSION + ": " + versionName);
+            LOGGER.atWarn().kv("version", versionName)
+                    .log("Unsupported value for " + KEY_BROKER_CLIENT + "." + KEY_VERSION
+                            + ". Defaulting to " + DEFAULT_MQTT_VERSION);
+            return DEFAULT_MQTT_VERSION;
         }
         return version;
     }
