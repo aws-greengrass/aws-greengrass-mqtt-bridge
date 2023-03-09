@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,7 @@ class BridgeConfigTest {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
+    private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -54,12 +56,12 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
-
 
     @Test
     void GIVEN_brokerUri_config_WHEN_bridge_config_created_THEN_uri_set() throws InvalidConfigurationException {
@@ -69,7 +71,8 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(BROKER_URI),
                 config.getClientId(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -84,7 +87,8 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(BROKER_URI),
                 config.getClientId(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -98,7 +102,8 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(BROKER_SERVER_URI),
                 config.getClientId(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -118,7 +123,8 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(DEFAULT_BROKER_URI),
                 CLIENT_ID,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
         );
         assertEquals(expectedConfig, config);
     }
@@ -143,7 +149,8 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = new BridgeConfig(
                 URI.create(DEFAULT_BROKER_URI),
                 config.getClientId(),
-                expectedEntries
+                expectedEntries,
+                DEFAULT_MQTT_VERSION
         );
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -163,6 +170,35 @@ class BridgeConfigTest {
                         Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString())));
 
         assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+    }
+
+    @Test
+    void GIVEN_mqtt_version_config_WHEN_bridge_config_created_THEN_version_set() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap(),
+                MqttVersion.MQTT5
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_default_version_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = new BridgeConfig(
+                URI.create(DEFAULT_BROKER_URI),
+                config.getClientId(),
+                Collections.emptyMap(),
+                DEFAULT_MQTT_VERSION
+        );
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
     }
 
     private void assertDefaultClientId(BridgeConfig config) {
