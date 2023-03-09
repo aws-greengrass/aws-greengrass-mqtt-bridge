@@ -9,7 +9,6 @@ import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.clientdevices.auth.CertificateManager;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
@@ -75,7 +74,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -386,12 +384,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTBridge mqttBridge;
         LocalMqttClientFactory localMqttClientFactory = new LocalMqttClientFactory(mockMqttClientKeyStore, ses);
 
-        Context context = new Context();
-        try {
-            Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
-            config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+        try (Context context = new Context()) {
+            Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
+            config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                     .dflt("tcp://localhost:8883");
-            config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
+            config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                     .dflt("clientId");
 
             localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
@@ -438,8 +435,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                     .withValue(Arrays.asList("CA1", "CA2"));
             context.waitForPublishQueueToClear();
             verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
-        } finally {
-            context.shutdown();
         }
     }
 
@@ -506,12 +501,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTBridge mqttBridge;
         LocalMqttClientFactory localMqttClientFactory = new LocalMqttClientFactory(mockMqttClientKeyStore, ses);
 
-        Context context = new Context();
-        try {
-            Topics config = Topics.of(context, KernelConfigResolver.CONFIGURATION_CONFIG_KEY, null);
-            config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
+        try (Context context = new Context()) {
+            Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
+            config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                     .dflt("tcp://localhost:8883");
-            config.lookup(KernelConfigResolver.CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
+            config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                     .dflt("clientId");
 
             localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
@@ -539,8 +533,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             context.waitForPublishQueueToClear();
             ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
             verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
-        } finally {
-            context.shutdown();
         }
     }
 
