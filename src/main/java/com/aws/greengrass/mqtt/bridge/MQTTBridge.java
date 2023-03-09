@@ -127,6 +127,7 @@ public class MQTTBridge extends PluginService {
         ioTCoreClient.start();
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
+        messageBridge.start();
         reportState(State.RUNNING);
     }
 
@@ -135,6 +136,7 @@ public class MQTTBridge extends PluginService {
         certificateAuthorityChangeHandler.stop();
         mqttClientKeyStore.shutdown();
 
+        messageBridge.stop();
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (localMqttClient != null) {
             localMqttClient.stop();

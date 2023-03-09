@@ -34,6 +34,7 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
+    private final TopicMapping.UpdateListener updateListener = this::processMappingAndSubscribe;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
     private final Map<TopicMapping.TopicType, MessageClient> messageClientMap = new ConcurrentHashMap<>();
     // A map from type of source to its mapping. The mapping is actually mapping from topic name to its destinations
@@ -50,8 +51,25 @@ public class MessageBridge {
      */
     public MessageBridge(TopicMapping topicMapping) {
         this.topicMapping = topicMapping;
-        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+    }
+
+    /**
+     * Start message bridge.
+     *
+     * <br><br><p>All registered {@link MessageClient}s will have their
+     * subscriptions updated immediately.  Changes to {@link TopicMapping} will
+     * trigger subscription updates as well.
+     */
+    public void start() {
+        topicMapping.listenToUpdates(updateListener);
         processMappingAndSubscribe();
+    }
+
+    /**
+     * Stop the message bridge.
+     */
+    public void stop() {
+        topicMapping.unsubscribeFromUpdates(updateListener);
     }
 
     /**
