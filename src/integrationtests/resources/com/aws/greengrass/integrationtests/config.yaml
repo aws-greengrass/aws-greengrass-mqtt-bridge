@@ -1,0 +1,7 @@
+services:
+    aws.greengrass.clientdevices.mqtt.Bridge:
+        configuration:
+            brokerUri: 'tcp://localhost:8883'
+    main:
+        dependencies:
+            - aws.greengrass.clientdevices.mqtt.Bridge
