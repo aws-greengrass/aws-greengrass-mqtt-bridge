@@ -56,12 +56,14 @@ public class PubSubClient implements MessageClient {
     /**
      * Start the {@link PubSubClient}.
      */
+    @Override
     public void start() {
     }
 
     /**
      * Stop the {@link PubSubClient}.
      */
+    @Override
     public void stop() {
         removeMappingAndSubscriptions();
     }

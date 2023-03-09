@@ -140,6 +140,7 @@ public class MQTTClient implements MessageClient {
      *
      * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
      */
+    @Override
     public void start() {
         mqttClientInternal.setCallback(mqttCallback);
         try {
@@ -152,6 +153,7 @@ public class MQTTClient implements MessageClient {
     /**
      * Stop the {@link MQTTClient}.
      */
+    @Override
     public void stop() {
         removeMappingAndSubscriptions();
 

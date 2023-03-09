@@ -34,4 +34,8 @@ public interface MessageClient {
      * @return true if supported
      */
     boolean supportsTopicFilters();
+
+    void start();
+
+    void stop();
 }

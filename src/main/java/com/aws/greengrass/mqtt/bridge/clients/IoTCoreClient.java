@@ -100,12 +100,14 @@ public class IoTCoreClient implements MessageClient {
     /**
      * Start the {@link IoTCoreClient}.
      */
+    @Override
     public void start() {
     }
 
     /**
      * Stop the {@link IoTCoreClient}.
      */
+    @Override
     public void stop() {
         removeMappingAndSubscriptions();
     }
