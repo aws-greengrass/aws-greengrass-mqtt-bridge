@@ -563,11 +563,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
                 .thenReturn(mockClientAuthService);
         Topics mockClientAuthConfig = mock(Topics.class);
-        when(mockClientAuthService.getConfig()).thenReturn(mockClientAuthConfig);
+        when(mockClientAuthService.getRuntimeConfig()).thenReturn(mockClientAuthConfig);
 
         Topic caTopic = Topic.of(context, "authorities", Arrays.asList("CA1", "CA2"));
         when(mockClientAuthConfig
-                .lookup(MQTTBridge.RUNTIME_STORE_NAMESPACE_TOPIC, ClientDevicesAuthService.CERTIFICATES_KEY,
+                .lookup(ClientDevicesAuthService.CERTIFICATES_KEY,
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
 
         mqttBridge.install();
