@@ -199,8 +199,9 @@ public class MQTTBridge extends PluginService {
         private Optional<Topic> findCATopic() {
             try {
                 return Optional.of(kernel
-                        .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME).getConfig()
-                        .lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+                        .locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME)
+                        .getRuntimeConfig()
+                        .lookup(
                                 ClientDevicesAuthService.CERTIFICATES_KEY,
                                 ClientDevicesAuthService.AUTHORITIES_TOPIC));
             } catch (ServiceLoadException e) {
