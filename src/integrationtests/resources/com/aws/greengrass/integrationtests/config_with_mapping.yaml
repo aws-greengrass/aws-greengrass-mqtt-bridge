@@ -1,0 +1,30 @@
+services:
+  aws.greengrass.clientdevices.mqtt.Bridge:
+    configuration:
+      brokerUri: 'tcp://localhost:8883'
+      mqttTopicMapping:
+        mapping1:
+          topic: topic/to/map/from/local/to/cloud
+          source: LocalMqtt
+          target: IotCore
+        mapping2:
+          topic: topic/to/map/from/local/to/pubsub
+          source: LocalMqtt
+          target: Pubsub
+        mapping3:
+          topic: topic/to/map/from/local/to/cloud/2
+          source: LocalMqtt
+          target: IotCore
+        mapping4:
+          topic: topic/to/map/from/local/to/pubsub/2
+          source: LocalMqtt
+          target: Pubsub
+          targetTopicPrefix: a-prefix
+        mapping5:
+          topic: topic/to/map/from/local/to/cloud/3
+          source: LocalMqtt
+          target: IotCore
+          targetTopicPrefix: a-prefix
+  main:
+    dependencies:
+      - aws.greengrass.clientdevices.mqtt.Bridge
