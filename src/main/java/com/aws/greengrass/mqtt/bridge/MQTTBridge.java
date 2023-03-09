@@ -9,9 +9,8 @@ import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -35,10 +34,8 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
@@ -158,6 +155,31 @@ public class MQTTBridge extends PluginService {
 
         private BatchedSubscriber subscriber;
 
+        /**
+         * Begin listening and responding to CDA CA changes.
+         *
+         * <p>This operation is idempotent.
+         */
+        public void start() {
+            if (subscriber == null) {
+                Topic caTopic = findCATopic().orElse(null);
+                if (caTopic == null) {
+                    return;
+                }
+                subscriber = new BatchedSubscriber(caTopic, (what) -> onCAChange());
+            }
+            subscriber.subscribe();
+        }
+
+        /**
+         * Stop listening to CDA CA changes.
+         */
+        public void stop() {
+            if (subscriber != null) {
+                subscriber.unsubscribe();
+            }
+        }
+
         private void onCAChange() {
             findCATopic()
                     .map(Coerce::toStringList)
@@ -171,31 +193,6 @@ public class MQTTBridge extends PluginService {
                 mqttClientKeyStore.updateCA(certs);
             } catch (IOException | CertificateException | KeyStoreException e) {
                 serviceErrored(e);
-            }
-        }
-
-        /**
-         * Begin listening and responding to CDA CA changes.
-         *
-         * <p>This operation is idempotent.
-         */
-        public void start() {
-            if (subscriber == null) {
-                Topic caTopic = findCATopic().orElse(null);
-                if (caTopic == null) {
-                    return;
-                }
-                subscriber = new BatchedSubscriber(caTopic, (what, whatChanged) -> onCAChange());
-            }
-            subscriber.subscribe();
-        }
-
-        /**
-         * Stop listening to CDA CA changes.
-         */
-        public void stop() {
-            if (subscriber != null) {
-                subscriber.unsubscribe();
             }
         }
 
