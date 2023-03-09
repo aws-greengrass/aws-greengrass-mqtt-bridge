@@ -431,7 +431,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                 .dflt("tcp://localhost:8883");
         config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
-                .dflt(MQTTBridge.SERVICE_NAME);
+                .dflt("clientId");
 
         localMqttClientFactory.setConfig(BridgeConfig.fromTopics(config));
 
