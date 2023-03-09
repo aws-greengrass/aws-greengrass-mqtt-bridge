@@ -574,11 +574,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         mqttBridge.startup();
         mqttBridge.shutdown();
 
-        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+        verify(mockMessageBridge).registerClient(
                 eq(TopicMapping.TopicType.LocalMqtt), any(MQTTClient.class));
-        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+        verify(mockMessageBridge).registerClient(
                 eq(TopicMapping.TopicType.Pubsub), any(PubSubClient.class));
-        verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
+        verify(mockMessageBridge).registerClient(
                 eq(TopicMapping.TopicType.IotCore), any(IoTCoreClient.class));
     }
 }

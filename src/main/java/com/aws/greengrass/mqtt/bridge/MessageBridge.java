@@ -70,6 +70,7 @@ public class MessageBridge {
      */
     public void stop() {
         topicMapping.unsubscribeFromUpdates(updateListener);
+        messageClientMap.clear();
     }
 
     /**
@@ -79,10 +80,9 @@ public class MessageBridge {
      *                      MQTTClient
      * @param messageClient client
      */
-    public void addOrReplaceMessageClientAndUpdateSubscriptions(
+    public void registerClient(
             TopicMapping.TopicType clientType, MessageClient messageClient) {
         messageClientMap.put(clientType, messageClient);
-        updateSubscriptionsForClient(clientType, messageClient);
     }
 
     /**

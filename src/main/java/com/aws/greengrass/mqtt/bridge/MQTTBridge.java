@@ -115,17 +115,17 @@ public class MQTTBridge extends PluginService {
         try {
             localMqttClient = localMqttClientFactory.createLocalMqttClient();
             localMqttClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+            messageBridge.registerClient(
                     TopicMapping.TopicType.LocalMqtt, localMqttClient);
         } catch (MQTTClientException e) {
             serviceErrored(e);
             return;
         }
         pubSubClient.start();
-        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, pubSubClient);
+        messageBridge.registerClient(TopicMapping.TopicType.Pubsub, pubSubClient);
 
         ioTCoreClient.start();
-        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, ioTCoreClient);
+        messageBridge.registerClient(TopicMapping.TopicType.IotCore, ioTCoreClient);
 
         messageBridge.start();
         reportState(State.RUNNING);
