@@ -360,13 +360,15 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
-                CertificateHelper.toPem(
-                        CertificateHelper.createCACertificate(
-                                CertificateStore.newRSAKeyPair(2048),
-                                Date.from(Instant.now()),
-                                Date.from(Instant.now().plusSeconds(100)),
-                                "CA"
-                        )));
+                Collections.singletonList(
+                        CertificateHelper.toPem(
+                                CertificateHelper.createCACertificate(
+                                        CertificateStore.newRSAKeyPair(2048),
+                                        Date.from(Instant.now()),
+                                        Date.from(Instant.now().plusSeconds(100)),
+                                        "CA"
+                                ))
+                ));
 
         assertTrue(keyStoreUpdated.await(10L, TimeUnit.SECONDS));
     }
@@ -476,13 +478,15 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
-                CertificateHelper.toPem(
-                        CertificateHelper.createCACertificate(
-                                CertificateStore.newRSAKeyPair(2048),
-                                Date.from(Instant.now()),
-                                Date.from(Instant.now().plusSeconds(100)),
-                                "CA"
-                        )));
+                Collections.singletonList(
+                        CertificateHelper.toPem(
+                                CertificateHelper.createCACertificate(
+                                        CertificateStore.newRSAKeyPair(2048),
+                                        Date.from(Instant.now()),
+                                        Date.from(Instant.now().plusSeconds(100)),
+                                        "CA"
+                                ))
+                ));
 
         // shouldn't update
         assertFalse(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
