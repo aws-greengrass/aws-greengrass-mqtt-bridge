@@ -289,6 +289,7 @@ public class MQTTClient implements MessageClient {
             } catch (MqttException | KeyStoreException e) {
                 if (Utils.getUltimateCause(e) instanceof InterruptedException) {
                     // paho doesn't reset the interrupt flag
+                    LOGGER.atDebug().log("Interrupted during reconnect");
                     Thread.currentThread().interrupt();
                     return;
                 }
@@ -299,6 +300,7 @@ public class MQTTClient implements MessageClient {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
                     Thread.currentThread().interrupt();
+                    LOGGER.atDebug().log("Interrupted during reconnect");
                     return;
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
