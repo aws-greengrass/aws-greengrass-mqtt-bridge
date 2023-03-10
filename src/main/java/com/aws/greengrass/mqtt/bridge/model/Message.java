@@ -17,5 +17,5 @@ public interface Message {
 
     byte[] getPayload();
 
-    Message ofTopic(String topic);
+    Message newFromMessageWithTopic(String topic);
 }

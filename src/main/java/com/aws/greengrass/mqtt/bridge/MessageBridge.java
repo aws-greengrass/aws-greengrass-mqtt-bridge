@@ -146,7 +146,7 @@ public class MessageBridge {
     private <T extends Message> void publishMessage(MessageClient<T> client, String topic, Message message)
             throws MessageClientException {
         T msg = client.convertMessage(message);
-        msg = (T) msg.ofTopic(topic);
+        msg = (T) msg.newFromMessageWithTopic(topic);
         client.publish(msg);
     }
 

@@ -30,7 +30,7 @@ public class PubSubMessage implements Message {
     }
 
     @Override
-    public Message ofTopic(String topic) {
+    public Message newFromMessageWithTopic(String topic) {
         return new PubSubMessage(topic, payload);
     }
 }

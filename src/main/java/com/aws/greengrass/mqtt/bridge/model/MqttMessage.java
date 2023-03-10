@@ -34,7 +34,7 @@ public class MqttMessage implements Message {
     }
 
     @Override
-    public Message ofTopic(String topic) {
+    public Message newFromMessageWithTopic(String topic) {
         return new MqttMessage(topic, payload);
     }
 }
