@@ -17,6 +17,7 @@ import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.MQTTBridgeTest;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
@@ -41,7 +42,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -72,8 +73,7 @@ public class ConfigTest {
     // TODO mqtt5
     Server broker;
 
-    // TODO consider executor service or same thread executor
-    ScheduledExecutorService ses;
+    ExecutorService executorService = TestUtils.synchronousExecutorService();
 
     @BeforeEach
     void setup() throws IOException {
@@ -88,14 +88,14 @@ public class ConfigTest {
         broker = new Server();
         broker.startServer(defaultConfig);
 
-        ses = new ScheduledThreadPoolExecutor(1);
+        executorService = new ScheduledThreadPoolExecutor(1);
     }
 
     @AfterEach
     void cleanup() {
         kernel.shutdown();
         broker.stopServer();
-        ses.shutdownNow();
+        executorService.shutdownNow();
     }
 
     private void startKernelWithConfig(String configFileName) throws InterruptedException {

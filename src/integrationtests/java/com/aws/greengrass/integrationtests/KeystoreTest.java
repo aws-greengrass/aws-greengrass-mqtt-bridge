@@ -19,6 +19,7 @@ import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.MQTTBridgeTest;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -62,8 +64,7 @@ public class KeystoreTest {
     // TODO mqtt5
     Server broker;
 
-    // TODO consider executor service or same thread executor
-    ScheduledExecutorService ses;
+    ExecutorService executorService = TestUtils.synchronousExecutorService();
 
     @BeforeEach
     void setup() throws IOException {
@@ -77,15 +78,13 @@ public class KeystoreTest {
         defaultConfig.setProperty(BrokerConstants.PORT_PROPERTY_NAME, "8883");
         broker = new Server();
         broker.startServer(defaultConfig);
-
-        ses = new ScheduledThreadPoolExecutor(1);
     }
 
     @AfterEach
     void cleanup() {
         kernel.shutdown();
         broker.stopServer();
-        ses.shutdownNow();
+        executorService.shutdownNow();
     }
 
     private void startKernelWithConfig(String configFileName) throws InterruptedException {
