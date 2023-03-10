@@ -11,6 +11,7 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.Message;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -286,10 +287,9 @@ public class MQTTClient implements MessageClient {
                 // TODO: Clean up this loop
                 doConnect();
             } catch (MqttException | KeyStoreException e) {
-                if (e.getCause() instanceof InterruptedException) {
+                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
                     // paho doesn't reset the interrupt flag
                     Thread.currentThread().interrupt();
-                    LOGGER.atDebug().setCause(e.getCause()).log("Interrupted during reconnect");
                     return;
                 }
 
@@ -299,7 +299,6 @@ public class MQTTClient implements MessageClient {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
                     Thread.currentThread().interrupt();
-                    LOGGER.atDebug().setCause(er).log("Interrupted during reconnect");
                     return;
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
