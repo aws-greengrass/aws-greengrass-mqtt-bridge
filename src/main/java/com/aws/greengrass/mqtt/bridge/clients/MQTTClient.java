@@ -8,8 +8,9 @@ package com.aws.greengrass.mqtt.bridge.clients;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
-import com.aws.greengrass.mqtt.bridge.Message;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -35,14 +36,14 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import javax.net.ssl.SSLSocketFactory;
 
-public class MQTTClient implements MessageClient {
+public class MQTTClient implements MessageClient<MqttMessage> {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
 
     public static final String TOPIC = "topic";
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
-    private Consumer<Message> messageHandler;
+    private Consumer<MqttMessage> messageHandler;
     private final URI brokerUri;
     private final String clientId;
 
@@ -77,8 +78,7 @@ public class MQTTClient implements MessageClient {
             if (messageHandler == null) {
                 LOGGER.atWarn().kv(TOPIC, topic).log("MQTT message received but message handler not set");
             } else {
-                Message msg = new Message(topic, message.getPayload());
-                messageHandler.accept(msg);
+                messageHandler.accept(MqttMessage.fromPahoMQTT3(topic, message));
             }
         }
 
@@ -186,7 +186,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @Override
-    public void publish(Message message) throws MessageClientException {
+    public void publish(MqttMessage message) throws MessageClientException {
         try {
             mqttClientInternal
                     .publish(message.getTopic(), new org.eclipse.paho.client.mqttv3.MqttMessage(message.getPayload()));
@@ -202,7 +202,7 @@ public class MQTTClient implements MessageClient {
     }
 
     @Override
-    public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+    public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
         this.messageHandler = messageHandler;
 
         this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
@@ -325,5 +325,10 @@ public class MQTTClient implements MessageClient {
                 LOGGER.atError().setCause(e).kv(TOPIC, s).log("Failed to subscribe");
             }
         });
+    }
+
+    @Override
+    public MqttMessage convertMessage(Message message) {
+        return (MqttMessage) message.toMqtt();
     }
 }

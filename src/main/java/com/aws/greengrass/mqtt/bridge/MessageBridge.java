@@ -9,6 +9,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
@@ -35,7 +36,8 @@ public class MessageBridge {
 
     private final TopicMapping topicMapping;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
-    private final Map<TopicMapping.TopicType, MessageClient> messageClientMap = new ConcurrentHashMap<>();
+    private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
+            = new ConcurrentHashMap<>();
     // A map from type of source to its mapping. The mapping is actually mapping from topic name to its destinations
     // (destination topic + type). This data structure may change once we introduce complex routing mechanism.
     // Example:
@@ -62,7 +64,7 @@ public class MessageBridge {
      * @param messageClient client
      */
     public void addOrReplaceMessageClientAndUpdateSubscriptions(
-            TopicMapping.TopicType clientType, MessageClient messageClient) {
+            TopicMapping.TopicType clientType, MessageClient<? extends Message> messageClient) {
         messageClientMap.put(clientType, messageClient);
         updateSubscriptionsForClient(clientType, messageClient);
     }
@@ -76,12 +78,12 @@ public class MessageBridge {
         messageClientMap.remove(clientType);
     }
 
-    private void handleMessage(TopicMapping.TopicType sourceType, Message message) {
+    private <T extends Message> void handleMessage(TopicMapping.TopicType sourceType, T message) {
         String fullSourceTopic = message.getTopic();
         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                 .log("Message received");
 
-        MessageClient sourceClient = messageClientMap.get(sourceType);
+        MessageClient<? extends Message> sourceClient = messageClientMap.get(sourceType);
         if (sourceClient == null) {
             LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                     .log("Source client not found");
@@ -92,7 +94,7 @@ public class MessageBridge {
 
         if (srcDestMapping != null) {
             final Consumer<TopicMapping.MappingEntry> processDestination = mapping -> {
-                MessageClient client = messageClientMap.get(mapping.getTarget());
+                MessageClient<? extends Message> client = messageClientMap.get(mapping.getTarget());
                 // If the mapped topic string is empty string, we forward the message to the same topic as the
                 // source topic.
                 final String baseTargetTopic = Utils.isEmpty(mapping.getTargetTopic())
@@ -108,9 +110,8 @@ public class MessageBridge {
                             .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic)
                             .log("Message client not found for target type");
                 } else {
-                    Message msg = new Message(targetTopic, message.getPayload());
                     try {
-                        client.publish(msg);
+                        publishMessage(client, targetTopic, message);
                         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
                                 .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
@@ -141,6 +142,14 @@ public class MessageBridge {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private <T extends Message> void publishMessage(MessageClient<T> client, String topic, Message message)
+            throws MessageClientException {
+        T msg = client.convertMessage(message);
+        msg = (T) msg.ofTopic(topic);
+        client.publish(msg);
+    }
+
     private void processMappingAndSubscribe() {
         Map<String, TopicMapping.MappingEntry> mapping = topicMapping.getMapping();
         LOGGER.atDebug().kv("topicMapping", mapping).log("Processing mapping");
@@ -166,7 +175,7 @@ public class MessageBridge {
     }
 
     private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
-                                                           MessageClient messageClient) {
+                                                           MessageClient<? extends Message> messageClient) {
         Map<String, List<TopicMapping.MappingEntry>> srcDestMapping =
                 perClientSourceDestinationMap.get(clientType);
 

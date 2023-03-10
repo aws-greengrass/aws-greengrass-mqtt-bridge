@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
-import com.aws.greengrass.mqtt.bridge.Message;
+import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
@@ -46,7 +46,7 @@ public class IoTCoreClientTest {
     private MqttClient mockIotMqttClient;
 
     @Mock
-    private Consumer<Message> mockMessageHandler;
+    private Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> mockMessageHandler;
     private final ExecutorService executorService = TestUtils.synchronousExecutorService();
 
     @BeforeEach
@@ -188,10 +188,10 @@ public class IoTCoreClientTest {
         // Also simulate a message which is not in the mapping
         iotCoreCallback.accept(new MqttMessage("iotcore/topic/not/in/mapping", messageOnTopic3));
 
-        ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
+        ArgumentCaptor<com.aws.greengrass.mqtt.bridge.model.MqttMessage> messageCapture = ArgumentCaptor.forClass(com.aws.greengrass.mqtt.bridge.model.MqttMessage.class);
         verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
-        List<Message> argValues = messageCapture.getAllValues();
+        List<com.aws.greengrass.mqtt.bridge.model.MqttMessage> argValues = messageCapture.getAllValues();
         assertThat(argValues.stream().map(Message::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2", "iotcore/topic/not/in/mapping"));
         assertThat(argValues.stream().map(Message::getPayload).collect(Collectors.toList()),
@@ -209,7 +209,7 @@ public class IoTCoreClientTest {
 
         byte[] messageFromLocalMqtt = "message from local mqtt".getBytes();
 
-        iotCoreClient.publish(new Message("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
+        iotCoreClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
 
         ArgumentCaptor<PublishRequest> requestCapture = ArgumentCaptor.forClass(PublishRequest.class);
         verify(mockIotMqttClient, times(1)).publish(requestCapture.capture());

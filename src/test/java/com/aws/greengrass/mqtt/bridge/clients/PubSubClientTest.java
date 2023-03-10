@@ -8,7 +8,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import com.aws.greengrass.mqtt.bridge.Message;
+import com.aws.greengrass.mqtt.bridge.model.PubSubMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ public class PubSubClientTest {
     private PubSubIPCEventStreamAgent mockPubSubIPCAgent;
 
     @Mock
-    private Consumer<Message> mockMessageHandler;
+    private Consumer<PubSubMessage> mockMessageHandler;
 
     @Test
     void WHEN_call_pubsub_client_constructed_THEN_does_not_throw() {
@@ -141,13 +141,13 @@ public class PubSubClientTest {
         pubsubCallback.accept(PublishEvent.builder().topic("pubsub/topic/not/in/mapping")
                 .payload(messageOnTopic3).build());
 
-        ArgumentCaptor<Message> messageCapture = ArgumentCaptor.forClass(Message.class);
+        ArgumentCaptor<PubSubMessage> messageCapture = ArgumentCaptor.forClass(PubSubMessage.class);
         verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
 
-        List<Message> argValues = messageCapture.getAllValues();
-        assertThat(argValues.stream().map(Message::getTopic).collect(Collectors.toList()),
+        List<PubSubMessage> argValues = messageCapture.getAllValues();
+        assertThat(argValues.stream().map(PubSubMessage::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("pubsub/topic", "pubsub/topic2", "pubsub/topic/not/in/mapping"));
-        assertThat(argValues.stream().map(Message::getPayload).collect(Collectors.toList()),
+        assertThat(argValues.stream().map(PubSubMessage::getPayload).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder(messageOnTopic1, messageOnTopic2, messageOnTopic3));
     }
 
@@ -162,7 +162,7 @@ public class PubSubClientTest {
 
         byte[] messageFromLocalMqtt = "message from local mqtt".getBytes();
 
-        pubSubClient.publish(new Message("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
+        pubSubClient.publish(new PubSubMessage("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
 
         ArgumentCaptor<String> topicCapture = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<byte[]> payloadCapture = ArgumentCaptor.forClass(byte[].class);
