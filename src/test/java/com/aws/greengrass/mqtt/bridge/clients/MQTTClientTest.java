@@ -6,7 +6,6 @@
 package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.greengrass.mqtt.bridge.Message;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -150,20 +149,20 @@ public class MQTTClientTest {
         byte[] m1 = "message from topic mqtt/topic".getBytes();
         byte[] m2 = "message from topic mqtt/topic2".getBytes();
 
-        List<Message> receivedMessages = new ArrayList<>();
+        List<com.aws.greengrass.mqtt.bridge.model.MqttMessage> receivedMessages = new ArrayList<>();
 
         // Initial subscriptions
         Set<String> topics = new HashSet<>();
         topics.add(t1);
         topics.add(t2);
-        mqttClient.updateSubscriptions(topics, message -> {
-            receivedMessages.add(message);
-        });
+        mqttClient.updateSubscriptions(topics, receivedMessages::add);
 
         fakeMqttClient.injectMessage(t1, new MqttMessage(m1));
         fakeMqttClient.injectMessage(t2, new MqttMessage(m2));
 
-        assertThat(receivedMessages, contains(new Message(t1, m1), new Message(t2, m2)));
+        assertThat(receivedMessages, contains(
+                new com.aws.greengrass.mqtt.bridge.model.MqttMessage(t1, m1),
+                new com.aws.greengrass.mqtt.bridge.model.MqttMessage(t2, m2)));
     }
 
     @Test
@@ -175,8 +174,8 @@ public class MQTTClientTest {
         byte[] messageFromPubsub = "message from pusub".getBytes();
         byte[] messageFromIotCore = "message from iotcore".getBytes();
 
-        mqttClient.publish(new Message("from/pubsub", messageFromPubsub));
-        mqttClient.publish(new Message("from/iotcore", messageFromIotCore));
+        mqttClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("from/pubsub", messageFromPubsub));
+        mqttClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("from/iotcore", messageFromIotCore));
 
         List<FakeMqttClient.TopicMessagePair> publishedMessages = fakeMqttClient.getPublishedMessages();
         assertThat(publishedMessages.size(), is(2));

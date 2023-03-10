@@ -5,19 +5,19 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
-import com.aws.greengrass.mqtt.bridge.Message;
+import com.aws.greengrass.mqtt.bridge.model.Message;
 
 import java.util.Set;
 import java.util.function.Consumer;
 
-public interface MessageClient {
+public interface MessageClient<T extends Message> {
     /**
      * Publish the message.
      *
      * @param message Message to publish
      * @throws MessageClientException if fails to publish the message
      */
-    void publish(Message message) throws MessageClientException;
+    void publish(T message) throws MessageClientException;
 
     // TODO: Add QoS support
 
@@ -27,13 +27,15 @@ public interface MessageClient {
      * @param topics         topics to subscribe
      * @param messageHandler handler to call when message is received on the subscription
      */
-    void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler);
+    void updateSubscriptions(Set<String> topics, Consumer<T> messageHandler);
 
     /**
      * Does this client support topic filters for subscriptions.
      * @return true if supported
      */
     boolean supportsTopicFilters();
+
+    T convertMessage(Message message);
 
     void start();
 
