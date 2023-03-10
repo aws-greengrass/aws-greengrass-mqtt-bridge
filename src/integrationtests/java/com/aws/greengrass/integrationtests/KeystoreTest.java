@@ -16,7 +16,6 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import com.aws.greengrass.mqtt.bridge.MQTTBridgeTest;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
