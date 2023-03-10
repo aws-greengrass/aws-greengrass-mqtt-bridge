@@ -80,7 +80,7 @@ public class TopicMapping {
          * @param source the source integration to listen on
          * @param target the target integration to bridge to
          */
-        MappingEntry(String topic, TopicType source, TopicType target) {
+        public MappingEntry(String topic, TopicType source, TopicType target) {
             this.topic = topic;
             this.source = source;
             this.target = target;
