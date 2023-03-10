@@ -35,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -123,13 +124,15 @@ public class KeystoreTest {
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
-                CertificateHelper.toPem(
-                        CertificateHelper.createCACertificate(
-                                CertificateStore.newRSAKeyPair(2048),
-                                Date.from(Instant.now()),
-                                Date.from(Instant.now().plusSeconds(100)),
-                                "CA"
-                        )));
+                Collections.singletonList(
+                        CertificateHelper.toPem(
+                                CertificateHelper.createCACertificate(
+                                        CertificateStore.newRSAKeyPair(2048),
+                                        Date.from(Instant.now()),
+                                        Date.from(Instant.now().plusSeconds(100)),
+                                        "CA"
+                                ))
+                ));
 
         assertTrue(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
     }
@@ -172,13 +175,15 @@ public class KeystoreTest {
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
-                CertificateHelper.toPem(
-                        CertificateHelper.createCACertificate(
-                                CertificateStore.newRSAKeyPair(2048),
-                                Date.from(Instant.now()),
-                                Date.from(Instant.now().plusSeconds(100)),
-                                "CA"
-                        )));
+                Collections.singletonList(
+                        CertificateHelper.toPem(
+                                CertificateHelper.createCACertificate(
+                                        CertificateStore.newRSAKeyPair(2048),
+                                        Date.from(Instant.now()),
+                                        Date.from(Instant.now().plusSeconds(100)),
+                                        "CA"
+                                ))
+                ));
 
         // shouldn't update
         assertFalse(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
