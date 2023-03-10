@@ -12,6 +12,7 @@ import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -281,17 +282,25 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private void reconnectAndResubscribe() {
         int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
 
-        while (!mqttClientInternal.isConnected()) {
+        while (!mqttClientInternal.isConnected() && !Thread.currentThread().isInterrupted()) {
             try {
                 // TODO: Clean up this loop
                 doConnect();
             } catch (MqttException | KeyStoreException e) {
+                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
+                    // paho doesn't reset the interrupt flag
+                    LOGGER.atDebug().log("Interrupted during reconnect");
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
                 LOGGER.atDebug().setCause(e)
                         .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
                 try {
                     Thread.sleep(waitBeforeRetry * 1000);
                 } catch (InterruptedException er) {
-                    LOGGER.atError().setCause(er).log("Failed to reconnect");
+                    Thread.currentThread().interrupt();
+                    LOGGER.atDebug().log("Interrupted during reconnect");
                     return;
                 }
                 waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
