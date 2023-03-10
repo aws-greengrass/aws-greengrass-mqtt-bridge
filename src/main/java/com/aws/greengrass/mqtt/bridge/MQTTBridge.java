@@ -25,7 +25,6 @@ import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
