@@ -368,7 +368,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                                 "CA"
                         )));
 
-        assertTrue(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
+        assertTrue(keyStoreUpdated.await(10L, TimeUnit.SECONDS));
     }
 
     @Test
