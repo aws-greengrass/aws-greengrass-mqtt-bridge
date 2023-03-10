@@ -33,6 +33,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -182,9 +183,24 @@ public class MQTTBridge extends PluginService {
 
         private void onCAChange() {
             findCATopic()
-                    .map(Coerce::toStringList)
+                    .map(this::caTopicToPojo)
                     .filter(certs -> !Utils.isEmpty(certs))
                     .ifPresent(this::updateCA);
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<String> caTopicToPojo(Topic topic) {
+            Object pojo = topic.toPOJO();
+            if (pojo == null) {
+                return Collections.emptyList();
+            }
+
+            if (pojo instanceof List) {
+                return (List<String>) pojo;
+            }
+
+            logger.atWarn().log("CDA CA topic malformed, expected a list but got: " + pojo.getClass());
+            return Collections.emptyList();
         }
 
         private void updateCA(List<String> certs) {
