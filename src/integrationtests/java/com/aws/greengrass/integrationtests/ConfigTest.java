@@ -14,7 +14,6 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import com.aws.greengrass.mqtt.bridge.MQTTBridgeTest;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
@@ -101,7 +100,7 @@ public class ConfigTest {
     private void startKernelWithConfig(String configFileName) throws InterruptedException {
         CountDownLatch bridgeRunning = new CountDownLatch(1);
         kernel.parseArgs("-r", rootDir.toAbsolutePath().toString(), "-i",
-                MQTTBridgeTest.class.getResource(configFileName).toString());
+                getClass().getResource(configFileName).toString());
         GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.RUNNING)) {
                 bridgeRunning.countDown();
