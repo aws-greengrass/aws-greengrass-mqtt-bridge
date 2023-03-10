@@ -16,6 +16,8 @@ import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
+import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -217,14 +219,14 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         }
 
         @Override
-        public MessageClient createLocalMqttClient()  {
-            return new MessageClient() {
+        public MessageClient<MqttMessage> createLocalMqttClient()  {
+            return new MessageClient<MqttMessage>() {
                 @Override
-                public void publish(Message message) {
+                public void publish(MqttMessage message) {
                 }
 
                 @Override
-                public void updateSubscriptions(Set<String> topics, Consumer<Message> messageHandler) {
+                public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
                 }
 
                 @Override
@@ -238,6 +240,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
                 @Override
                 public void stop() {
+                }
+
+                @Override
+                public MqttMessage convertMessage(Message message) {
+                    return (MqttMessage) message.toMqtt();
                 }
             };
         }
