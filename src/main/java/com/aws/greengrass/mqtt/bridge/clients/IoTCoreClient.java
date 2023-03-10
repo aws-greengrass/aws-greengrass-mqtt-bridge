@@ -7,7 +7,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqtt.bridge.Message;
+import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-public class IoTCoreClient implements MessageClient {
+public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.bridge.model.MqttMessage> {
     private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
     public static final String TOPIC = "topic";
     private final RetryUtils.RetryConfig subscribeRetryConfig =
@@ -44,7 +44,7 @@ public class IoTCoreClient implements MessageClient {
     private Set<String> subscribedIotCoreTopics = ConcurrentHashMap.newKeySet();
     @Getter(AccessLevel.PROTECTED)
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
-    private volatile Consumer<Message> messageHandler;
+    private volatile Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> messageHandler;
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();
     private final MqttClient iotMqttClient;
@@ -54,12 +54,11 @@ public class IoTCoreClient implements MessageClient {
         String topic = message.getTopic();
         LOGGER.atTrace().kv(TOPIC, topic).log("Received IoT Core message");
 
-        Consumer<Message> handler = messageHandler;
+        Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> handler = messageHandler;
         if (handler == null) {
             LOGGER.atWarn().kv(TOPIC, topic).log("IoT Core message received but message handler not set");
         } else {
-            Message msg = new Message(topic, message.getPayload());
-            handler.accept(msg);
+            handler.accept(com.aws.greengrass.mqtt.bridge.model.MqttMessage.fromCrtMQTT3(message));
         }
     };
 
@@ -138,18 +137,19 @@ public class IoTCoreClient implements MessageClient {
     }
 
     @Override
-    public void publish(Message message) {
-        publishToIotCore(message.getTopic(), message.getPayload());
-    }
-
-    private void publishToIotCore(String topic, byte[] payload) {
-        PublishRequest publishRequest = PublishRequest.builder().topic(topic).payload(payload)
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+    public void publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage message) {
+        PublishRequest publishRequest = PublishRequest.builder()
+                .topic(message.getTopic())
+                .payload(message.getPayload())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         iotMqttClient.publish(publishRequest);
     }
 
     @Override
-    public void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
+    public void updateSubscriptions(Set<String> topics,
+                                    @NonNull Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage>
+                                            messageHandler) {
         synchronized (subscribeLock) {
             if (subscribeFuture != null) {
                 subscribeFuture.cancel(true);
@@ -222,5 +222,10 @@ public class IoTCoreClient implements MessageClient {
         SubscribeRequest subscribeRequest = SubscribeRequest.builder().topic(topic).callback(iotCoreCallback)
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         iotMqttClient.subscribe(subscribeRequest);
+    }
+
+    @Override
+    public com.aws.greengrass.mqtt.bridge.model.MqttMessage convertMessage(Message message) {
+        return (com.aws.greengrass.mqtt.bridge.model.MqttMessage) message.toMqtt();
     }
 }

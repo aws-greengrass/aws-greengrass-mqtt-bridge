@@ -10,7 +10,8 @@ import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import com.aws.greengrass.mqtt.bridge.Message;
+import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.PubSubMessage;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -20,14 +21,14 @@ import java.util.Set;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-public class PubSubClient implements MessageClient {
+public class PubSubClient implements MessageClient<PubSubMessage> {
     private static final Logger LOGGER = LogManager.getLogger(PubSubClient.class);
     public static final String TOPIC = "topic";
 
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedPubSubTopics = new HashSet<>();
 
-    private Consumer<Message> messageHandler;
+    private Consumer<PubSubMessage> messageHandler;
 
     private final PubSubIPCEventStreamAgent pubSubIPCAgent;
 
@@ -38,8 +39,7 @@ public class PubSubClient implements MessageClient {
         if (messageHandler == null) {
             LOGGER.atWarn().kv(TOPIC, topic).log("Local pub/sub message received but message handler not set");
         } else {
-            Message msg = new Message(topic, message.getPayload());
-            messageHandler.accept(msg);
+            messageHandler.accept(PubSubMessage.fromPublishEvent(message));
         }
     };
 
@@ -87,12 +87,8 @@ public class PubSubClient implements MessageClient {
     }
 
     @Override
-    public void publish(Message message) {
-        publishToPubSub(message.getTopic(), message.getPayload());
-    }
-
-    private void publishToPubSub(String topic, byte[] payload) {
-        pubSubIPCAgent.publish(topic, payload, MQTTBridge.SERVICE_NAME);
+    public void publish(PubSubMessage message) {
+        pubSubIPCAgent.publish(message.getTopic(), message.getPayload(), MQTTBridge.SERVICE_NAME);
     }
 
     @Override
@@ -101,7 +97,7 @@ public class PubSubClient implements MessageClient {
     }
 
     @Override
-    public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<Message> messageHandler) {
+    public synchronized void updateSubscriptions(Set<String> topics, @NonNull Consumer<PubSubMessage> messageHandler) {
         this.messageHandler = messageHandler;
         LOGGER.atDebug().kv("topics", topics).log("Subscribing to local pub/sub topics");
 
@@ -125,5 +121,10 @@ public class PubSubClient implements MessageClient {
 
     private void subscribeToPubSub(String topic) {
         pubSubIPCAgent.subscribe(topic, pubSubCallback, MQTTBridge.SERVICE_NAME);
+    }
+
+    @Override
+    public PubSubMessage convertMessage(Message message) {
+        return (PubSubMessage) message.toPubSub();
     }
 }
