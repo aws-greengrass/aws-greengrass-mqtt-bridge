@@ -1,16 +1,17 @@
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.RetryUtils;
-import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -21,6 +22,9 @@ import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
 import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
 import software.amazon.awssdk.crt.mqtt5.PublishResult;
 import software.amazon.awssdk.crt.mqtt5.QOS;
+import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.ConnectPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.DisconnectPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.PublishPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
@@ -29,7 +33,6 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 
 import java.net.URI;
-import java.security.KeyStoreException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
@@ -49,7 +52,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final URI brokerUri;
     private final String clientId;
     private Mqtt5Client client;
-    private Consumer<MqttMessage> messageHandler;
+    // private Consumer<MqttMessage> messageHandler;
+    private final Mqtt5ClientOptions.PublishEvents messageHandler;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
 
@@ -63,7 +67,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .retryableExceptions(Collections.singletonList(MqttException.class)).build();
 
     private final Object subscribeLock = new Object();
-    CompletableFuture<SubAckPacket> subscribeFuture;
+    private CompletableFuture<SubAckPacket> subscribeFuture;
+    private CompletableFuture<Mqtt5Client> connectFuture;
 
     private final AtomicReference<CompletableFuture<Void>> stopFuture = new AtomicReference<>(null);
     @Getter(AccessLevel.PACKAGE)
@@ -72,22 +77,47 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         @Override
         public void onAttemptingConnect(Mqtt5Client client,
                                        OnAttemptingConnectReturn onAttemptingConnectReturn) {
-            LOGGER.atDebug().log("Attempting to connect to AWS IoT Core");
+            LOGGER.atDebug().log("Attempting to connect to Local Mqtt5 Client");
         }
 
         @Override
         public void onConnectionSuccess(Mqtt5Client client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
-
+            LOGGER.atInfo()
+                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .log("Connected to broker");
+            connectFuture.complete(client);
         }
 
         @Override
         public void onConnectionFailure(Mqtt5Client client, OnConnectionFailureReturn onConnectionFailureReturn) {
-
+            int errorCode = onConnectionFailureReturn.getErrorCode();
+            ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
+            LogEventBuilder l = LOGGER.atError().kv("error", CRT.awsErrorString(errorCode));
+            if (packet != null) {
+                l.kv("reasonCode", packet.getReasonCode().name())
+                        .kv("reason", packet.getReasonString());
+            }
+            l.log("Failed to connect to Local Mqtt5 Client");
         }
 
         @Override
         public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
-
+            int errorCode = onDisconnectionReturn.getErrorCode();
+            DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
+            // Error code 0 means that the disconnection was intentional. We do not need to run callbacks when we
+            // purposely interrupt a connection.
+            if (errorCode == 0 || packet != null && packet.getReasonCode()
+                    .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
+                LOGGER.atInfo().log("Connection purposefully interrupted");
+            } else {
+                LogEventBuilder l = LOGGER.atWarn().kv("error", CRT.awsErrorString(errorCode));
+                if (packet != null) {
+                    l.kv("reasonCode", packet.getReasonCode().name())
+                            .kv("reason", packet.getReasonString());
+                }
+                l.log("Connection interrupted");
+            }
         }
 
         @Override
@@ -104,13 +134,32 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * TODO: Implement constructor
      */
     public LocalMqtt5Client(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
-                             ExecutorService executorService, Mqtt5ClientOptions mqtt5ClientOptions) {
+                             ExecutorService executorService, String hostname, Long port) throws MQTTClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToCAUpdates(this::reset);
+
+        //TODO: Not using executorService anywhere
         this.executorService = executorService;
-        this.client = new Mqtt5Client(mqtt5ClientOptions);
+
+        //TODO: messageHandler isn't initialized yet
+        Mqtt5ClientOptions mqtt5ClientOptions =
+                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(hostname, port)
+                        .withLifecycleEvents(connectionEventCallback)
+                        .withPublishEvents(this.messageHandler)
+                        .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                        .withOfflineQueueBehavior(
+                                Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                        .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
+                                .withRequestProblemInformation(true)
+                                .withClientId(clientId))
+                        .build();
+        try {
+            this.client = new Mqtt5Client(mqtt5ClientOptions);
+        } catch (CrtRuntimeException e) {
+            throw new MQTTClientException("Unable to create an MQTT5 client", e);
+        }
     }
 
     void reset() {
@@ -253,12 +302,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start() {
-        // TODO: Set callback?
         try {
-            // client.start();
             connectAndSubscribe();
         } catch (CrtRuntimeException e) {
-            // throw new MessageClientException("Unable to start Local Mqtt 5 Client", e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -270,45 +317,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         reconnectAndResubscribe();
     }
 
-    private synchronized void doConnect() throws MqttException, KeyStoreException, CrtRuntimeException {
+    private synchronized void doConnect() throws CrtRuntimeException {
         if (!client.getIsConnected()) {
+            connectFuture = new CompletableFuture<>();
             client.start();
-            LOGGER.atInfo()
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
-                    .log("Connected to broker");
         }
     }
 
     private void reconnectAndResubscribe() {
-        int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
-
-        while(!client.getIsConnected() && !Thread.currentThread().isInterrupted()) {
-            try {
-                doConnect();
-            } catch (MqttException | KeyStoreException | CrtRuntimeException e) {
-                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
-                    //TODO: Change this from paho. paho doesn't reset the interrupt flag
-                    LOGGER.atDebug().log("Interrupted during reconnect");
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-
-                LOGGER.atDebug().setCause(e)
-                        .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
-                try {
-                    Thread.sleep(waitBeforeRetry * 1000);
-                } catch (InterruptedException er) {
-                    Thread.currentThread().interrupt();
-                    LOGGER.atDebug().log("Interrupted during reconnect");
-                    return;
-                }
-                waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
-            }
-        }
+        doConnect();
         resubscribe();
     }
-
 
     @Override
     public void stop() {
@@ -316,8 +335,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
         removeMappingAndSubscriptions();
 
-        //TODO: I don't think we need a disconnectPacket
-        // DisconnectPacket disconnectPacket = new DisconnectPacket.DisconnectPacketBuilder().build();
         try {
             if(client.getIsConnected()) {
                 CompletableFuture<Void> f = new CompletableFuture<>();
