@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class MqttMessage implements Message {
     String topic;
     byte[] payload;
@@ -68,16 +68,6 @@ public class MqttMessage implements Message {
 
     @Override
     public Message newFromMessageWithTopic(@NonNull String topic) {
-        return MqttMessage.builder()
-                .topic(topic)
-                .payload(payload)
-                .retain(isRetain())
-                .payloadFormat(getPayloadFormat())
-                .contentType(getContentType())
-                .responseTopic(getResponseTopic())
-                .correlationData(getCorrelationData())
-                .userProperties(getUserProperties())
-                .messageExpiryIntervalSeconds(getMessageExpiryIntervalSeconds())
-                .build();
+        return toBuilder().topic(topic).build();
     }
 }
