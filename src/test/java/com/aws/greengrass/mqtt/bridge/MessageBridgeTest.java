@@ -270,11 +270,11 @@ public class MessageBridgeTest {
 
         byte[] messageOnTopic1 = "message from topic mqtt/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic mqtt/topic2".getBytes();
-        messageHandlerLocalMqttCaptor.getValue().accept(new MqttMessage("mqtt/topic", messageOnTopic1));
-        messageHandlerLocalMqttCaptor.getValue().accept(new MqttMessage("mqtt/topic2", messageOnTopic2));
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic("mqtt/topic").payload(messageOnTopic1).build());
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic("mqtt/topic2").payload(messageOnTopic2).build());
 
         // Also send on an unknown topic
-        messageHandlerLocalMqttCaptor.getValue().accept(new MqttMessage("mqtt/unknown", messageOnTopic2));
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic("mqtt/unknown").payload(messageOnTopic2).build());
 
         verify(mockLocalClient, times(0)).publish(any());
         ArgumentCaptor<PubSubMessage> messagePubSubCaptor = ArgumentCaptor.forClass(PubSubMessage.class);
@@ -334,16 +334,16 @@ public class MessageBridgeTest {
         byte[] messageFromThermostat2 = "humidity = 41%".getBytes();
         byte[] messageFromThermostat2Temp = "temperature = 70C".getBytes();
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat1/humidity", messageFromThermostat1));
+                .accept(MqttMessage.builder().topic("sensors/thermostat1/humidity").payload(messageFromThermostat1).build());
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat2/humidity", messageFromThermostat2));
+                .accept(MqttMessage.builder().topic("sensors/thermostat2/humidity").payload(messageFromThermostat2).build());
 
         // Also send for an unknown measurement
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat1/temperature", messageFromThermostat2Temp));
+                .accept(MqttMessage.builder().topic("sensors/thermostat1/temperature").payload(messageFromThermostat2Temp).build());
         // Also send for a topic with multiple nodes to match with the filter (which should not match)
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat2/zone1/humidity", messageFromThermostat2));
+                .accept(MqttMessage.builder().topic("sensors/thermostat2/zone1/humidity").payload(messageFromThermostat2).build());
 
         verify(mockLocalClient, times(0)).publish(any());
         ArgumentCaptor<PubSubMessage> messagePubSubCaptor = ArgumentCaptor.forClass(PubSubMessage.class);
@@ -369,11 +369,11 @@ public class MessageBridgeTest {
         byte[] messageFromSatelliteForConnectivity = "conn = 41%".getBytes();
         byte[] messageFromSatelliteForMultiLevel = "conn = 21%".getBytes();
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/altitude", messageFromSatelliteForAltitude));
+                .accept(MqttMessage.builder().topic("sensors/satellite/altitude").payload(messageFromSatelliteForAltitude).build());
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/connectivity", messageFromSatelliteForConnectivity));
+                .accept(MqttMessage.builder().topic("sensors/satellite/connectivity").payload(messageFromSatelliteForConnectivity).build());
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/device1/connectivity", messageFromSatelliteForMultiLevel));
+                .accept(MqttMessage.builder().topic("sensors/satellite/device1/connectivity").payload(messageFromSatelliteForMultiLevel).build());
 
         ArgumentCaptor<MqttMessage> messageLocalMqttCaptor = ArgumentCaptor.forClass(MqttMessage.class);
         verify(mockLocalClient, times(1)).publish(messageLocalMqttCaptor.capture());
@@ -441,16 +441,16 @@ public class MessageBridgeTest {
         byte[] messageFromThermostat2 = "humidity = 41%".getBytes();
         byte[] messageFromThermostat2Temp = "temperature = 70C".getBytes();
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat1/humidity", messageFromThermostat1));
+                .accept(MqttMessage.builder().topic("sensors/thermostat1/humidity").payload(messageFromThermostat1).build());
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat2/humidity", messageFromThermostat2));
+                .accept(MqttMessage.builder().topic("sensors/thermostat2/humidity").payload(messageFromThermostat2).build());
 
         // Also send for an unknown measurement
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat1/temperature", messageFromThermostat2Temp));
+                .accept(MqttMessage.builder().topic("sensors/thermostat1/temperature").payload(messageFromThermostat2Temp).build());
         // Also send for a topic with multiple nodes to match with the filter (which should not match)
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(new MqttMessage("sensors/thermostat2/zone1/humidity", messageFromThermostat2));
+                .accept(MqttMessage.builder().topic("sensors/thermostat2/zone1/humidity").payload(messageFromThermostat2).build());
 
         verify(mockLocalClient, times(0)).publish(any());
         ArgumentCaptor<PubSubMessage> messagePubSubCaptor = ArgumentCaptor.forClass(PubSubMessage.class);
@@ -476,11 +476,11 @@ public class MessageBridgeTest {
         byte[] messageFromSatelliteForConnectivity = "conn = 41%".getBytes();
         byte[] messageFromSatelliteForMultiLevel = "conn = 21%".getBytes();
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/altitude", messageFromSatelliteForAltitude));
+                .accept(MqttMessage.builder().topic("sensors/satellite/altitude").payload(messageFromSatelliteForAltitude).build());
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/connectivity", messageFromSatelliteForConnectivity));
+                .accept(MqttMessage.builder().topic("sensors/satellite/connectivity").payload(messageFromSatelliteForConnectivity).build());
         messageHandlerIotCoreCaptor.getValue()
-                .accept(new MqttMessage("sensors/satellite/device1/connectivity", messageFromSatelliteForMultiLevel));
+                .accept(MqttMessage.builder().topic("sensors/satellite/device1/connectivity").payload(messageFromSatelliteForMultiLevel).build());
 
         ArgumentCaptor<MqttMessage> messageLocalMqttCaptor = ArgumentCaptor.forClass(MqttMessage.class);
         verify(mockLocalClient, times(1)).publish(messageLocalMqttCaptor.capture());

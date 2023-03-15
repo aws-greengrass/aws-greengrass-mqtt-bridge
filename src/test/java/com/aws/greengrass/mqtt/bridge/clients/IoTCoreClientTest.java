@@ -209,7 +209,10 @@ public class IoTCoreClientTest {
 
         byte[] messageFromLocalMqtt = "message from local mqtt".getBytes();
 
-        iotCoreClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("mapped/topic/from/local/mqtt", messageFromLocalMqtt));
+        iotCoreClient.publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder()
+                .topic("mapped/topic/from/local/mqtt")
+                .payload(messageFromLocalMqtt)
+                .build());
 
         ArgumentCaptor<PublishRequest> requestCapture = ArgumentCaptor.forClass(PublishRequest.class);
         verify(mockIotMqttClient, times(1)).publish(requestCapture.capture());
