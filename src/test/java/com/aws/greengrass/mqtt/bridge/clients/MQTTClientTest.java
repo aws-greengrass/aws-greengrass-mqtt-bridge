@@ -161,8 +161,10 @@ public class MQTTClientTest {
         fakeMqttClient.injectMessage(t2, new MqttMessage(m2));
 
         assertThat(receivedMessages, contains(
-                new com.aws.greengrass.mqtt.bridge.model.MqttMessage(t1, m1),
-                new com.aws.greengrass.mqtt.bridge.model.MqttMessage(t2, m2)));
+                com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic(t1).payload(m1).build(),
+                com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic(t2).payload(m2).build()));
+
+
     }
 
     @Test
@@ -174,8 +176,8 @@ public class MQTTClientTest {
         byte[] messageFromPubsub = "message from pusub".getBytes();
         byte[] messageFromIotCore = "message from iotcore".getBytes();
 
-        mqttClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("from/pubsub", messageFromPubsub));
-        mqttClient.publish(new com.aws.greengrass.mqtt.bridge.model.MqttMessage("from/iotcore", messageFromIotCore));
+        mqttClient.publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic("from/pubsub").payload(messageFromPubsub).build());
+        mqttClient.publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic("from/iotcore").payload(messageFromIotCore).build());
 
         List<FakeMqttClient.TopicMessagePair> publishedMessages = fakeMqttClient.getPublishedMessages();
         assertThat(publishedMessages.size(), is(2));

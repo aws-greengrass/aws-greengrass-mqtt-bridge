@@ -26,7 +26,10 @@ public class PubSubMessage implements Message {
 
     @Override
     public Message toMqtt() {
-        return new MqttMessage(topic, payload);
+        return MqttMessage.builder()
+                .topic(topic)
+                .payload(payload)
+                .build();
     }
 
     @Override
