@@ -87,7 +87,7 @@ public class IntegrationTestExtensionTest {
     }
 
     @TestWithMqtt3Broker
-    void GIVEN_broker_and_no_kernel_WHEN_test_starts_THEN_broker_starts() {
+    void GIVEN_broker_and_no_kernel_WHEN_test_starts_THEN_broker_starts(Broker broker) {
         assertNotNull(context.getBroker());
         assertNotNull(context.getBrokerHost());
         assertNotNull(context.getBrokerPort());
