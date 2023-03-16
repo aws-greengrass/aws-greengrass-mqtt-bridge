@@ -34,7 +34,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURA
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true) // Docker on windows not supported in github actions
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class, MockitoExtension.class})
 public class Mqtt5POCTest {
 
