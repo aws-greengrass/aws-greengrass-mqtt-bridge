@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
@@ -174,6 +175,16 @@ public class ConfigTest {
                         TopicMapping.TopicType.IotCore, "a-prefix"));
 
         assertEquals(expectedMapping, topicMapping.getMapping());
+
+        Map<String, Mqtt5RouteOptions> expectedRouteOptions = new HashMap<>();
+        expectedRouteOptions.put("mapping1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
+        expectedRouteOptions.put("mapping2", Mqtt5RouteOptions.builder().noLocal(false).retainAsPublished(true).build());
+        expectedRouteOptions.put("mappingNotInMqttTopicMapping", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+
+        Map<String, Mqtt5RouteOptions> actualRouteOptions =
+                testContext.getKernel().getContext().get(MQTTBridge.class).getBridgeConfig().getMqtt5RouteOptions();
+
+        assertEquals(expectedRouteOptions, actualRouteOptions);
     }
 
     @TestWithMqtt3Broker

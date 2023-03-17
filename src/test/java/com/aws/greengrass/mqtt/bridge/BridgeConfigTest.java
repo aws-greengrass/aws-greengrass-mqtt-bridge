@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
@@ -44,6 +45,17 @@ class BridgeConfigTest {
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
     private static final String CLIENT_ID = "clientId";
 
+    private static final BridgeConfig BASE_CONFIG = BridgeConfig.builder()
+            .brokerUri(URI.create(DEFAULT_BROKER_URI))
+            .topicMapping(Collections.emptyMap())
+            .mqtt5RouteOptions(Collections.emptyMap())
+            .mqttVersion(DEFAULT_MQTT_VERSION)
+            .noLocal(DEFAULT_NO_LOCAL)
+            .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+            .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
+            .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
+            .build();
+
     Topics topics;
 
     @BeforeEach
@@ -59,15 +71,8 @@ class BridgeConfigTest {
     @Test
     void GIVEN_empty_config_WHEN_bridge_config_created_THEN_defaults_used() throws InvalidConfigurationException {
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -78,15 +83,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .brokerUri(URI.create(BROKER_URI))
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -98,15 +97,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .brokerUri(URI.create(BROKER_URI))
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -117,15 +110,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_SERVER_URI).dflt(BROKER_SERVER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .brokerUri(URI.create(BROKER_SERVER_URI))
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -142,15 +129,8 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_CLIENT_ID).dflt(CLIENT_ID);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(CLIENT_ID)
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertEquals(expectedConfig, config);
     }
@@ -172,15 +152,9 @@ class BridgeConfigTest {
         expectedEntries.put("m3", new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
                 .topicMapping(expectedEntries)
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -207,15 +181,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
                 .mqttVersion(MqttVersion.MQTT5)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -225,15 +193,8 @@ class BridgeConfigTest {
     void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_default_version_used() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -244,15 +205,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_NO_LOCAL).dflt(true);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(true)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -264,15 +219,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(receiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(receiveMaximum)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -284,15 +233,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(65535)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -304,15 +247,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(1)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -324,15 +261,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(maximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .maximumPacketSize(maximumPacketSize)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -344,15 +275,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .maximumPacketSize(1L)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -364,15 +289,9 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .maximumPacketSize(4294967295L)
-                .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -384,14 +303,8 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(sessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .sessionExpiryInterval(sessionExpiryInterval)
                 .build();
         assertDefaultClientId(config);
@@ -404,14 +317,8 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .sessionExpiryInterval(0L)
                 .build();
         assertDefaultClientId(config);
@@ -424,18 +331,50 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BridgeConfig.builder()
-                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .topicMapping(Collections.emptyMap())
-                .mqttVersion(DEFAULT_MQTT_VERSION)
-                .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
-                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .sessionExpiryInterval(4_294_967_295L)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_mqtt5_route_options_WHEN_bridge_config_created_THEN_mqtt5_route_options_used() throws InvalidConfigurationException {
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
+                Utils.immutableMap(
+                        "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "false"),
+                        "m2", Collections.emptyMap(),
+                        "m3", Utils.immutableMap("noLocal", "true")));
+
+        Map<String, Mqtt5RouteOptions> expectedEntries = new HashMap<>();
+        expectedEntries.put("m1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
+        expectedEntries.put("m2", Mqtt5RouteOptions.builder().noLocal(false).retainAsPublished(true).build());
+        expectedEntries.put("m3", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .mqtt5RouteOptions(expectedEntries)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_invalid_mqtt5_route_options_WHEN_bridge_config_created_THEN_exception_thrown() {
+        String invalidSource = "INVALID_SOURCE";
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", invalidSource, "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.Pubsub.toString()),
+                        "m3",
+                        Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString())));
+
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
     }
 
     private void assertDefaultClientId(BridgeConfig config) {
