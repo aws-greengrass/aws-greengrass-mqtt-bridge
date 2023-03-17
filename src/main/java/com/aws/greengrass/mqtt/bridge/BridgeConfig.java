@@ -34,6 +34,7 @@ import java.util.Objects;
 @EqualsAndHashCode
 @Builder
 @RequiredArgsConstructor
+@SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class BridgeConfig {
     private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
 
