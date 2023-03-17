@@ -48,12 +48,17 @@ public final class BridgeConfig {
     static final String KEY_VERSION = "version";
     static final String KEY_NO_LOCAL = "noLocal";
     static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
+    static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final boolean DEFAULT_NO_LOCAL = false;
     private static final int DEFAULT_RECEIVE_MAXIMUM = 65_535;
+    private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
+
+    private static final long MIN_MAXIMUM_PACKET_SIZE = 1;
+    private static final long MAX_MAXIMUM_PACKET_SIZE = 4294967295L;
 
     private final URI brokerUri;
     private final String clientId;
@@ -61,6 +66,7 @@ public final class BridgeConfig {
     private final MqttVersion mqttVersion;
     private final boolean noLocal;
     private final int receiveMaximum;
+    private final Long maximumPacketSize;
 
 
     /**
@@ -79,6 +85,7 @@ public final class BridgeConfig {
                 .mqttVersion(getMqttVersion(configurationTopics))
                 .noLocal(getNoLocal(configurationTopics))
                 .receiveMaximum(getReceiveMaximum(configurationTopics))
+                .maximumPacketSize(getMaximumPacketSize(configurationTopics))
                 .build();
     }
 
@@ -133,6 +140,28 @@ public final class BridgeConfig {
             return DEFAULT_RECEIVE_MAXIMUM;
         }
         return receiveMaximum;
+    }
+
+    private static Long getMaximumPacketSize(Topics configurationTopics) {
+        String maximumPacketSizeConf = Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MAXIMUM_PACKET_SIZE,
+                KEY_BROKER_CLIENT, KEY_MAXIMUM_PACKET_SIZE));
+        if (maximumPacketSizeConf == null) {
+            return null;
+        }
+        long maximumPacketSize = Coerce.toLong(maximumPacketSizeConf);
+        if (maximumPacketSize < MIN_MAXIMUM_PACKET_SIZE) {
+            LOGGER.atWarn().kv(KEY_MAXIMUM_PACKET_SIZE, maximumPacketSize)
+                    .log("Provided " + KEY_MAXIMUM_PACKET_SIZE + " out of range. "
+                            + "Defaulting to " + MIN_MAXIMUM_PACKET_SIZE);
+            return MIN_MAXIMUM_PACKET_SIZE;
+        }
+        if (maximumPacketSize > MAX_MAXIMUM_PACKET_SIZE) {
+            LOGGER.atWarn().kv(KEY_MAXIMUM_PACKET_SIZE, maximumPacketSize)
+                    .log("Provided " + KEY_MAXIMUM_PACKET_SIZE + " out of range. "
+                            + "Defaulting to " + MAX_MAXIMUM_PACKET_SIZE);
+            return MAX_MAXIMUM_PACKET_SIZE;
+        }
+        return maximumPacketSize;
     }
 
     /**

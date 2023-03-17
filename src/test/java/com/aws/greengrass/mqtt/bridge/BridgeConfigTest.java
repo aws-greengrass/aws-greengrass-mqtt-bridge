@@ -37,6 +37,7 @@ class BridgeConfigTest {
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final boolean DEFAULT_NO_LOCAL = false;
     private static final int DEFAULT_RECEIVE_MAXIMUM = 65535;
+    private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -64,6 +65,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -81,6 +83,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -99,6 +102,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -116,6 +120,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -139,6 +144,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertEquals(expectedConfig, config);
     }
@@ -167,6 +173,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -200,6 +207,7 @@ class BridgeConfigTest {
                 .mqttVersion(MqttVersion.MQTT5)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -216,6 +224,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -233,6 +242,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(true)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -251,6 +261,7 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(receiveMaximum)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -269,6 +280,64 @@ class BridgeConfigTest {
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
                 .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1, 1234, 4294967295L})
+    void GIVEN_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_maximumPacketSize_used(long maximumPacketSize) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(maximumPacketSize);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(maximumPacketSize)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L, Long.MIN_VALUE})
+    void GIVEN_too_small_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_min_maximumPacketSize_used(long invalidMaximumPacketSize) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(1L)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {4294967296L, Long.MAX_VALUE})
+    void GIVEN_too_large_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_max_maximumPacketSize_used(long invalidMaximumPacketSize) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .maximumPacketSize(4294967295L)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
