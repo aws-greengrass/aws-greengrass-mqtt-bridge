@@ -100,7 +100,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     public MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) throws MessageClientException {
         this(brokerUri, clientId, mqttClientKeyStore, executorService, null);
-        // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
@@ -128,27 +127,16 @@ public class MQTTClient implements MessageClient<MqttMessage> {
                 return;
             }
         }
-
-        try {
-            connectAndSubscribe();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
-        }
+        connectAndSubscribe();
     }
 
     /**
      * Start the {@link MQTTClient}.
-     *
-     * @throws MessageClientException if the client cannot load the KeyStore used to connect to the broker.
      */
     @Override
-    public void start() throws MessageClientException {
+    public void start() {
         mqttClientInternal.setCallback(mqttCallback);
-        try {
-            connectAndSubscribe();
-        } catch (KeyStoreException e) {
-            throw new MQTTClientException(e);
-        }
+        connectAndSubscribe();
     }
 
     /**
@@ -256,7 +244,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         return connOpts;
     }
 
-    private synchronized void connectAndSubscribe() throws KeyStoreException {
+    private synchronized void connectAndSubscribe() {
         if (connectFuture != null) {
             connectFuture.cancel(true);
         }
