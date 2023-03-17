@@ -59,7 +59,7 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqttClient_WHEN_start_THEN_clientConnects() throws Exception {
+    void GIVEN_mqttClient_WHEN_start_THEN_clientConnects() {
         MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -68,7 +68,7 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() throws Exception  {
+    void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() {
         MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
@@ -90,7 +90,7 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_subscribedMqttClient_WHEN_updateSubscriptions_THEN_subscriptionsUpdated() throws Exception  {
+    void GIVEN_subscribedMqttClient_WHEN_updateSubscriptions_THEN_subscriptionsUpdated() {
         MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
