@@ -57,6 +57,8 @@ public final class BridgeConfig {
     private static final int DEFAULT_RECEIVE_MAXIMUM = 65_535;
     private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
 
+    private static final int MIN_RECEIVE_MAXIMUM = 1;
+    private static final int MAX_RECEIVE_MAXIMUM = 65535;
     private static final long MIN_MAXIMUM_PACKET_SIZE = 1;
     private static final long MAX_MAXIMUM_PACKET_SIZE = 4294967295L;
 
@@ -133,11 +135,17 @@ public final class BridgeConfig {
     private static int getReceiveMaximum(Topics configurationTopics) {
         int receiveMaximum = Coerce.toInt(configurationTopics.findOrDefault(DEFAULT_RECEIVE_MAXIMUM,
                 KEY_BROKER_CLIENT, KEY_RECEIVE_MAXIMUM));
-        if (receiveMaximum < 1 || receiveMaximum > DEFAULT_RECEIVE_MAXIMUM) {
+        if (receiveMaximum < MIN_RECEIVE_MAXIMUM) {
             LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
                     .log("Provided " + KEY_RECEIVE_MAXIMUM + " out of range. "
-                            + "Defaulting to " + DEFAULT_RECEIVE_MAXIMUM);
-            return DEFAULT_RECEIVE_MAXIMUM;
+                            + "Defaulting to " + MIN_RECEIVE_MAXIMUM);
+            return MIN_RECEIVE_MAXIMUM;
+        }
+        if (receiveMaximum > MAX_RECEIVE_MAXIMUM) {
+            LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
+                    .log("Provided " + KEY_RECEIVE_MAXIMUM + " out of range. "
+                            + "Defaulting to " + MAX_RECEIVE_MAXIMUM);
+            return MAX_RECEIVE_MAXIMUM;
         }
         return receiveMaximum;
     }

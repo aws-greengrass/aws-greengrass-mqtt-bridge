@@ -268,8 +268,8 @@ class BridgeConfigTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, -1, DEFAULT_RECEIVE_MAXIMUM + 1})
-    void GIVEN_invalid_receiveMaximum_provided_WHEN_bridge_config_created_THEN_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
+    @ValueSource(ints = {DEFAULT_RECEIVE_MAXIMUM + 1, Integer.MAX_VALUE})
+    void GIVEN_too_large_receiveMaximum_provided_WHEN_bridge_config_created_THEN_max_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
@@ -279,7 +279,26 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
-                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .receiveMaximum(65535)
+                .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
+    void GIVEN_too_small_receiveMaximum_provided_WHEN_bridge_config_created_THEN_min_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(1)
                 .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
                 .build();
         assertDefaultClientId(config);
