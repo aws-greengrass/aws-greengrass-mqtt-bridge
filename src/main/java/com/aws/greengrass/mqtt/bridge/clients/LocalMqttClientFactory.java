@@ -8,6 +8,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import lombok.Setter;
 
 import java.util.concurrent.ExecutorService;
@@ -32,9 +33,9 @@ public class LocalMqttClientFactory {
      * Create a local mqtt client.
      *
      * @return local mqtt client
-     * @throws MQTTClientException if unable to create client
+     * @throws MessageClientException if unable to create client
      */
-    public MessageClient createLocalMqttClient() throws MQTTClientException {
+    public MessageClient<MqttMessage> createLocalMqttClient() throws MessageClientException {
         checkConfig();
         switch (config.getMqttVersion()) {
             case MQTT5:

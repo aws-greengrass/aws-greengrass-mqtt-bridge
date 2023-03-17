@@ -19,10 +19,11 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
-import com.aws.greengrass.mqtt.bridge.clients.MQTTClientException;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.Utils;
@@ -49,7 +50,7 @@ public class MQTTBridge extends PluginService {
     private final LocalMqttClientFactory localMqttClientFactory;
     private final ConfigurationChangeHandler configurationChangeHandler;
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
-    private MessageClient localMqttClient;
+    private MessageClient<MqttMessage> localMqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
     private BridgeConfig bridgeConfig;
@@ -114,17 +115,19 @@ public class MQTTBridge extends PluginService {
             localMqttClient.start();
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
                     TopicMapping.TopicType.LocalMqtt, localMqttClient);
-        } catch (MQTTClientException e) {
+
+            pubSubClient.start();
+            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                    TopicMapping.TopicType.Pubsub, pubSubClient);
+
+            ioTCoreClient.start();
+            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                    TopicMapping.TopicType.IotCore, ioTCoreClient);
+
+            reportState(State.RUNNING);
+        } catch (MessageClientException e) {
             serviceErrored(e);
-            return;
         }
-        pubSubClient.start();
-        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, pubSubClient);
-
-        ioTCoreClient.start();
-        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, ioTCoreClient);
-
-        reportState(State.RUNNING);
     }
 
     @Override

@@ -95,12 +95,11 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * @param clientId           client id
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
-     * @throws MQTTClientException if unable to create client for the mqtt broker
+     * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
-                      ExecutorService executorService) throws MQTTClientException {
+                      ExecutorService executorService) throws MessageClientException {
         this(brokerUri, clientId, mqttClientKeyStore, executorService, null);
-        // TODO: Handle the case when serverUri is modified
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
@@ -128,27 +127,16 @@ public class MQTTClient implements MessageClient<MqttMessage> {
                 return;
             }
         }
-
-        try {
-            connectAndSubscribe();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
-        }
+        connectAndSubscribe();
     }
 
     /**
      * Start the {@link MQTTClient}.
-     *
-     * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
      */
     @Override
     public void start() {
         mqttClientInternal.setCallback(mqttCallback);
-        try {
-            connectAndSubscribe();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
-        }
+        connectAndSubscribe();
     }
 
     /**
@@ -256,7 +244,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         return connOpts;
     }
 
-    private synchronized void connectAndSubscribe() throws KeyStoreException {
+    private synchronized void connectAndSubscribe() {
         if (connectFuture != null) {
             connectFuture.cancel(true);
         }
