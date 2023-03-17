@@ -33,6 +33,7 @@ class BridgeConfigTest {
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
+    private static final boolean DEFAULT_NO_LOCAL = false;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -53,12 +54,13 @@ class BridgeConfigTest {
     @Test
     void GIVEN_empty_config_WHEN_bridge_config_created_THEN_defaults_used() throws InvalidConfigurationException {
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(DEFAULT_BROKER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -68,12 +70,13 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(BROKER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -84,12 +87,13 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt(BROKER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(BROKER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -99,12 +103,13 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_SERVER_URI).dflt(BROKER_SERVER_URI);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(BROKER_SERVER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(BROKER_SERVER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -120,12 +125,13 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_CLIENT_ID).dflt(CLIENT_ID);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(DEFAULT_BROKER_URI),
-                CLIENT_ID,
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(CLIENT_ID)
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertEquals(expectedConfig, config);
     }
 
@@ -146,12 +152,13 @@ class BridgeConfigTest {
         expectedEntries.put("m3", new TopicMapping.MappingEntry("mqtt/topic3", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(DEFAULT_BROKER_URI),
-                config.getClientId(),
-                expectedEntries,
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(expectedEntries)
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -177,12 +184,13 @@ class BridgeConfigTest {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(DEFAULT_BROKER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                MqttVersion.MQTT5
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(MqttVersion.MQTT5)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
@@ -191,12 +199,29 @@ class BridgeConfigTest {
     void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_default_version_used() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
         BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = new BridgeConfig(
-                URI.create(DEFAULT_BROKER_URI),
-                config.getClientId(),
-                Collections.emptyMap(),
-                DEFAULT_MQTT_VERSION
-        );
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_noLocal_provided_WHEN_bridge_config_created_THEN_noLocal_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_NO_LOCAL).dflt(true);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(true)
+                .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }

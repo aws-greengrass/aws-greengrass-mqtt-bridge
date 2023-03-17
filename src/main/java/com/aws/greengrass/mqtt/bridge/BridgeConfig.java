@@ -15,6 +15,7 @@ import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ import java.util.Objects;
 @Getter
 @ToString
 @EqualsAndHashCode
+@Builder
 @RequiredArgsConstructor
 public final class BridgeConfig {
     private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
@@ -44,15 +46,19 @@ public final class BridgeConfig {
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
+    static final String KEY_NO_LOCAL = "noLocal";
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
+    private static final boolean DEFAULT_NO_LOCAL = false;
 
     private final URI brokerUri;
     private final String clientId;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
     private final MqttVersion mqttVersion;
+    private final boolean noLocal;
+
 
     /**
      * Create a BridgeConfig from configuration topics.
@@ -63,12 +69,13 @@ public final class BridgeConfig {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public static BridgeConfig fromTopics(Topics configurationTopics) throws InvalidConfigurationException {
-        return new BridgeConfig(
-                getBrokerUri(configurationTopics),
-                getClientId(configurationTopics),
-                getTopicMapping(configurationTopics),
-                getMqttVersion(configurationTopics)
-        );
+        return BridgeConfig.builder()
+                .brokerUri(getBrokerUri(configurationTopics))
+                .clientId(getClientId(configurationTopics))
+                .topicMapping(getTopicMapping(configurationTopics))
+                .mqttVersion(getMqttVersion(configurationTopics))
+                .noLocal(getNoLocal(configurationTopics))
+                .build();
     }
 
     private static URI getBrokerUri(Topics configurationTopics) throws InvalidConfigurationException {
@@ -105,6 +112,11 @@ public final class BridgeConfig {
                 Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MQTT_VERSION.name(),
                         KEY_BROKER_CLIENT, KEY_VERSION)).toUpperCase(),
                 DEFAULT_MQTT_VERSION);
+    }
+
+    private static boolean getNoLocal(Topics configurationTopics) {
+        return Coerce.toBoolean(configurationTopics.findOrDefault(DEFAULT_NO_LOCAL,
+                KEY_BROKER_CLIENT, KEY_NO_LOCAL));
     }
 
     /**
