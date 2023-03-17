@@ -14,13 +14,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Tells {@link IntegrationTestExtension} to spin up a Mqtt3 broker before the test starts.
+ * Tells {@link BridgeIntegrationTestExtension} to spin up a Mqtt3 broker before the test starts.
  *
  * <p>NOTE: due to limitations of the junit framework, a {@link Broker}
- * argument must be defined on the test method, to inform {@link IntegrationTestExtension}
+ * argument must be defined on the test method, to inform {@link BridgeIntegrationTestExtension}
  * of what broker to spin-up.
  *
- * <p>NOTE: test class must be annotated with {@link IntegrationTest}.
+ * <p>NOTE: test class must be annotated with {@link BridgeIntegrationTest}.
  *
  * <p>Example: test with a broker
  *

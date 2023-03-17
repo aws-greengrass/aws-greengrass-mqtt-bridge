@@ -14,10 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 @Disabled("Only useful to run when modifying classes in this package")
-@IntegrationTest
-public class IntegrationTestExtensionTest {
+@BridgeIntegrationTest
+public class BridgeIntegrationTestExtensionTest {
 
-    IntegrationTestContext context;
+    BridgeIntegrationTestContext context;
 
     @TestWithMqtt5Broker
     @WithKernel("config.yaml")

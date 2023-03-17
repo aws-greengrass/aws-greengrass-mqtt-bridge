@@ -11,7 +11,7 @@ import lombok.Data;
 import java.nio.file.Path;
 
 @Data
-public class IntegrationTestContext {
+public class BridgeIntegrationTestContext {
     Broker broker;
     Integer brokerPort;
     String brokerHost;

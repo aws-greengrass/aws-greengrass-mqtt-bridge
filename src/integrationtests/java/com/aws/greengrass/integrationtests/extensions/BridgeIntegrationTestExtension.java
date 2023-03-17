@@ -40,9 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
-public class IntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor {
+public class BridgeIntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor {
 
-    IntegrationTestContext context;
+    BridgeIntegrationTestContext context;
 
     Kernel kernel;
 
@@ -116,7 +116,7 @@ public class IntegrationTestExtension implements AfterTestExecutionCallback, Inv
     }
 
     private void initializeContext(ExtensionContext extensionContext) {
-        context = new IntegrationTestContext();
+        context = new BridgeIntegrationTestContext();
         injectContext(extensionContext, context);
 
         // relies on UniqueRootPathExtension being run before this extension via the IntegrationTest annotation
@@ -157,7 +157,7 @@ public class IntegrationTestExtension implements AfterTestExecutionCallback, Inv
         return annotation == null ? null : annotation.value();
     }
 
-    private void injectContext(ExtensionContext extensionContext, IntegrationTestContext context) {
+    private void injectContext(ExtensionContext extensionContext, BridgeIntegrationTestContext context) {
         Arrays.stream(extensionContext.getRequiredTestClass().getDeclaredFields())
                 .filter(f -> f.getType().isAssignableFrom(context.getClass()))
                 .forEach(f -> {

@@ -11,13 +11,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * This annotation tells {@link IntegrationTestExtension} to spin
+ * This annotation tells {@link BridgeIntegrationTestExtension} to spin
  * up a greengrass Kernel before the test starts.
  *
- * NOTE: the resource defined must be present in the
+ * <p>NOTE: the resource defined must be present in the
  * same package as the test class.
  *
- * <p>NOTE: test class must be annotated with {@link IntegrationTest}.
+ * <p>NOTE: test class must be annotated with {@link BridgeIntegrationTest}.
  *
  * <pre>
  * &#64;WithKernel("config.yaml")
