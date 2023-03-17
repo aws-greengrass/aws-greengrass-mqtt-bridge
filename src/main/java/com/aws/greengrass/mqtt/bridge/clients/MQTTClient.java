@@ -139,7 +139,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     /**
      * Start the {@link MQTTClient}.
      *
-     * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
+     * @throws MessageClientException if the client cannot load the KeyStore used to connect to the broker.
      */
     @Override
     public void start() throws MessageClientException {
