@@ -12,6 +12,8 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import io.moquette.BrokerConstants;
@@ -41,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 public class BridgeIntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor {
+
+    private static final Logger logger = LogManager.getLogger(BridgeIntegrationTestExtension.class);
 
     BridgeIntegrationTestContext context;
 
@@ -73,6 +77,8 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             startMqtt3Broker();
         } else if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT5::equals)) {
             if (!isDockerAvailable()) {
+                logger.atWarn().log("Skipping parameterized test for MQTT5 broker, "
+                        + "docker not available on platform");
                 invocation.skip();
                 return;
             }
