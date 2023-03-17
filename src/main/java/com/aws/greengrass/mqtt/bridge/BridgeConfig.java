@@ -34,12 +34,12 @@ import java.util.Objects;
 @EqualsAndHashCode
 @Builder
 @RequiredArgsConstructor
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class BridgeConfig {
     private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
 
     private static final JsonMapper OBJECT_MAPPER =
             JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
+    private static final String INVALID_CONFIG_LOG_FORMAT_STRING = "Provided {} out of range. Defaulting to {}";
 
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     public static final String KEY_BROKER_URI = "brokerUri";
@@ -145,14 +145,12 @@ public final class BridgeConfig {
                 KEY_BROKER_CLIENT, KEY_RECEIVE_MAXIMUM));
         if (receiveMaximum < MIN_RECEIVE_MAXIMUM) {
             LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
-                    .log("Provided " + KEY_RECEIVE_MAXIMUM + " out of range. "
-                            + "Defaulting to " + MIN_RECEIVE_MAXIMUM);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_RECEIVE_MAXIMUM, MIN_RECEIVE_MAXIMUM);
             return MIN_RECEIVE_MAXIMUM;
         }
         if (receiveMaximum > MAX_RECEIVE_MAXIMUM) {
             LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
-                    .log("Provided " + KEY_RECEIVE_MAXIMUM + " out of range. "
-                            + "Defaulting to " + MAX_RECEIVE_MAXIMUM);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_RECEIVE_MAXIMUM, MAX_RECEIVE_MAXIMUM);
             return MAX_RECEIVE_MAXIMUM;
         }
         return receiveMaximum;
@@ -167,14 +165,12 @@ public final class BridgeConfig {
         long maximumPacketSize = Coerce.toLong(maximumPacketSizeConf);
         if (maximumPacketSize < MIN_MAXIMUM_PACKET_SIZE) {
             LOGGER.atWarn().kv(KEY_MAXIMUM_PACKET_SIZE, maximumPacketSize)
-                    .log("Provided " + KEY_MAXIMUM_PACKET_SIZE + " out of range. "
-                            + "Defaulting to " + MIN_MAXIMUM_PACKET_SIZE);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MAXIMUM_PACKET_SIZE, MIN_MAXIMUM_PACKET_SIZE);
             return MIN_MAXIMUM_PACKET_SIZE;
         }
         if (maximumPacketSize > MAX_MAXIMUM_PACKET_SIZE) {
             LOGGER.atWarn().kv(KEY_MAXIMUM_PACKET_SIZE, maximumPacketSize)
-                    .log("Provided " + KEY_MAXIMUM_PACKET_SIZE + " out of range. "
-                            + "Defaulting to " + MAX_MAXIMUM_PACKET_SIZE);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MAXIMUM_PACKET_SIZE, MAX_MAXIMUM_PACKET_SIZE);
             return MAX_MAXIMUM_PACKET_SIZE;
         }
         return maximumPacketSize;
@@ -185,14 +181,12 @@ public final class BridgeConfig {
                 KEY_BROKER_CLIENT, KEY_SESSION_EXPIRY_INTERVAL));
         if (sessionExpiryInterval < MIN_SESSION_EXPIRY_INTERVAL) {
             LOGGER.atWarn().kv(KEY_SESSION_EXPIRY_INTERVAL, sessionExpiryInterval)
-                    .log("Provided " + KEY_SESSION_EXPIRY_INTERVAL + " out of range. "
-                            + "Defaulting to " + MIN_SESSION_EXPIRY_INTERVAL);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_SESSION_EXPIRY_INTERVAL, MIN_SESSION_EXPIRY_INTERVAL);
             return MIN_SESSION_EXPIRY_INTERVAL;
         }
         if (sessionExpiryInterval > MAX_SESSION_EXPIRY_INTERVAL) {
             LOGGER.atWarn().kv(KEY_SESSION_EXPIRY_INTERVAL, sessionExpiryInterval)
-                    .log("Provided " + KEY_SESSION_EXPIRY_INTERVAL + " out of range. "
-                            + "Defaulting to " + MAX_SESSION_EXPIRY_INTERVAL);
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_SESSION_EXPIRY_INTERVAL, MAX_SESSION_EXPIRY_INTERVAL);
             return MAX_SESSION_EXPIRY_INTERVAL;
         }
         return sessionExpiryInterval;
