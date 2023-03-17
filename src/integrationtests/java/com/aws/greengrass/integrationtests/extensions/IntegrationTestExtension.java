@@ -144,7 +144,7 @@ public class IntegrationTestExtension implements AfterTestExecutionCallback, Inv
 
     private void startMqtt5Broker() {
         v5Broker = new HiveMQContainer(
-                DockerImageName.parse("hivemq/hivemq-ce").withTag("2021.3"))
+                DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
                 .withLogLevel(Level.DEBUG);
         v5Broker.start();
         context.setBroker(Broker.MQTT5);
