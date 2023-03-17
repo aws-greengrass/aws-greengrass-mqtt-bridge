@@ -29,4 +29,13 @@ public class MessageClientException extends Exception {
     public MessageClientException(String msg) {
         super(msg);
     }
+
+    /**
+     * Ctr for {@link MessageClientException}.
+     *
+     * @param cause cause of the exception
+     */
+    public MessageClientException(Throwable cause) {
+        super(cause);
+    }
 }

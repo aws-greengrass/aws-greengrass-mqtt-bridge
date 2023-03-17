@@ -18,4 +18,8 @@ public class MQTTClientException extends MessageClientException {
     MQTTClientException(String msg) {
         super(msg);
     }
+
+    MQTTClientException(Throwable cause) {
+        super(cause);
+    }
 }

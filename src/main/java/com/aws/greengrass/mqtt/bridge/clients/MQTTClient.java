@@ -95,10 +95,10 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * @param clientId           client id
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
-     * @throws MQTTClientException if unable to create client for the mqtt broker
+     * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
-                      ExecutorService executorService) throws MQTTClientException {
+                      ExecutorService executorService) throws MessageClientException {
         this(brokerUri, clientId, mqttClientKeyStore, executorService, null);
         // TODO: Handle the case when serverUri is modified
         try {
@@ -142,12 +142,12 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * @throws RuntimeException if the client cannot load the KeyStore used to connect to the broker.
      */
     @Override
-    public void start() {
+    public void start() throws MessageClientException {
         mqttClientInternal.setCallback(mqttCallback);
         try {
             connectAndSubscribe();
         } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
+            throw new MQTTClientException(e);
         }
     }
 

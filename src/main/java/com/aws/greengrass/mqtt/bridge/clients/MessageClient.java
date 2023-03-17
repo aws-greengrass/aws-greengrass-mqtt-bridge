@@ -37,7 +37,7 @@ public interface MessageClient<T extends Message> {
 
     T convertMessage(Message message);
 
-    void start();
+    void start() throws MessageClientException;
 
     void stop();
 }
