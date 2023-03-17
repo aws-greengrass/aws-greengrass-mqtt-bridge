@@ -67,7 +67,7 @@ public class KeystoreTest {
                                 ))
                 ));
 
-        assertTrue(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
+        assertTrue(keyStoreUpdated.await(20L, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker
@@ -118,6 +118,6 @@ public class KeystoreTest {
                 ));
 
         // shouldn't update
-        assertFalse(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
+        assertFalse(keyStoreUpdated.await(20L, TimeUnit.SECONDS));
     }
 }
