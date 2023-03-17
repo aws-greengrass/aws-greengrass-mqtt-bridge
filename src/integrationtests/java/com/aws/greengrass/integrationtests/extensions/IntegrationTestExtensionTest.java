@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests.extensions;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -12,6 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+@Disabled("Only useful to run when modifying classes in this package")
 @IntegrationTest
 public class IntegrationTestExtensionTest {
 
