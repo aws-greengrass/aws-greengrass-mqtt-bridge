@@ -344,12 +344,11 @@ class BridgeConfigTest {
         topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
                 Utils.immutableMap(
                         "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "false"),
-                        "m2", Collections.emptyMap(),
+                        "m2", null,
                         "m3", Utils.immutableMap("noLocal", "true")));
 
         Map<String, Mqtt5RouteOptions> expectedEntries = new HashMap<>();
         expectedEntries.put("m1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
-        expectedEntries.put("m2", Mqtt5RouteOptions.builder().noLocal(false).retainAsPublished(true).build());
         expectedEntries.put("m3", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);

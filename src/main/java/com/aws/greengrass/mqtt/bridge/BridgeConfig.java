@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqtt.bridge;
 
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -14,9 +15,7 @@ import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -38,11 +37,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public final class BridgeConfig {
     private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
-    private static final JsonMapper OBJECT_MAPPER = JsonMapper.builder()
-            .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
-            // allow bridge version upgrade/downgrade when new properties are added
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .build();
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getConfigurationSerializerJson();
     private static final String INVALID_CONFIG_LOG_FORMAT_STRING = "Provided {} out of range. Defaulting to {}";
 
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
@@ -137,24 +132,14 @@ public final class BridgeConfig {
 
     private static Map<String, Mqtt5RouteOptions> getMqtt5RouteOptions(Topics configurationTopics)
             throws InvalidConfigurationException {
-        Map<String, Mqtt5RouteOptions> routeOptions;
         try {
-            routeOptions = OBJECT_MAPPER.convertValue(
+            return OBJECT_MAPPER.convertValue(
                     configurationTopics.lookupTopics(KEY_MQTT_5_ROUTE_OPTIONS).toPOJO(),
                     new TypeReference<Map<String, Mqtt5RouteOptions>>() {
                     });
         } catch (IllegalArgumentException e) {
             throw new InvalidConfigurationException("Malformed " + KEY_MQTT_5_ROUTE_OPTIONS, e);
         }
-
-        // if an empty mapping is provided, use default values rather than nothing.
-        for (Map.Entry<String, Mqtt5RouteOptions> e : routeOptions.entrySet()) {
-            if (e.getValue() == null) {
-                e.setValue(new Mqtt5RouteOptions());
-            }
-        }
-
-        return routeOptions;
     }
 
     private static MqttVersion getMqttVersion(Topics configurationTopics) {
