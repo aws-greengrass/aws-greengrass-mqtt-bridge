@@ -16,6 +16,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.URI;
 import java.util.Collections;
@@ -34,6 +36,7 @@ class BridgeConfigTest {
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final boolean DEFAULT_NO_LOCAL = false;
+    private static final int DEFAULT_RECEIVE_MAXIMUM = 65535;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -60,6 +63,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -76,6 +80,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -93,6 +98,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -109,6 +115,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -131,6 +138,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertEquals(expectedConfig, config);
     }
@@ -158,6 +166,7 @@ class BridgeConfigTest {
                 .topicMapping(expectedEntries)
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -190,6 +199,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(MqttVersion.MQTT5)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -205,6 +215,7 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
@@ -221,6 +232,43 @@ class BridgeConfigTest {
                 .topicMapping(Collections.emptyMap())
                 .mqttVersion(DEFAULT_MQTT_VERSION)
                 .noLocal(true)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 1234, DEFAULT_RECEIVE_MAXIMUM})
+    void GIVEN_receiveMaximum_provided_WHEN_bridge_config_created_THEN_receiveMaximum_used(int receiveMaximum) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(receiveMaximum);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(receiveMaximum)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, DEFAULT_RECEIVE_MAXIMUM + 1})
+    void GIVEN_invalid_receiveMaximum_provided_WHEN_bridge_config_created_THEN_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BridgeConfig.builder()
+                .brokerUri(URI.create(DEFAULT_BROKER_URI))
+                .clientId(config.getClientId())
+                .topicMapping(Collections.emptyMap())
+                .mqttVersion(DEFAULT_MQTT_VERSION)
+                .noLocal(DEFAULT_NO_LOCAL)
+                .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);

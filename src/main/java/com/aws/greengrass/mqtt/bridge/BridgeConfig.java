@@ -47,17 +47,20 @@ public final class BridgeConfig {
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
     static final String KEY_NO_LOCAL = "noLocal";
+    static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
     private static final boolean DEFAULT_NO_LOCAL = false;
+    private static final int DEFAULT_RECEIVE_MAXIMUM = 65_535;
 
     private final URI brokerUri;
     private final String clientId;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
     private final MqttVersion mqttVersion;
     private final boolean noLocal;
+    private final int receiveMaximum;
 
 
     /**
@@ -75,6 +78,7 @@ public final class BridgeConfig {
                 .topicMapping(getTopicMapping(configurationTopics))
                 .mqttVersion(getMqttVersion(configurationTopics))
                 .noLocal(getNoLocal(configurationTopics))
+                .receiveMaximum(getReceiveMaximum(configurationTopics))
                 .build();
     }
 
@@ -117,6 +121,18 @@ public final class BridgeConfig {
     private static boolean getNoLocal(Topics configurationTopics) {
         return Coerce.toBoolean(configurationTopics.findOrDefault(DEFAULT_NO_LOCAL,
                 KEY_BROKER_CLIENT, KEY_NO_LOCAL));
+    }
+
+    private static int getReceiveMaximum(Topics configurationTopics) {
+        int receiveMaximum = Coerce.toInt(configurationTopics.findOrDefault(DEFAULT_RECEIVE_MAXIMUM,
+                KEY_BROKER_CLIENT, KEY_RECEIVE_MAXIMUM));
+        if (receiveMaximum < 1 || receiveMaximum > DEFAULT_RECEIVE_MAXIMUM) {
+            LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
+                    .log("Provided " + KEY_RECEIVE_MAXIMUM + " out of range. "
+                            + "Defaulting to " + DEFAULT_RECEIVE_MAXIMUM);
+            return DEFAULT_RECEIVE_MAXIMUM;
+        }
+        return receiveMaximum;
     }
 
     /**
