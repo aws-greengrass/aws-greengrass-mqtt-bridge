@@ -36,7 +36,6 @@ class BridgeConfigTest {
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    private static final boolean DEFAULT_NO_LOCAL = false;
     private static final int DEFAULT_RECEIVE_MAXIMUM = 65535;
     private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
@@ -50,7 +49,6 @@ class BridgeConfigTest {
             .topicMapping(Collections.emptyMap())
             .mqtt5RouteOptions(Collections.emptyMap())
             .mqttVersion(DEFAULT_MQTT_VERSION)
-            .noLocal(DEFAULT_NO_LOCAL)
             .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
             .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
             .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
@@ -195,19 +193,6 @@ class BridgeConfigTest {
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
-                .build();
-        assertDefaultClientId(config);
-        assertEquals(expectedConfig, config);
-    }
-
-    @Test
-    void GIVEN_noLocal_provided_WHEN_bridge_config_created_THEN_noLocal_used() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_NO_LOCAL).dflt(true);
-
-        BridgeConfig config = BridgeConfig.fromTopics(topics);
-        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
-                .clientId(config.getClientId())
-                .noLocal(true)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
