@@ -47,7 +47,6 @@ public final class BridgeConfig {
     static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
-    static final String KEY_NO_LOCAL = "noLocal";
     static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
     static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
     static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
@@ -62,7 +61,6 @@ public final class BridgeConfig {
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    private static final boolean DEFAULT_NO_LOCAL = false;
     private static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
     private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
@@ -73,7 +71,6 @@ public final class BridgeConfig {
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
     private final Map<String, Mqtt5RouteOptions> mqtt5RouteOptions;
     private final MqttVersion mqttVersion;
-    private final boolean noLocal;
     private final int receiveMaximum;
     private final Long maximumPacketSize;
     private final long sessionExpiryInterval;
@@ -94,7 +91,6 @@ public final class BridgeConfig {
                 .topicMapping(getTopicMapping(configurationTopics))
                 .mqtt5RouteOptions(getMqtt5RouteOptions(configurationTopics))
                 .mqttVersion(getMqttVersion(configurationTopics))
-                .noLocal(getNoLocal(configurationTopics))
                 .receiveMaximum(getReceiveMaximum(configurationTopics))
                 .maximumPacketSize(getMaximumPacketSize(configurationTopics))
                 .sessionExpiryInterval(getSessionExpiryInterval(configurationTopics))
@@ -147,11 +143,6 @@ public final class BridgeConfig {
                 Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MQTT_VERSION.name(),
                         KEY_BROKER_CLIENT, KEY_VERSION)).toUpperCase(),
                 DEFAULT_MQTT_VERSION);
-    }
-
-    private static boolean getNoLocal(Topics configurationTopics) {
-        return Coerce.toBoolean(configurationTopics.findOrDefault(DEFAULT_NO_LOCAL,
-                KEY_BROKER_CLIENT, KEY_NO_LOCAL));
     }
 
     private static int getReceiveMaximum(Topics configurationTopics) {
