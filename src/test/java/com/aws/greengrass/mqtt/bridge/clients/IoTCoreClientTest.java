@@ -8,26 +8,30 @@ package com.aws.greengrass.mqtt.bridge.clients;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.mqttclient.SubscribeRequest;
-import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
+import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.hamcrest.Matchers;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.crt.mqtt.MqttMessage;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,11 +52,30 @@ public class IoTCoreClientTest {
 
     @Mock
     private Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> mockMessageHandler;
-    private final ExecutorService executorService = TestUtils.synchronousExecutorService();
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
+        resetIotMqttClient();
+    }
+
+    private void resetIotMqttClient() throws Exception {
+        reset(mockIotMqttClient);
+
         lenient().when(mockIotMqttClient.connected()).thenReturn(true);
+        // TODO fake client
+        lenient().when(mockIotMqttClient.subscribe(any(Subscribe.class)))
+                .thenReturn(CompletableFuture.completedFuture(
+                        new SubscribeResponse("", 0, null)));
+        lenient().when(mockIotMqttClient.publish(any(PublishRequest.class)))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mockIotMqttClient.unsubscribe(any(Unsubscribe.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+    }
+
+    @AfterEach
+    void tearDown() {
+        executorService.shutdown();
     }
 
     @Test
@@ -68,19 +92,22 @@ public class IoTCoreClientTest {
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
-        ArgumentCaptor<SubscribeRequest> requestArgumentCaptor = ArgumentCaptor.forClass(SubscribeRequest.class);
-        verify(mockIotMqttClient, times(2)).subscribe(requestArgumentCaptor.capture());
-        List<SubscribeRequest> argValues = requestArgumentCaptor.getAllValues();
-        assertThat(argValues.stream().map(SubscribeRequest::getTopic).collect(Collectors.toList()),
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
+        ArgumentCaptor<Subscribe> requestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        verify(mockIotMqttClient, timeout(5000L).times(2)).subscribe(requestArgumentCaptor.capture());
+        List<Subscribe> argValues = requestArgumentCaptor.getAllValues();
+        assertThat(argValues.stream().map(Subscribe::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
 
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics(),
+        assertThat(iotCoreClient.getSubscribed(),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
     }
 
     @Test
     void GIVEN_offline_iotcore_client_WHEN_update_subscriptions_THEN_subscribe_once_online() throws Exception {
-        reset(mockIotMqttClient);
+        resetIotMqttClient();
 
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
 
@@ -94,19 +121,17 @@ public class IoTCoreClientTest {
         });
 
         // verify no subscriptions were made
-        verify(mockIotMqttClient, never()).subscribe(any(SubscribeRequest.class));
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(0));
-        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
-                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+        assertThat("", iotCoreClient::getToSubscribe, eventuallyEval(Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2")));
+        assertThat(iotCoreClient.getSubscribed().size(), is(0));
+        verify(mockIotMqttClient, never()).subscribe(any(Subscribe.class));
 
         // simulate mqtt connection resume
         when(mockIotMqttClient.connected()).thenReturn(true);
         iotCoreClient.getConnectionCallbacks().onConnectionResumed(false);
 
         // verify subscriptions were made
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics().size(), is(2));
-        assertThat(iotCoreClient.getToSubscribeIotCoreTopics(),
-                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
     }
 
     @Test
@@ -118,15 +143,19 @@ public class IoTCoreClientTest {
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
+        // verify subscriptions were made
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
         iotCoreClient.stop();
 
-        ArgumentCaptor<UnsubscribeRequest> requestArgumentCaptor = ArgumentCaptor.forClass(UnsubscribeRequest.class);
-        verify(mockIotMqttClient, times(2)).unsubscribe(requestArgumentCaptor.capture());
-        List<UnsubscribeRequest> argValues = requestArgumentCaptor.getAllValues();
-        assertThat(argValues.stream().map(UnsubscribeRequest::getTopic).collect(Collectors.toList()),
+        ArgumentCaptor<Unsubscribe> requestArgumentCaptor = ArgumentCaptor.forClass(Unsubscribe.class);
+        verify(mockIotMqttClient, timeout(5000L).times(2)).unsubscribe(requestArgumentCaptor.capture());
+        List<Unsubscribe> argValues = requestArgumentCaptor.getAllValues();
+        assertThat(argValues.stream().map(Unsubscribe::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
 
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics(), Matchers.hasSize(0));
+        assertThat(iotCoreClient.getSubscribed(), Matchers.hasSize(0));
     }
 
     @Test
@@ -139,8 +168,11 @@ public class IoTCoreClientTest {
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
-        reset(mockIotMqttClient);
-        lenient().when(mockIotMqttClient.connected()).thenReturn(true);
+        // verify subscriptions were made
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
+        resetIotMqttClient();
 
         topics.clear();
         topics.add("iotcore/topic");
@@ -149,21 +181,21 @@ public class IoTCoreClientTest {
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
 
-        ArgumentCaptor<SubscribeRequest> subRequestArgumentCaptor = ArgumentCaptor.forClass(SubscribeRequest.class);
+        // verify subscriptions were made
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(3)));
+        assertThat(iotCoreClient.getSubscribed(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2/changed", "iotcore/topic3/added"));
+
+        ArgumentCaptor<Subscribe> subRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
         verify(mockIotMqttClient, times(2)).subscribe(subRequestArgumentCaptor.capture());
-        List<SubscribeRequest> subArgValues = subRequestArgumentCaptor.getAllValues();
-        assertThat(subArgValues.stream().map(SubscribeRequest::getTopic).collect(Collectors.toList()),
+        List<Subscribe> subArgValues = subRequestArgumentCaptor.getAllValues();
+        assertThat(subArgValues.stream().map(Subscribe::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("iotcore/topic2/changed", "iotcore/topic3/added"));
 
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics(), Matchers.hasSize(3));
-        assertThat(iotCoreClient.getSubscribedIotCoreTopics(),
-                Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2/changed", "iotcore/topic3/added"));
-
-        ArgumentCaptor<UnsubscribeRequest> unsubRequestArgumentCaptor
-                = ArgumentCaptor.forClass(UnsubscribeRequest.class);
-        verify(mockIotMqttClient, times(1)).unsubscribe(unsubRequestArgumentCaptor.capture());
-        List<UnsubscribeRequest> unsubArgValues = unsubRequestArgumentCaptor.getAllValues();
-        assertThat(unsubArgValues.stream().map(UnsubscribeRequest::getTopic).collect(Collectors.toList()),
+        ArgumentCaptor<Unsubscribe> unsubRequestArgumentCaptor
+                = ArgumentCaptor.forClass(Unsubscribe.class);
+        verify(mockIotMqttClient, timeout(5000L).times(1)).unsubscribe(unsubRequestArgumentCaptor.capture());
+        List<Unsubscribe> unsubArgValues = unsubRequestArgumentCaptor.getAllValues();
+        assertThat(unsubArgValues.stream().map(Unsubscribe::getTopic).collect(Collectors.toList()),
                 Matchers.containsInAnyOrder("iotcore/topic2"));
     }
 
@@ -176,20 +208,24 @@ public class IoTCoreClientTest {
         topics.add("iotcore/topic2");
         iotCoreClient.updateSubscriptions(topics, mockMessageHandler);
 
-        ArgumentCaptor<SubscribeRequest> requestArgumentCaptor = ArgumentCaptor.forClass(SubscribeRequest.class);
-        verify(mockIotMqttClient, times(2)).subscribe(requestArgumentCaptor.capture());
-        Consumer<MqttMessage> iotCoreCallback = requestArgumentCaptor.getValue().getCallback();
+        // verify subscriptions were made
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
+        ArgumentCaptor<Subscribe> requestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        verify(mockIotMqttClient, timeout(5000L).times(2)).subscribe(requestArgumentCaptor.capture());
+        Consumer<Publish> iotCoreCallback = requestArgumentCaptor.getValue().getCallback();
 
         byte[] messageOnTopic1 = "message from topic iotcore/topic".getBytes();
         byte[] messageOnTopic2 = "message from topic iotcore/topic2".getBytes();
         byte[] messageOnTopic3 = "message from topic iotcore/topic/not/in/mapping".getBytes();
-        iotCoreCallback.accept(new MqttMessage("iotcore/topic", messageOnTopic1));
-        iotCoreCallback.accept(new MqttMessage("iotcore/topic2", messageOnTopic2));
+        iotCoreCallback.accept(Publish.builder().topic("iotcore/topic").payload(messageOnTopic1).build());
+        iotCoreCallback.accept(Publish.builder().topic("iotcore/topic2").payload(messageOnTopic2).build());
         // Also simulate a message which is not in the mapping
-        iotCoreCallback.accept(new MqttMessage("iotcore/topic/not/in/mapping", messageOnTopic3));
+        iotCoreCallback.accept(Publish.builder().topic("iotcore/topic/not/in/mapping").payload(messageOnTopic3).build());
 
         ArgumentCaptor<com.aws.greengrass.mqtt.bridge.model.MqttMessage> messageCapture = ArgumentCaptor.forClass(com.aws.greengrass.mqtt.bridge.model.MqttMessage.class);
-        verify(mockMessageHandler, times(3)).accept(messageCapture.capture());
+        verify(mockMessageHandler, timeout(5000L).times(3)).accept(messageCapture.capture());
 
         List<com.aws.greengrass.mqtt.bridge.model.MqttMessage> argValues = messageCapture.getAllValues();
         assertThat(argValues.stream().map(Message::getTopic).collect(Collectors.toList()),
@@ -199,13 +235,18 @@ public class IoTCoreClientTest {
     }
 
     @Test
-    void GIVEN_iotcore_client_and_subscribed_WHEN_published_message_THEN_routed_to_iotcore_mqttclient() {
+    void GIVEN_iotcore_client_and_subscribed_WHEN_published_message_THEN_routed_to_iotcore_mqttclient() throws Exception {
         IoTCoreClient iotCoreClient = new IoTCoreClient(mockIotMqttClient, executorService);
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
         iotCoreClient.updateSubscriptions(topics, message -> {
         });
+
+        // verify subscriptions were made
+        assertThat("subscriptions exist", () -> iotCoreClient.getSubscribed().size(), eventuallyEval(is(2)));
+        assertThat(iotCoreClient.getToSubscribe(), Matchers.containsInAnyOrder("iotcore/topic", "iotcore/topic2"));
+
 
         byte[] messageFromLocalMqtt = "message from local mqtt".getBytes();
 
@@ -215,7 +256,7 @@ public class IoTCoreClientTest {
                 .build());
 
         ArgumentCaptor<PublishRequest> requestCapture = ArgumentCaptor.forClass(PublishRequest.class);
-        verify(mockIotMqttClient, times(1)).publish(requestCapture.capture());
+        verify(mockIotMqttClient, timeout(5000L).times(1)).publish(requestCapture.capture());
 
         assertThat(requestCapture.getValue().getTopic(), is(Matchers.equalTo("mapped/topic/from/local/mqtt")));
         assertThat(requestCapture.getValue().getPayload(), is(Matchers.equalTo(messageFromLocalMqtt)));
@@ -229,4 +270,6 @@ public class IoTCoreClientTest {
         topics.add("iotcore/topic2");
         assertThrows(NullPointerException.class, () -> iotCoreClient.updateSubscriptions(topics, null));
     }
+
+    // TODO test coverage for MQTT5-specific fields
 }

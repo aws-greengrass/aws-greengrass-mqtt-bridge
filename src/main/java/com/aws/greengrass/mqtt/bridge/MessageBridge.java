@@ -117,6 +117,7 @@ public class MessageBridge {
                                 .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
                                 .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Published message");
                     } catch (MessageClientException e) {
+                        // TODO generic retry behavior?
                         LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
                                 .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
