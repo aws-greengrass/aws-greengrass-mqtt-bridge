@@ -251,6 +251,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
                         }
                         return subscribeResult;
                     }, executorService)
+                    // TODO backoff
                     .exceptionally(e -> {
                         if (canSubscribe()) {
                             return subscribeWithRetry(topic).join(); // TODO is this join ok?
