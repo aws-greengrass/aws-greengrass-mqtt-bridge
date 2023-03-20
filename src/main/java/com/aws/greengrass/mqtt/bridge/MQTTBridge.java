@@ -27,6 +27,7 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.Utils;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
@@ -53,6 +54,7 @@ public class MQTTBridge extends PluginService {
     private MessageClient<MqttMessage> localMqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
+    @Getter // for unit testing
     private BridgeConfig bridgeConfig;
 
 

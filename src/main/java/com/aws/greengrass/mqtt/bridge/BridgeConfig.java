@@ -5,16 +5,17 @@
 
 package com.aws.greengrass.mqtt.bridge;
 
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -32,19 +33,18 @@ import java.util.Objects;
 @Getter
 @ToString
 @EqualsAndHashCode
-@Builder
+@Builder(toBuilder = true)
 @RequiredArgsConstructor
 public final class BridgeConfig {
     private static final Logger LOGGER = LogManager.getLogger(BridgeConfig.class);
-
-    private static final JsonMapper OBJECT_MAPPER =
-            JsonMapper.builder().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES).build();
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getConfigurationSerializerJson();
     private static final String INVALID_CONFIG_LOG_FORMAT_STRING = "Provided {} out of range. Defaulting to {}";
 
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
     static final String KEY_NO_LOCAL = "noLocal";
@@ -71,6 +71,7 @@ public final class BridgeConfig {
     private final URI brokerUri;
     private final String clientId;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
+    private final Map<String, Mqtt5RouteOptions> mqtt5RouteOptions;
     private final MqttVersion mqttVersion;
     private final boolean noLocal;
     private final int receiveMaximum;
@@ -91,6 +92,7 @@ public final class BridgeConfig {
                 .brokerUri(getBrokerUri(configurationTopics))
                 .clientId(getClientId(configurationTopics))
                 .topicMapping(getTopicMapping(configurationTopics))
+                .mqtt5RouteOptions(getMqtt5RouteOptions(configurationTopics))
                 .mqttVersion(getMqttVersion(configurationTopics))
                 .noLocal(getNoLocal(configurationTopics))
                 .receiveMaximum(getReceiveMaximum(configurationTopics))
@@ -125,6 +127,18 @@ public final class BridgeConfig {
                     });
         } catch (IllegalArgumentException e) {
             throw new InvalidConfigurationException("Malformed " + KEY_MQTT_TOPIC_MAPPING, e);
+        }
+    }
+
+    private static Map<String, Mqtt5RouteOptions> getMqtt5RouteOptions(Topics configurationTopics)
+            throws InvalidConfigurationException {
+        try {
+            return OBJECT_MAPPER.convertValue(
+                    configurationTopics.lookupTopics(KEY_MQTT_5_ROUTE_OPTIONS).toPOJO(),
+                    new TypeReference<Map<String, Mqtt5RouteOptions>>() {
+                    });
+        } catch (IllegalArgumentException e) {
+            throw new InvalidConfigurationException("Malformed " + KEY_MQTT_5_ROUTE_OPTIONS, e);
         }
     }
 
