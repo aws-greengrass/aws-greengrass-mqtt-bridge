@@ -29,6 +29,26 @@ public class MqttMessage implements Message {
     Long messageExpiryIntervalSeconds;
 
     /**
+     * Convert spooler mqtt v5 message to an MqttMessage.
+     *
+     * @param message spooler v5 message
+     * @return mqtt message
+     */
+    public static MqttMessage fromSpoolerV5Model(@NonNull Publish message) {
+        return MqttMessage.builder()
+                .topic(message.getTopic())
+                .payload(message.getPayload())
+                .retain(message.isRetain())
+                .payloadFormat(message.getPayloadFormat())
+                .contentType(message.getContentType())
+                .responseTopic(message.getResponseTopic())
+                .correlationData(message.getCorrelationData())
+                .userProperties(message.getUserProperties())
+                .messageExpiryIntervalSeconds(message.getMessageExpiryIntervalSeconds())
+                .build();
+    }
+
+    /**
      * Convert AWS SDK CRT message to an MqttMessage.
      *
      * @param message crt message
