@@ -21,7 +21,7 @@ import org.eclipse.paho.client.mqttv3.MqttTopic;
 import java.util.ArrayList;
 import java.util.List;
 
-public class FakeMqttClient implements IMqttClient {
+public class FakePahoMqtt3Client implements IMqttClient {
     // To appease PMD
     private static final String UNSUPPORTED_OPERATION = "Unsupported operation";
 
@@ -53,7 +53,7 @@ public class FakeMqttClient implements IMqttClient {
         }
     }
 
-    FakeMqttClient(String clientId) {
+    FakePahoMqtt3Client(String clientId) {
         this.clientId = clientId;
         this.subscriptionTopics = new ArrayList<>();
         this.publishedMessages = new ArrayList<>();

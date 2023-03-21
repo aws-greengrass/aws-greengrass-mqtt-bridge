@@ -41,7 +41,7 @@ public class MQTTClientTest {
     private static final URI ENCRYPTED_URI = URI.create("ssl://localhost:8883");
     private static final String CLIENT_ID = "mqtt-bridge-1234";
 
-    private FakeMqttClient fakeMqttClient;
+    private FakePahoMqtt3Client fakeMqttClient;
 
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
@@ -50,7 +50,7 @@ public class MQTTClientTest {
 
     @BeforeEach
     void setup() {
-        fakeMqttClient = new FakeMqttClient(CLIENT_ID);
+        fakeMqttClient = new FakePahoMqtt3Client(CLIENT_ID);
     }
 
     @AfterEach
@@ -179,7 +179,7 @@ public class MQTTClientTest {
         mqttClient.publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic("from/pubsub").payload(messageFromPubsub).build());
         mqttClient.publish(com.aws.greengrass.mqtt.bridge.model.MqttMessage.builder().topic("from/iotcore").payload(messageFromIotCore).build());
 
-        List<FakeMqttClient.TopicMessagePair> publishedMessages = fakeMqttClient.getPublishedMessages();
+        List<FakePahoMqtt3Client.TopicMessagePair> publishedMessages = fakeMqttClient.getPublishedMessages();
         assertThat(publishedMessages.size(), is(2));
         assertThat(publishedMessages.get(0).getTopic(), equalTo("from/pubsub"));
         assertThat(publishedMessages.get(0).getMessage().getPayload(), equalTo(messageFromPubsub));
