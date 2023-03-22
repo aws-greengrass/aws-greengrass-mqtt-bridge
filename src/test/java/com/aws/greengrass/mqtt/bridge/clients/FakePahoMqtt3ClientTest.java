@@ -20,17 +20,17 @@ import static org.hamcrest.Matchers.is;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class FakeMqttClientTest {
+public class FakePahoMqtt3ClientTest {
     final static String T1 = "my/topic";
     final static String T2 = "my/topic/2";
     final static String T3 = "my/topic/3";
 
-    private FakeMqttClient fakeMQTTClient;
+    private FakePahoMqtt3Client fakeMQTTClient;
 
 
     @BeforeEach
     void setup() {
-        fakeMQTTClient = new FakeMqttClient("clientId");
+        fakeMQTTClient = new FakePahoMqtt3Client("clientId");
     }
 
     @Test
