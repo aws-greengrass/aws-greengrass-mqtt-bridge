@@ -53,6 +53,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final Object subscribeLock = new Object();
     private Future<?> connectFuture;
     private Future<?> subscribeFuture;
+    @Getter // for testing
     private IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();

@@ -16,6 +16,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
+import com.aws.greengrass.mqttclient.MqttClient;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
@@ -31,11 +33,14 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -105,6 +110,9 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             pointBridgeToV5Broker();
         }
 
+        // TODO support for offline scenarios?
+        waitForClientsToConnect();
+
         invocation.proceed();
     }
 
@@ -132,9 +140,17 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private void startKernel(ExtensionContext extensionContext, String configFile) throws InterruptedException {
         System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         kernel = new Kernel();
-        kernel.getContext().put(CertificateManager.class, mock(CertificateManager.class));
+        customizeKernelContext(kernel);
         startKernelWithConfig(extensionContext, configFile);
         context.setKernel(kernel);
+    }
+
+    private void customizeKernelContext(Kernel kernel) {
+        MockMqttClient mockMqttClient = new MockMqttClient(false);
+        kernel.getContext().put(MockMqttClient.class, mockMqttClient);
+        kernel.getContext().put(MqttClient.class, mockMqttClient.getMqttClient());
+
+        kernel.getContext().put(CertificateManager.class, mock(CertificateManager.class));
     }
 
     private void startMqtt3Broker() throws IOException {
@@ -177,15 +193,21 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     }
 
     private void startKernelWithConfig(ExtensionContext extensionContext, String configFileName) throws InterruptedException {
+        URL configFile = extensionContext.getRequiredTestClass().getResource(configFileName);
+        if (configFile == null) {
+            fail("Config file " + configFileName + " not found");
+        }
+
+        kernel.parseArgs("-i", configFile.toString());
+
         CountDownLatch bridgeRunning = new CountDownLatch(1);
-        kernel.parseArgs("-i", extensionContext.getRequiredTestClass().getResource(configFileName).toString());
         GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.RUNNING)) {
                 bridgeRunning.countDown();
             }
         };
+        kernel.getContext().addGlobalStateChangeListener(listener);
         try {
-            kernel.getContext().addGlobalStateChangeListener(listener);
             kernel.launch();
             assertTrue(bridgeRunning.await(30L, TimeUnit.SECONDS));
         } finally {
@@ -208,6 +230,42 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             }
         });
         assertTrue(bridgeRunning.await(30L, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("PMD.TooFewBranchesForASwitchStatement")
+    private void waitForClientsToConnect() throws InterruptedException {
+        CountDownLatch localClientConnected = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        context.getFromContext(ExecutorService.class).submit(
+                () -> {
+                    // TODO can improve on this by having clients reported their connected status within bridge itself
+                    switch (context.getConfig().getMqttVersion()) {
+                        case MQTT5:
+                            error.set(new UnsupportedOperationException("TODO add support"));
+                            break;
+                        case MQTT3:
+                            while (!context.getLocalV3Client().getMqttClientInternal().isConnected()) {
+                                try {
+                                    Thread.sleep(100L);
+                                } catch (InterruptedException e) {
+                                    error.set(e);
+                                    break;
+                                }
+                            }
+                    }
+                    localClientConnected.countDown();
+                }
+        );
+        boolean connectedInTime = localClientConnected.await(30L, TimeUnit.SECONDS);
+        Exception e = error.get();
+        if (e != null) {
+            fail(e);
+        }
+        if (!connectedInTime) {
+            fail("timed out waiting for local mqtt client to connect");
+        }
+
+        // don't need to wait for iot core client because we mock iot core
     }
 
     // from testcontainers
