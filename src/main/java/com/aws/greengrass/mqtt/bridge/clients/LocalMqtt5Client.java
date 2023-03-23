@@ -86,7 +86,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final String clientId;
     @Getter // for testing
     private final Mqtt5Client client;
-    private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
     private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
 
@@ -190,7 +189,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
-        this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
 
         boolean isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
@@ -228,6 +226,23 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         } catch (CrtRuntimeException e) {
             throw new MQTTClientException("Unable to create an MQTT5 client", e);
         }
+    }
+
+    /**
+     * Construct a LocalMqtt5Client for testing.
+     *
+     * @param brokerUri          broker uri
+     * @param clientId           client id
+     * @param executorService    Executor service
+     */
+    LocalMqtt5Client(@NonNull URI brokerUri,
+                     @NonNull String clientId,
+                     ExecutorService executorService,
+                     Mqtt5Client client) {
+        this.brokerUri = brokerUri;
+        this.clientId = clientId;
+        this.executorService = executorService;
+        this.client = client;
     }
 
     @Override
