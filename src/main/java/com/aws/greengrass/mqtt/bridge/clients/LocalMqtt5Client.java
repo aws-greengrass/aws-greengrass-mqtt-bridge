@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtRuntimeException;
+import software.amazon.awssdk.crt.io.TlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -48,6 +50,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static ch.qos.logback.core.net.ssl.SSL.DEFAULT_KEYSTORE_PASSWORD;
+import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private static final Logger LOGGER = LogManager.getLogger(LocalMqtt5Client.class);
@@ -61,6 +66,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
+
+    private TlsContext tlsContext;
+    private TlsContextOptions tlsContextOptions;
 
     private final URI brokerUri;
     private final String clientId;
@@ -178,11 +186,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
         this.executorService = executorService;
 
-        // TODO configure ssl
-        Mqtt5ClientOptions mqtt5ClientOptions =
+        Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
                 new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), (long) brokerUri.getPort())
                         .withLifecycleEvents(connectionEventCallback)
                         .withPublishEvents((client, publishReturn) ->
@@ -196,17 +202,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                                 .withClientId(clientId).build())
                         // TODO configurable?
                         .withMaxReconnectDelayMs((long)MAX_WAIT_RETRY_IN_SECONDS * 1000)
-                        .withMinReconnectDelayMs((long)MIN_WAIT_RETRY_IN_SECONDS * 1000)
-                        .build();
+                        .withMinReconnectDelayMs((long)MIN_WAIT_RETRY_IN_SECONDS * 1000);
+
+        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
+            this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
+                    KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
+            this.tlsContext = new TlsContext(tlsContextOptions);
+            builder.withTlsContext(tlsContext);
+        }
+
         try {
-            this.client = new Mqtt5Client(mqtt5ClientOptions);
+            this.client = new Mqtt5Client(builder.build());
         } catch (CrtRuntimeException e) {
             throw new MQTTClientException("Unable to create an MQTT5 client", e);
         }
-    }
-
-    private void reset() {
-        // TODO: Follow up with Client Cert changes and reinstalling bridge
     }
 
     @Override
@@ -403,7 +412,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             client.stop(null);
         } catch (CrtRuntimeException e) {
-            LOGGER.atError().setCause(e).log("Failed to disconnect MQTT5 client");
+            LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
+        }
+        if (this.tlsContext != null) {
+            this.tlsContext.close();
+        }
+        if (this.tlsContextOptions != null) {
+            this.tlsContextOptions.close();
         }
     }
 

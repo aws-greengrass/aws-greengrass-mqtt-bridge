@@ -13,7 +13,6 @@ import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationExce
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.ByteArrayInputStream;
@@ -31,7 +30,8 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManagerFactory;
@@ -41,13 +41,13 @@ import javax.net.ssl.TrustManagerFactory;
 
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
-    static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
-    static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
+    public static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
+    public static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
-    @Getter(AccessLevel.PACKAGE)
+    @Getter
     private KeyStore keyStore;
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
-    private final List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();
+    private final Set<UpdateListener> updateListeners = new CopyOnWriteArraySet<>();
     private final GetCertificateRequest clientCertificateRequest;
 
     @FunctionalInterface

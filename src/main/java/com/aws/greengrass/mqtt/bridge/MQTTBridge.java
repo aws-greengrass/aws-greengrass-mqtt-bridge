@@ -105,6 +105,7 @@ public class MQTTBridge extends PluginService {
     @Override
     public void startup() {
         try {
+            // TODO only when local broker is ssl
             mqttClientKeyStore.init();
         } catch (KeyStoreException | CertificateGenerationException e) {
             serviceErrored(e);
@@ -114,10 +115,7 @@ public class MQTTBridge extends PluginService {
         certificateAuthorityChangeHandler.start();
 
         try {
-            localMqttClient = localMqttClientFactory.createLocalMqttClient();
-            localMqttClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.LocalMqtt, localMqttClient);
+            restartLocalMqttClient();
 
             pubSubClient.start();
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
@@ -133,7 +131,22 @@ public class MQTTBridge extends PluginService {
         }
     }
 
+    // TODO is there a better way than disconnecting?
+    private void restartLocalMqttClient() throws MessageClientException {
+        // stop accepting messages during restart
+        // TODO queue these messages?
+        messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
+        if (localMqttClient != null) {
+            localMqttClient.stop();
+        }
+        localMqttClient = localMqttClientFactory.createLocalMqttClient();
+        localMqttClient.start();
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                TopicMapping.TopicType.LocalMqtt, localMqttClient);
+    }
+
     @Override
+    @SuppressWarnings("PMD.NullAssignment")
     public void shutdown() {
         certificateAuthorityChangeHandler.stop();
         mqttClientKeyStore.shutdown();
@@ -141,6 +154,7 @@ public class MQTTBridge extends PluginService {
         messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
         if (localMqttClient != null) {
             localMqttClient.stop();
+            localMqttClient = null;
         }
 
         messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
@@ -156,6 +170,14 @@ public class MQTTBridge extends PluginService {
 
     public class CertificateAuthorityChangeHandler {
 
+        private final MQTTClientKeyStore.UpdateListener onKeystoreUpdate = () -> {
+            try {
+                restartLocalMqttClient();
+            } catch (MessageClientException e) {
+                serviceErrored(e);
+            }
+        };
+
         private BatchedSubscriber subscriber;
 
         /**
@@ -164,6 +186,7 @@ public class MQTTBridge extends PluginService {
          * <p>This operation is idempotent.
          */
         public void start() {
+            mqttClientKeyStore.listenToCAUpdates(onKeystoreUpdate);
             if (subscriber == null) {
                 Topic caTopic = findCATopic().orElse(null);
                 if (caTopic == null) {

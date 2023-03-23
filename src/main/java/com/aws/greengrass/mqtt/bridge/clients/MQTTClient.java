@@ -115,20 +115,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
         this.executorService = executorService;
-    }
-
-    void reset() {
-        if (mqttClientInternal.isConnected()) {
-            try {
-                mqttClientInternal.disconnect();
-            } catch (MqttException e) {
-                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
-                return;
-            }
-        }
-        connectAndSubscribe();
     }
 
     /**

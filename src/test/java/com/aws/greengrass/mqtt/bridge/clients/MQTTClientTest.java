@@ -207,25 +207,6 @@ public class MQTTClientTest {
     }
 
     @Test
-    void GIVEN_mqttClient_WHEN_caRotates_THEN_connectsWithUpdatedSslContext() throws Exception {
-        MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockKeyStore, ses, fakeMqttClient);
-        mqttClient.start();
-        fakeMqttClient.waitForConnect(1000);
-
-        SSLSocketFactory mockSocketFactory = mock(SSLSocketFactory.class);
-        when(mockKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory);
-
-        // This code assumes reset synchronously disconnects. This will need to be revisited if
-        // this assumption changes and this test starts failing
-        mqttClient.reset();
-        fakeMqttClient.waitForConnect(1000);
-
-        assertThat(fakeMqttClient.getConnectOptions().getSocketFactory(), is(mockSocketFactory));
-        assertThat(fakeMqttClient.getConnectCount(), is(2));
-    }
-
-    @Test
     void GIVEN_mqttClient_WHEN_clientCertRotates_THEN_newCertIsUsedUponSubsequentReconnects() throws Exception {
         SSLSocketFactory mockSocketFactory1 = mock(SSLSocketFactory.class);
         SSLSocketFactory mockSocketFactory2 = mock(SSLSocketFactory.class);
