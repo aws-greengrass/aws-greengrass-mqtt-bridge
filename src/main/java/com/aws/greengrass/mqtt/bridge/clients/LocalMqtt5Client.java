@@ -188,8 +188,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
 
+        long port = brokerUri.getPort();
+        if (port < 0) {
+            port = brokerUri.getScheme().equalsIgnoreCase("ssl") ? 8883 : 1883;
+        }
+
         Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
-                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), (long) brokerUri.getPort())
+                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
                         .withLifecycleEvents(connectionEventCallback)
                         .withPublishEvents((client, publishReturn) ->
                                 this.messageHandler.accept(
