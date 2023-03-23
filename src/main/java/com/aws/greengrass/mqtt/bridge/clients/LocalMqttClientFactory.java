@@ -39,7 +39,8 @@ public class LocalMqttClientFactory {
         checkConfig();
         switch (config.getMqttVersion()) {
             case MQTT5:
-                // TODO
+                return new LocalMqtt5Client(config.getBrokerUri(), config.getClientId(),
+                        mqttClientKeyStore, executorService);
             case MQTT3: // fall-through
             default:
                 return new MQTTClient(config.getBrokerUri(), config.getClientId(),

@@ -64,6 +64,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
+    @Getter
     private final Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -117,6 +118,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
 
         @Override
+        @SuppressWarnings("PMD.DoNotLogWithoutLogging")
         public void onConnectionFailure(Mqtt5Client client, OnConnectionFailureReturn onConnectionFailureReturn) {
             int errorCode = onConnectionFailureReturn.getErrorCode();
             ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
@@ -129,6 +131,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
 
         @Override
+        @SuppressWarnings("PMD.DoNotLogWithoutLogging")
         public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
             int errorCode = onDisconnectionReturn.getErrorCode();
             DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
@@ -166,17 +169,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param clientId           client id
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
-     * @param hostname           host name
-     * @param port               port
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
                             MQTTClientKeyStore mqttClientKeyStore,
-                            ExecutorService executorService,
-                            String hostname,
-                            Long port)
-            throws MessageClientException {
+                            ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
@@ -185,7 +183,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
         // TODO configure ssl
         Mqtt5ClientOptions mqtt5ClientOptions =
-                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(hostname, port)
+                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), (long) brokerUri.getPort())
                         .withLifecycleEvents(connectionEventCallback)
                         .withPublishEvents((client, publishReturn) ->
                                 this.messageHandler.accept(
