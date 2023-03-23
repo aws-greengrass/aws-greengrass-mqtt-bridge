@@ -84,8 +84,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
     private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
 
-    //TODO: Figure out what exception to retry on. Might need to retry on suback
-    // we dont know which CRTRuntimeException to retry on
     private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
@@ -320,7 +318,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
-                    subscribe(topic);
+                    subscribe(topic); // TODO retry based on return code
                     return null;
                 }, "subscribe-mqtt5-topic", LOGGER);
             } catch (InterruptedException e) {
