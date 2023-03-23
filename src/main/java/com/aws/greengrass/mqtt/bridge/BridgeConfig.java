@@ -103,11 +103,17 @@ public final class BridgeConfig {
                 configurationTopics.findOrDefault(DEFAULT_BROKER_URI, KEY_BROKER_SERVER_URI));
         String brokerUri = Coerce.toString(
                 configurationTopics.findOrDefault(brokerServerUri, KEY_BROKER_URI));
+        URI uri;
         try {
-            return new URI(brokerUri);
+            uri = new URI(brokerUri);
         } catch (URISyntaxException e) {
             throw new InvalidConfigurationException("Malformed " + KEY_BROKER_URI + ": " + brokerUri, e);
         }
+
+        if (uri.getPort() < 0) {
+            throw new InvalidConfigurationException("Port missing in  " + KEY_BROKER_URI + ": " + brokerUri);
+        }
+        return uri;
     }
 
     private static String getClientId(Topics configurationTopics) {

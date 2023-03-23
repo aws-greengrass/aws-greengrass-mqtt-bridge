@@ -123,6 +123,12 @@ class BridgeConfigTest {
     }
 
     @Test
+    void GIVEN_brokerUri_with_missing_port_WHEN_bridge_config_created_THEN_exception_thrown() {
+        topics.lookup(BridgeConfig.KEY_BROKER_URI).dflt("tcp://localhost");
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+    }
+
+    @Test
     void GIVEN_clientId_config_WHEN_bridge_config_created_THEN_clientId_used() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_CLIENT_ID).dflt(CLIENT_ID);
 
