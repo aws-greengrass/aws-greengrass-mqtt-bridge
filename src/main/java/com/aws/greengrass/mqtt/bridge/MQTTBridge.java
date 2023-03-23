@@ -51,6 +51,7 @@ public class MQTTBridge extends PluginService {
     private final LocalMqttClientFactory localMqttClientFactory;
     private final ConfigurationChangeHandler configurationChangeHandler;
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
+    @Getter // for tests
     private MessageClient<MqttMessage> localMqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
