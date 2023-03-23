@@ -58,9 +58,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final Logger LOGGER = LogManager.getLogger(LocalMqtt5Client.class);
 
     private static final String LOG_KEY_TOPIC = "topic";
+    private static final String LOG_KEY_TOPICS = "topics";
+    private static final String LOG_KEY_REASON_CODE = "reasonCode";
     private static final String LOG_KEY_REASON_CODES = "reasonCodes";
+    private static final String LOG_KEY_REASON_STRING = "reasonString";
     private static final String LOG_KEY_REASON = "reason";
     private static final String LOG_KEY_MESSAGE = "message";
+    private static final String LOG_KEY_ERROR = "error";
 
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
@@ -75,7 +79,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
-    @Getter
+    @Getter // for testing
     private final Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -131,9 +135,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         public void onConnectionFailure(Mqtt5Client client, OnConnectionFailureReturn onConnectionFailureReturn) {
             int errorCode = onConnectionFailureReturn.getErrorCode();
             ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
-            LogEventBuilder l = LOGGER.atError().kv("error", CRT.awsErrorString(errorCode));
+            LogEventBuilder l = LOGGER.atError().kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode));
             if (packet != null) {
-                l.kv("reasonCode", packet.getReasonCode().name())
+                l.kv(LOG_KEY_REASON_CODE, packet.getReasonCode().name())
                         .kv(LOG_KEY_REASON, packet.getReasonString());
             }
             l.log("Failed to connect to Local Mqtt5 Client");
@@ -150,9 +154,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
                 LOGGER.atInfo().log("Connection purposefully interrupted");
             } else {
-                LogEventBuilder l = LOGGER.atWarn().kv("error", CRT.awsErrorString(errorCode));
+                LogEventBuilder l = LOGGER.atWarn().kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode));
                 if (packet != null) {
-                    l.kv("reasonCode", packet.getReasonCode().name())
+                    l.kv(LOG_KEY_REASON_CODE, packet.getReasonCode().name())
                             .kv(LOG_KEY_REASON, packet.getReasonString());
                 }
                 l.log("Connection interrupted");
@@ -254,8 +258,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             if (pubAckPacket.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS)) {
                 LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
             } else {
-                LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).kv("reasonString", pubAckPacket.getReasonString())
-                        .kv("reasonCode", pubAckPacket.getReasonCode()).log("Message failed to publish");
+                LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message)
+                        .kv(LOG_KEY_REASON_STRING, pubAckPacket.getReasonString())
+                        .kv(LOG_KEY_REASON_CODE, pubAckPacket.getReasonCode())
+                        .log("Message failed to publish");
             }
         } catch (ExecutionException e) {
             LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
@@ -278,7 +284,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             toSubscribeLocalMqttTopics.clear();
             toSubscribeLocalMqttTopics.addAll(topics);
 
-            LOGGER.atDebug().kv("topics", topics).log("Updated local MQTT5 topics to subscribe");
+            LOGGER.atDebug().kv(LOG_KEY_TOPICS, topics).log("Updated local MQTT5 topics to subscribe");
             if (client.getIsConnected()) {
                 updateSubscriptionsInternalAsync();
             }
@@ -307,7 +313,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     unsubscribe(topic);
                     // TODO retry unsubscribe failures
                 }
-                LOGGER.atDebug().kv("topics", topicsToSubscribe).log("Subscribing to MQTT topics");
+                LOGGER.atDebug().kv(LOG_KEY_TOPICS, topicsToSubscribe).log("Subscribing to MQTT topics");
                 subscribeToTopics(topicsToSubscribe);
             });
         }
@@ -380,8 +386,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket).get();
             if (!unsubAckPacket.getReasonCodes().contains(UnsubAckPacket.UnsubAckReasonCode.SUCCESS)) {
-                LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).kv("reasonString",unsubAckPacket.getReasonString()).kv(
-                        "reasonCodes", unsubAckPacket.getReasonCodes()).log("failed to unsubscribe");
+                LOGGER.atDebug()
+                        .kv(LOG_KEY_TOPIC, topic)
+                        .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
+                        .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
+                        .log("failed to unsubscribe");
                 return;
             }
             LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
@@ -389,7 +398,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 subscribedLocalMqttTopics.remove(topic);
             }
         } catch (ExecutionException e) {
-            LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic).log("failed to unsubscribe");
+            LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
+                    .log("failed to unsubscribe");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
