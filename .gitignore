@@ -17,3 +17,5 @@ jmh-result.json
 work
 bin
 /config
+LocalMqtt5ClientTest.java
+mqtt5_config.yaml
