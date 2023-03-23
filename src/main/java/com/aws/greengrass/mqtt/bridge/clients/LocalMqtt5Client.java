@@ -162,11 +162,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 l.log("Connection interrupted");
             }
 
-            synchronized (updateSubscriptionsLock) {
-                if (updateSubscriptionsTask != null) {
-                    updateSubscriptionsTask.cancel(true);
-                }
-            }
+            cancelUpdateSubscriptionsTask();
         }
 
         @Override
@@ -294,9 +290,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void updateSubscriptionsInternalAsync() {
         synchronized (updateSubscriptionsLock) {
-            if (updateSubscriptionsTask != null) {
-                updateSubscriptionsTask.cancel(true);
-            }
+            cancelUpdateSubscriptionsTask();
 
             Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
             topicsToRemove.removeAll(toSubscribeLocalMqttTopics);
@@ -316,6 +310,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 LOGGER.atDebug().kv(LOG_KEY_TOPICS, topicsToSubscribe).log("Subscribing to MQTT topics");
                 subscribeToTopics(topicsToSubscribe);
             });
+        }
+    }
+
+    private void cancelUpdateSubscriptionsTask() {
+        synchronized (updateSubscriptionsLock) {
+            if (updateSubscriptionsTask != null) {
+                updateSubscriptionsTask.cancel(true);
+            }
         }
     }
 
@@ -422,9 +424,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Override
     public void stop() {
         synchronized (updateSubscriptionsLock) {
-            if (updateSubscriptionsTask != null) {
-                updateSubscriptionsTask.cancel(true);
-            }
+            cancelUpdateSubscriptionsTask();
             unsubscribeAll();
         }
         try {
