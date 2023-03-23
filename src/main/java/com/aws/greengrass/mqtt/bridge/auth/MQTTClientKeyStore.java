@@ -44,7 +44,7 @@ public class MQTTClientKeyStore {
     static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
     static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private KeyStore keyStore;
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
     private final List<UpdateListener> updateListeners = new CopyOnWriteArrayList<>();

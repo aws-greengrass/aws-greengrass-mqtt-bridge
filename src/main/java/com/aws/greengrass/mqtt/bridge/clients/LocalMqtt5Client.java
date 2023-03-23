@@ -4,6 +4,7 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
@@ -32,7 +33,6 @@ import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
-import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
 
 import java.net.URI;
@@ -100,7 +100,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .log("Connected to broker");
 
             if (hasConnectedOnce.compareAndSet(false, true)) {
-                LOGGER.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to Local Mqtt5 Client");
+                LOGGER.atInfo().kv("sessionPresent", sessionPresent)
+                        .log("Successfully connected to Local Mqtt5 Client");
             } else {
                 LOGGER.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             }
@@ -221,8 +222,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .withTopic(message.getTopic())
                 .withRetain(message.isRetain())
                 .withPayloadFormat(message.getPayloadFormat() == null ? null
-                        : PublishPacket.PayloadFormatIndicator.getEnumValueFromInteger
-                                (message.getPayloadFormat().getValue()))
+                        : PublishPacket.PayloadFormatIndicator.getEnumValueFromInteger(
+                                message.getPayloadFormat().getValue()))
                 .withContentType(message.getContentType())
                 .withCorrelationData(message.getCorrelationData())
                 .withResponseTopic(message.getResponseTopic())
