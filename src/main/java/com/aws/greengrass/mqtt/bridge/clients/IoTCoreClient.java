@@ -48,6 +48,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     private volatile Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> messageHandler;
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();
+    @Getter // for testing
     private final MqttClient iotMqttClient;
     private final ExecutorService executorService;
 
