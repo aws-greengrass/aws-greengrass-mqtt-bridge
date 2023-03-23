@@ -144,6 +144,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 }
                 l.log("Connection interrupted");
             }
+
+            synchronized (updateSubscriptionsLock) {
+                if (updateSubscriptionsTask != null) {
+                    updateSubscriptionsTask.cancel(true);
+                }
+            }
         }
 
         @Override
