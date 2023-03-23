@@ -62,6 +62,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final String LOG_KEY_REASON = "reason";
     private static final String LOG_KEY_MESSAGE = "message";
 
+    private static final long DEFAULT_TCP_MQTT_PORT = 1883;
+    private static final long DEFAULT_SSL_MQTT_PORT = 8883;
+
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
@@ -188,9 +191,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
 
+        boolean isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
+
         long port = brokerUri.getPort();
         if (port < 0) {
-            port = brokerUri.getScheme().equalsIgnoreCase("ssl") ? 8883 : 1883;
+            port = isSSL ? DEFAULT_SSL_MQTT_PORT : DEFAULT_TCP_MQTT_PORT;
         }
 
         Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
@@ -209,7 +214,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .withMaxReconnectDelayMs((long)MAX_WAIT_RETRY_IN_SECONDS * 1000)
                         .withMinReconnectDelayMs((long)MIN_WAIT_RETRY_IN_SECONDS * 1000);
 
-        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
+        if (isSSL) {
             this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
                     KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
             this.tlsContext = new TlsContext(tlsContextOptions);
