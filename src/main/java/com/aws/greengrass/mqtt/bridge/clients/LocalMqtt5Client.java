@@ -57,6 +57,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private static final Logger LOGGER = LogManager.getLogger(LocalMqtt5Client.class);
 
+    private static final RetryUtils.RetryConfig mqttExceptionRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
+                    .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Collections.singletonList(CrtRuntimeException.class)).build();
+
     private static final String LOG_KEY_TOPIC = "topic";
     private static final String LOG_KEY_TOPICS = "topics";
     private static final String LOG_KEY_REASON_CODE = "reasonCode";
@@ -83,17 +88,16 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
+
+    /**
+     * Protects access to update subscriptions task, and
+     * subscribed/toSubscribe state.
+     */
+    private final Object subscriptionsLock = new Object();
     @Getter(AccessLevel.PROTECTED)
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
-    private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
-
-    private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
-                    .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Collections.singletonList(CrtRuntimeException.class)).build();
-
-    private final Object updateSubscriptionsLock = new Object();
     private Future<?> updateSubscriptionsTask;
 
     @Getter(AccessLevel.PACKAGE)
@@ -122,7 +126,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
             if (!sessionPresent) {
                 // Need to resubscribe to dropped topics
-                synchronized (updateSubscriptionsLock) {
+                synchronized (subscriptionsLock) {
                     toSubscribeLocalMqttTopics.addAll(subscribedLocalMqttTopics);
                 }
             }
@@ -276,7 +280,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Override
     public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
         this.messageHandler = messageHandler;
-        synchronized (updateSubscriptionsLock) {
+        synchronized (subscriptionsLock) {
             toSubscribeLocalMqttTopics.clear();
             toSubscribeLocalMqttTopics.addAll(topics);
 
@@ -289,7 +293,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void updateSubscriptionsInternalAsync() {
-        synchronized (updateSubscriptionsLock) {
+        synchronized (subscriptionsLock) {
             cancelUpdateSubscriptionsTask();
 
             Set<String> topicsToRemove = new HashSet<>(subscribedLocalMqttTopics);
@@ -314,7 +318,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private void cancelUpdateSubscriptionsTask() {
-        synchronized (updateSubscriptionsLock) {
+        synchronized (subscriptionsLock) {
             if (updateSubscriptionsTask != null) {
                 updateSubscriptionsTask.cancel(true);
             }
@@ -349,7 +353,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket).get();
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
-                synchronized (updateSubscriptionsLock) {
+                synchronized (subscriptionsLock) {
                     subscribedLocalMqttTopics.add(topic);
                 }
                 LOGGER.atDebug()
@@ -396,7 +400,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 return;
             }
             LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
-            synchronized (updateSubscriptionsLock) {
+            synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
         } catch (ExecutionException e) {
@@ -408,7 +412,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private void unsubscribeAll() {
-        synchronized (updateSubscriptionsLock) {
+        synchronized (subscriptionsLock) {
             Set<String> toUnsubscribe = new HashSet<>(subscribedLocalMqttTopics);
             LOGGER.atDebug().kv("topicsToUnsubscribe", toUnsubscribe).log("Unsubscribe from local MQTT topics");
             toUnsubscribe.forEach(this::unsubscribe);
@@ -423,7 +427,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void stop() {
-        synchronized (updateSubscriptionsLock) {
+        synchronized (subscriptionsLock) {
             cancelUpdateSubscriptionsTask();
             unsubscribeAll();
         }
