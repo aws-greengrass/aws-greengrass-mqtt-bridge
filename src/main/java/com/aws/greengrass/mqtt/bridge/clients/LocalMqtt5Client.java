@@ -298,7 +298,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     @Override
-    public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
+    public void updateSubscriptions(Set<String> topics, @NonNull Consumer<MqttMessage> messageHandler) {
         this.messageHandler = messageHandler;
         synchronized (subscriptionsLock) {
             toSubscribeLocalMqttTopics.clear();

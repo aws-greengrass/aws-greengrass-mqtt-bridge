@@ -14,6 +14,7 @@ import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
+import software.amazon.awssdk.crt.mqtt5.PublishResult;
 import software.amazon.awssdk.crt.mqtt5.PublishReturn;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.DisconnectPacket;
@@ -106,17 +107,19 @@ public class MockMqtt5Client {
         return CompletableFuture.completedFuture(subAckPacket);
     }
 
-    private CompletableFuture<PubAckPacket> onPublish(InvocationOnMock invocation) {
+    private CompletableFuture<PublishResult> onPublish(InvocationOnMock invocation) {
         PublishPacket publish = invocation.getArgument(0);
         toPublish.add(publish);
         flush();
 
         // mocking because crt packets have private constructors
         PubAckPacket pubAckPacket = mock(PubAckPacket.class);
-        when(pubAckPacket.getReasonCode()).thenReturn(PubAckPacket.PubAckReasonCode.getEnumValueFromInteger(
-                publish.getQOS().getValue()));
+        lenient().when(pubAckPacket.getReasonCode()).thenReturn(PubAckPacket.PubAckReasonCode.SUCCESS);
 
-        return CompletableFuture.completedFuture(pubAckPacket);
+        PublishResult publishResult = mock(PublishResult.class);
+        lenient().when(publishResult.getResultPubAck()).thenReturn(pubAckPacket);
+
+        return CompletableFuture.completedFuture(publishResult);
     }
 
     private CompletableFuture<UnsubAckPacket> onUnsubscribe(InvocationOnMock invocation) {
