@@ -65,6 +65,17 @@ public class MockMqtt5Client {
         this.lifecycleEvents = lifecycleEvents;
         this.publishEvents = publishEvents;
         this.cleanSession = cleanSession;
+
+        lenient().doAnswer(ignored -> {
+            online();
+            return null;
+        }).when(client).start();
+
+        lenient().doAnswer(ignored -> {
+            offline();
+            return null;
+        }).when(client).stop(any());
+
         lenient().when(client.getIsConnected()).thenAnswer((Answer<Boolean>) invocationOnMock -> online.get());
         lenient().doAnswer(this::onSubscribe).when(client).subscribe(any(SubscribePacket.class));
         lenient().doAnswer(this::onPublish).when(client).publish(any(PublishPacket.class));
@@ -176,10 +187,10 @@ public class MockMqtt5Client {
 
     private void onDisconnection() {
         DisconnectPacket disconnectPacket = mock(DisconnectPacket.class);
-        when(disconnectPacket.getReasonCode()).thenReturn(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION);
+        lenient().when(disconnectPacket.getReasonCode()).thenReturn(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION);
 
         OnDisconnectionReturn onDisconnectionReturn = mock(OnDisconnectionReturn.class);
-        when(onDisconnectionReturn.getDisconnectPacket()).thenReturn(disconnectPacket);
+        lenient().when(onDisconnectionReturn.getDisconnectPacket()).thenReturn(disconnectPacket);
 
         lifecycleEvents.onDisconnection(client, onDisconnectionReturn);
     }
@@ -196,10 +207,10 @@ public class MockMqtt5Client {
 
         ConnAckPacket connAckPacket = mock(ConnAckPacket.class);
         // TODO other values?
-        when(connAckPacket.getReasonCode()).thenReturn(ConnAckPacket.ConnectReasonCode.SUCCESS);
+        lenient().when(connAckPacket.getReasonCode()).thenReturn(ConnAckPacket.ConnectReasonCode.SUCCESS);
 
         OnConnectionSuccessReturn onConnectionSuccessReturn = mock(OnConnectionSuccessReturn.class);
-        when(onConnectionSuccessReturn.getConnAckPacket()).thenReturn(connAckPacket);
+        lenient().when(onConnectionSuccessReturn.getConnAckPacket()).thenReturn(connAckPacket);
         lifecycleEvents.onConnectionSuccess(client, onConnectionSuccessReturn);
     }
 }
