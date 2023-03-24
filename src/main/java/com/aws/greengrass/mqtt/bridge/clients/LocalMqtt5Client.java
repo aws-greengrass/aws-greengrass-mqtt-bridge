@@ -13,6 +13,7 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.io.TlsContext;
@@ -85,7 +86,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final URI brokerUri;
     private final String clientId;
     @Getter // for testing
-    private final Mqtt5Client client;
+    @Setter(AccessLevel.PACKAGE)
+    private Mqtt5Client client;
     private final ExecutorService executorService;
     private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
 
@@ -94,8 +96,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * subscribed/toSubscribe state.
      */
     private final Object subscriptionsLock = new Object();
-    @Getter(AccessLevel.PROTECTED)
+    @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
+    @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
     private Future<?> updateSubscriptionsTask;
 
@@ -174,6 +177,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     };
 
+    @Getter(AccessLevel.PACKAGE) // for testing
+    private final Mqtt5ClientOptions.PublishEvents publishEventsCallback = (client, publishReturn) ->
+            this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(
+                    Publish.fromCrtPublishPacket(publishReturn.getPublishPacket())));
+
     /**
      * Construct a LocalMqtt5Client.
      *
@@ -201,10 +209,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
                 new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
                         .withLifecycleEvents(connectionEventCallback)
-                        .withPublishEvents((client, publishReturn) ->
-                                this.messageHandler.accept(
-                                        MqttMessage.fromSpoolerV5Model(
-                                                Publish.fromCrtPublishPacket(publishReturn.getPublishPacket()))))
+                        .withPublishEvents(publishEventsCallback)
                         .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                         .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
                         .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
