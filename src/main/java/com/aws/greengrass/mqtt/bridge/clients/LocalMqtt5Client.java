@@ -151,19 +151,19 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
             int errorCode = onDisconnectionReturn.getErrorCode();
             DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
-            // Error code 0 means that the disconnection was intentional. We do not need to run callbacks when we
-            // purposely interrupt a connection.
-            if (errorCode == 0 || packet != null && packet.getReasonCode()
-                    .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
-                LOGGER.atInfo().log("Connection purposefully interrupted");
+            LogEventBuilder l;
+            if (errorCode == 0 || packet != null
+                    && packet.getReasonCode().equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
+                l = LOGGER.atInfo();
             } else {
-                LogEventBuilder l = LOGGER.atWarn().kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode));
+                l = LOGGER.atWarn()
+                        .kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode));
                 if (packet != null) {
                     l.kv(LOG_KEY_REASON_CODE, packet.getReasonCode().name())
                             .kv(LOG_KEY_REASON, packet.getReasonString());
                 }
-                l.log("Connection interrupted");
             }
+            l.log("Connection interrupted");
 
             cancelUpdateSubscriptionsTask();
         }

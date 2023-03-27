@@ -12,6 +12,7 @@ import org.mockito.stubbing.Answer;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
 import software.amazon.awssdk.crt.mqtt5.PublishResult;
@@ -26,8 +27,12 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -38,6 +43,11 @@ import static org.mockito.Mockito.when;
 
 
 public class MockMqtt5Client {
+
+    final NextReasonCode<SubAckPacket.SubAckReasonCode> nextSubAckReasonCode = new NextReasonCode<>();
+    final NextReasonCode<PubAckPacket.PubAckReasonCode> nextPubAckReasonCode = new NextReasonCode<>();
+    final NextReasonCode<UnsubAckPacket.UnsubAckReasonCode> nextUnsubAckReasonCode = new NextReasonCode<>();
+    final NextReasonCode<ConnAckPacket.ConnectReasonCode> nextConnectReasonCode = new NextReasonCode<>();
 
     private final AtomicBoolean online = new AtomicBoolean(true);
     private final Object subscriptionsLock = new Object();
@@ -54,6 +64,7 @@ public class MockMqtt5Client {
     private final Mqtt5Client client = mock(Mqtt5Client.class);
     private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     private final Mqtt5ClientOptions.PublishEvents publishEvents;
+
 
     public MockMqtt5Client(@NonNull Mqtt5ClientOptions.LifecycleEvents lifecycleEvents,
                            @NonNull Mqtt5ClientOptions.PublishEvents publishEvents) {
@@ -73,7 +84,7 @@ public class MockMqtt5Client {
         }).when(client).start();
 
         lenient().doAnswer(ignored -> {
-            offline();
+            offline(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION);
             return null;
         }).when(client).stop(any());
 
@@ -97,11 +108,23 @@ public class MockMqtt5Client {
         when(subAckPacket.getReasonCodes()).thenReturn(reasonCodes);
 
         for (SubscribePacket.Subscription subscription : subscribe.getSubscriptions()) {
-            synchronized (subscriptionsLock) {
-                subscriptions.add(subscribe);
+            SubAckPacket.SubAckReasonCode reasonCode = nextSubAckReasonCode.getNext(subscription.getTopicFilter());
+            if (reasonCode == null) {
+                reasonCode = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(
+                        subscription.getQOS().getValue());
             }
-            reasonCodes.add(SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(
-                    subscription.getQOS().getValue()));
+            switch (reasonCode) {
+                case GRANTED_QOS_0:
+                case GRANTED_QOS_1:
+                case GRANTED_QOS_2:
+                    synchronized (subscriptionsLock) {
+                        subscriptions.add(subscribe);
+                    }
+                    break;
+                default:
+                    break;
+            }
+            reasonCodes.add(reasonCode);
         }
 
         return CompletableFuture.completedFuture(subAckPacket);
@@ -109,12 +132,19 @@ public class MockMqtt5Client {
 
     private CompletableFuture<PublishResult> onPublish(InvocationOnMock invocation) {
         PublishPacket publish = invocation.getArgument(0);
-        toPublish.add(publish);
-        flush();
 
         // mocking because crt packets have private constructors
         PubAckPacket pubAckPacket = mock(PubAckPacket.class);
-        lenient().when(pubAckPacket.getReasonCode()).thenReturn(PubAckPacket.PubAckReasonCode.SUCCESS);
+        PubAckPacket.PubAckReasonCode reasonCode = nextPubAckReasonCode.getNext(publish.getTopic());
+        if (reasonCode == null) {
+            reasonCode = PubAckPacket.PubAckReasonCode.SUCCESS;
+        }
+        lenient().when(pubAckPacket.getReasonCode()).thenReturn(reasonCode);
+
+        if (reasonCode == PubAckPacket.PubAckReasonCode.SUCCESS) {
+            toPublish.add(publish);
+        }
+        flush();
 
         PublishResult publishResult = mock(PublishResult.class);
         lenient().when(publishResult.getResultPubAck()).thenReturn(pubAckPacket);
@@ -139,9 +169,21 @@ public class MockMqtt5Client {
             Iterator<SubscribePacket> iter = subscriptions.iterator();
             while (iter.hasNext()) {
                 SubscribePacket packet = iter.next();
-                for (String subscription : unsubscribe.getSubscriptions()) {
-                    if (packet.getSubscriptions().removeIf(s -> s.getTopicFilter().equals(subscription))) {
-                        reasonCodes.add(UnsubAckPacket.UnsubAckReasonCode.SUCCESS);
+                for (String toUnsubscribe : unsubscribe.getSubscriptions()) {
+                    Iterator<SubscribePacket.Subscription> subIter = packet.getSubscriptions().iterator();
+                    while (subIter.hasNext()) {
+                        SubscribePacket.Subscription subscription = subIter.next();
+                        if (!toUnsubscribe.equals(subscription.getTopicFilter())) {
+                            continue;
+                        }
+                        UnsubAckPacket.UnsubAckReasonCode reasonCode = nextUnsubAckReasonCode.getNext(toUnsubscribe);
+                        if (reasonCode == null) {
+                            reasonCode = UnsubAckPacket.UnsubAckReasonCode.SUCCESS;
+                        }
+                        reasonCodes.add(reasonCode);
+                        if (reasonCode == UnsubAckPacket.UnsubAckReasonCode.SUCCESS) {
+                            subIter.remove();
+                        }
                     }
                 }
                 if (packet.getSubscriptions().isEmpty()) {
@@ -183,17 +225,18 @@ public class MockMqtt5Client {
         flush();
     }
 
-    public void offline() {
+    public void offline(DisconnectPacket.DisconnectReasonCode reasonCode) {
         online.set(false);
-        onDisconnection();
+        onDisconnection(reasonCode);
     }
 
-    private void onDisconnection() {
+    private void onDisconnection(DisconnectPacket.DisconnectReasonCode reasonCode) {
         DisconnectPacket disconnectPacket = mock(DisconnectPacket.class);
-        lenient().when(disconnectPacket.getReasonCode()).thenReturn(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION);
+        lenient().when(disconnectPacket.getReasonCode()).thenReturn(reasonCode);
 
         OnDisconnectionReturn onDisconnectionReturn = mock(OnDisconnectionReturn.class);
         lenient().when(onDisconnectionReturn.getDisconnectPacket()).thenReturn(disconnectPacket);
+        lenient().when(onDisconnectionReturn.getErrorCode()).thenReturn(reasonCode.getValue());
 
         lifecycleEvents.onDisconnection(client, onDisconnectionReturn);
     }
@@ -208,12 +251,48 @@ public class MockMqtt5Client {
         OnAttemptingConnectReturn onAttemptingConnectReturn = mock(OnAttemptingConnectReturn.class);
         lifecycleEvents.onAttemptingConnect(client, onAttemptingConnectReturn);
 
+        ConnAckPacket.ConnectReasonCode reasonCode = nextConnectReasonCode.getNext();
+        if (reasonCode == null) {
+            reasonCode = ConnAckPacket.ConnectReasonCode.SUCCESS;
+        }
         ConnAckPacket connAckPacket = mock(ConnAckPacket.class);
-        // TODO other values?
-        lenient().when(connAckPacket.getReasonCode()).thenReturn(ConnAckPacket.ConnectReasonCode.SUCCESS);
+        lenient().when(connAckPacket.getReasonCode()).thenReturn(reasonCode);
 
-        OnConnectionSuccessReturn onConnectionSuccessReturn = mock(OnConnectionSuccessReturn.class);
-        lenient().when(onConnectionSuccessReturn.getConnAckPacket()).thenReturn(connAckPacket);
-        lifecycleEvents.onConnectionSuccess(client, onConnectionSuccessReturn);
+        if (reasonCode == ConnAckPacket.ConnectReasonCode.SUCCESS) {
+            OnConnectionSuccessReturn onConnectionSuccessReturn = mock(OnConnectionSuccessReturn.class);
+            lenient().when(onConnectionSuccessReturn.getConnAckPacket()).thenReturn(connAckPacket);
+            lifecycleEvents.onConnectionSuccess(client, onConnectionSuccessReturn);
+        } else {
+            OnConnectionFailureReturn onConnectionFailureReturn = mock(OnConnectionFailureReturn.class);
+            lenient().when(onConnectionFailureReturn.getConnAckPacket()).thenReturn(connAckPacket);
+            lifecycleEvents.onConnectionFailure(client, onConnectionFailureReturn);
+        }
+    }
+
+    static class NextReasonCode<T> {
+
+        private static final String NO_TOPIC = "";
+
+        private final Map<String, Queue<T>> reasonCodesByTopic = new HashMap<>();
+
+        public T getNext() {
+            return getNext(NO_TOPIC);
+        }
+
+        public T getNext(String topic) {
+            Queue<T> reasonCodes = reasonCodesByTopic.get(topic);
+            if (reasonCodes != null) {
+                return reasonCodes.poll();
+            }
+            return null;
+        }
+
+        public void add(T reasonCode) {
+            add(NO_TOPIC, reasonCode);
+        }
+
+        public void add(String topic, T reasonCode) {
+            reasonCodesByTopic.computeIfAbsent(topic, k -> new LinkedList<>()).add(reasonCode);
+        }
     }
 }
