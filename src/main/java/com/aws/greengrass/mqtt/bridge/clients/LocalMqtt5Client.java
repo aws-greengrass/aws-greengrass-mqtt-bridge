@@ -40,6 +40,7 @@ import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -52,7 +53,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static ch.qos.logback.core.net.ssl.SSL.DEFAULT_KEYSTORE_PASSWORD;
+import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -219,7 +220,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         if (isSSL) {
             mqttClientKeyStore.listenToCAUpdates(this::reset);
             this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
-                    KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
+                    KEY_ALIAS, Arrays.toString(DEFAULT_KEYSTORE_PASSWORD));
             this.tlsContext = new TlsContext(tlsContextOptions);
             builder.withTlsContext(tlsContext);
         }
