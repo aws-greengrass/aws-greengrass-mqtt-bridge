@@ -282,14 +282,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             if (pubAckPacket.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS)) {
                 LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
             } else {
-                LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message)
+                LOGGER.atError().kv(LOG_KEY_MESSAGE, message)
                         .kv(LOG_KEY_REASON_STRING, pubAckPacket.getReasonString())
                         .kv(LOG_KEY_REASON_CODE, pubAckPacket.getReasonCode())
                         .log("Message failed to publish");
             }
         } catch (TimeoutException | ExecutionException e) {
-            LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
-                    .log("failed to subscribe");
+            LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
+                    .log("failed to publish");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
