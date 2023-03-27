@@ -213,6 +213,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 eq(TopicMapping.TopicType.IotCore), any(IoTCoreClient.class));
     }
 
+    // TODO test local client recreated when keystore updated
+
     static class FakeMqttClientFactory extends LocalMqttClientFactory {
         public FakeMqttClientFactory() {
             super(null, null);

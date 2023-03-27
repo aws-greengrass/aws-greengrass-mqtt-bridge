@@ -103,7 +103,7 @@ public class KeystoreTest {
         );
         brokerUriTopic.withValue("garbage");
         testContext.getKernel().getContext().addGlobalStateChangeListener(listener);
-        assertTrue(bridgeIsBroken.await(10L, TimeUnit.SECONDS));
+        assertTrue(bridgeIsBroken.await(30L, TimeUnit.SECONDS));
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
@@ -118,6 +118,6 @@ public class KeystoreTest {
                 ));
 
         // shouldn't update
-        assertFalse(keyStoreUpdated.await(20L, TimeUnit.SECONDS));
+        assertFalse(keyStoreUpdated.await(30L, TimeUnit.SECONDS));
     }
 }

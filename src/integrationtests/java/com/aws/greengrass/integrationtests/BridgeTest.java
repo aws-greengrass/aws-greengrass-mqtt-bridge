@@ -9,6 +9,7 @@ import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithAllBrokers;
+import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
@@ -94,6 +95,46 @@ public class BridgeTest {
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
                 .payload("message".getBytes(StandardCharsets.UTF_8))
+                .build();
+
+        assertEquals(expectedMessage, m.get());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_and_iotcore.yaml")
+    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(Broker broker) throws Exception {
+        CountDownLatch messageReceived = new CountDownLatch(1);
+        AtomicReference<MqttMessage> m = new AtomicReference<>();
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic("topic/toIotCore")
+                .callback(p -> {
+                    messageReceived.countDown();
+                    m.compareAndSet(null, MqttMessage.fromSpoolerV5Model(p));
+                })
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic("topic/toIotCore")
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+
+        assertTrue(messageReceived.await(10L, TimeUnit.SECONDS));
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic("topic/toIotCore")
+                .payload("message".getBytes(StandardCharsets.UTF_8))
+                // mqtt5-specific fields below.
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
                 .build();
 
         assertEquals(expectedMessage, m.get());

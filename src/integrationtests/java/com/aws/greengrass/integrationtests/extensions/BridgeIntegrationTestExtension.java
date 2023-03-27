@@ -41,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -139,6 +140,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
 
     private void startKernel(ExtensionContext extensionContext, String configFile) throws InterruptedException {
         System.setProperty("aws.greengrass.scanSelfClasspath", "true");
+        System.setProperty("aws.region", "us-west-2"); // nucleus DeviceConfiguration expects a region
         kernel = new Kernel();
         customizeKernelContext(kernel);
         startKernelWithConfig(extensionContext, configFile);
@@ -241,17 +243,13 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                     // TODO can improve on this by having clients reported their connected status within bridge itself
                     switch (context.getConfig().getMqttVersion()) {
                         case MQTT5:
-                            error.set(new UnsupportedOperationException("TODO add support"));
+                            waitForClientToConnect(
+                                    context.getLocalV5Client().getClient()::getIsConnected, error);
                             break;
                         case MQTT3:
-                            while (!context.getLocalV3Client().getMqttClientInternal().isConnected()) {
-                                try {
-                                    Thread.sleep(100L);
-                                } catch (InterruptedException e) {
-                                    error.set(e);
-                                    break;
-                                }
-                            }
+                            waitForClientToConnect(
+                                    context.getLocalV3Client().getMqttClientInternal()::isConnected, error);
+                            break;
                     }
                     localClientConnected.countDown();
                 }
@@ -266,6 +264,17 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         }
 
         // don't need to wait for iot core client because we mock iot core
+    }
+
+    private void waitForClientToConnect(Supplier<Boolean> connected, AtomicReference<Exception> error) {
+        while (!connected.get()) {
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException e) {
+                error.set(e);
+                return;
+            }
+        }
     }
 
     // from testcontainers
