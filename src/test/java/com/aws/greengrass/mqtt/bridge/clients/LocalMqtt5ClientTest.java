@@ -12,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -36,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -115,7 +117,9 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_subscription_fails_from_execution_exception_THEN_no_topics_subscribed() {
+    void GIVEN_client_WHEN_subscription_fails_from_execution_exception_THEN_no_topics_subscribed(ExtensionContext context) {
+        ignoreExceptionOfType(context, RuntimeException.class);
+
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/failed");
         topics.add("iotcore/topic2");
@@ -194,7 +198,9 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_WHEN_topic_changed_fails_to_execution_exception_THEN_topic_still_there() {
+    void GIVEN_client_with_subscriptions_WHEN_topic_changed_fails_to_execution_exception_THEN_topic_still_there(ExtensionContext context) {
+        ignoreExceptionOfType(context, RuntimeException.class);
+
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
@@ -299,7 +305,9 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_WHEN_message_publish_fails_to_execution_exception_THEN_message_handler_not_invoked() throws Exception {
+    void GIVEN_client_with_subscriptions_WHEN_message_publish_fails_to_execution_exception_THEN_message_handler_not_invoked(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, RuntimeException.class);
+
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
