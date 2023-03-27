@@ -47,7 +47,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Collections.singletonList(CrtRuntimeException.class)).build();
+
+    // TODO configurable?
+    private static final long MQTT_OPERATION_TIMEOUT_MS = Duration.ofMinutes(1).toMillis();
 
     private static final String LOG_KEY_TOPIC = "topic";
     private static final String LOG_KEY_TOPICS = "topics";
@@ -89,7 +93,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Setter(AccessLevel.PACKAGE)
     private Mqtt5Client client;
     private final ExecutorService executorService;
-    private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
 
     /**
      * Protects access to update subscriptions task, and
@@ -115,16 +118,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         public void onConnectionSuccess(Mqtt5Client client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
             boolean sessionPresent = onConnectionSuccessReturn.getConnAckPacket().getSessionPresent();
             LOGGER.atInfo()
+                    .kv("sessionPresent", sessionPresent)
                     .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
                     .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
                     .log("Connected to broker");
-
-            if (hasConnectedOnce.compareAndSet(false, true)) {
-                LOGGER.atInfo().kv("sessionPresent", sessionPresent)
-                        .log("Successfully connected to Local Mqtt5 Client");
-            } else {
-                LOGGER.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
-            }
 
             if (!sessionPresent) {
                 // Need to resubscribe to dropped topics
@@ -278,7 +275,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .log("Publishing message to MQTT topic");
 
         try {
-            PublishResult publishResult = client.publish(publishPacket).get();
+            PublishResult publishResult = client.publish(publishPacket)
+                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             PubAckPacket pubAckPacket = publishResult.getResultPubAck();
             if (pubAckPacket.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS)) {
                 LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
@@ -288,7 +286,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_REASON_CODE, pubAckPacket.getReasonCode())
                         .log("Message failed to publish");
             }
-        } catch (ExecutionException e) {
+        } catch (TimeoutException | ExecutionException e) {
             LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
                     .log("failed to subscribe");
         } catch (InterruptedException e) {
@@ -376,7 +374,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .withSubscription(topic, QOS.AT_LEAST_ONCE).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
-            SubAckPacket subAckPacket = client.subscribe(subscribePacket).get();
+            SubAckPacket subAckPacket = client.subscribe(subscribePacket)
+                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
                 synchronized (subscriptionsLock) {
                     subscribedLocalMqttTopics.add(topic);
@@ -393,7 +392,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic");
             }
-        } catch (ExecutionException e) {
+        } catch (TimeoutException | ExecutionException e) {
             LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to subscribe");
         } catch (InterruptedException e) {
@@ -415,7 +414,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
         try {
-            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket).get();
+            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
+                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (!unsubAckPacket.getReasonCodes().contains(UnsubAckPacket.UnsubAckReasonCode.SUCCESS)) {
                 LOGGER.atDebug()
                         .kv(LOG_KEY_TOPIC, topic)
@@ -428,7 +428,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
-        } catch (ExecutionException e) {
+        } catch (TimeoutException | ExecutionException e) {
             LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to unsubscribe");
         } catch (InterruptedException e) {
