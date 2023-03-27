@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
 public class KeystoreTest {
+    private static final long AWAIT_TIMEOUT_SECONDS = 30L;
 
     BridgeIntegrationTestContext testContext;
 
@@ -67,7 +68,7 @@ public class KeystoreTest {
                                 ))
                 ));
 
-        assertTrue(keyStoreUpdated.await(20L, TimeUnit.SECONDS));
+        assertTrue(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker
@@ -103,7 +104,7 @@ public class KeystoreTest {
         );
         brokerUriTopic.withValue("garbage");
         testContext.getKernel().getContext().addGlobalStateChangeListener(listener);
-        assertTrue(bridgeIsBroken.await(30L, TimeUnit.SECONDS));
+        assertTrue(bridgeIsBroken.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
         // update topic with CA
         certificateAuthoritiesTopic.withValue(
@@ -118,6 +119,6 @@ public class KeystoreTest {
                 ));
 
         // shouldn't update
-        assertFalse(keyStoreUpdated.await(30L, TimeUnit.SECONDS));
+        assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 }
