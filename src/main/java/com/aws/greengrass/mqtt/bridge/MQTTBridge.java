@@ -105,7 +105,6 @@ public class MQTTBridge extends PluginService {
     @Override
     public void startup() {
         try {
-            // TODO only when local broker is ssl
             mqttClientKeyStore.init();
         } catch (KeyStoreException | CertificateGenerationException e) {
             serviceErrored(e);
