@@ -387,14 +387,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Successfully subscribed to topic");
             } else {
-                LOGGER.atDebug()
+                LOGGER.atError()
                         .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic");
             }
         } catch (TimeoutException | ExecutionException e) {
-            LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
+            LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to subscribe");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -430,7 +430,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 subscribedLocalMqttTopics.remove(topic);
             }
         } catch (TimeoutException | ExecutionException e) {
-            LOGGER.atDebug().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
+            LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to unsubscribe");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
