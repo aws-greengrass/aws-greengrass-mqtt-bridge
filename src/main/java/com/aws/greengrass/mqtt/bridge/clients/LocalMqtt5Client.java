@@ -436,15 +436,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    private void unsubscribeAll() {
-        synchronized (subscriptionsLock) {
-            Set<String> toUnsubscribe = new HashSet<>(subscribedLocalMqttTopics);
-            LOGGER.atDebug().kv("topicsToUnsubscribe", toUnsubscribe).log("Unsubscribe from local MQTT topics");
-            toUnsubscribe.forEach(this::unsubscribe);
-            subscribedLocalMqttTopics.clear();
-        }
-    }
-
     @Override
     public void start()  {
         client.start();
@@ -454,7 +445,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     public void stop() {
         synchronized (subscriptionsLock) {
             cancelUpdateSubscriptionsTask();
-            unsubscribeAll();
         }
         try {
             client.stop(null);

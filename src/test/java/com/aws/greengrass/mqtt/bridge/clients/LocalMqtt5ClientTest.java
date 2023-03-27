@@ -94,7 +94,7 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_WHEN_stopped_THEN_topics_unsubscribed() {
+    void GIVEN_client_with_subscriptions_WHEN_stopped_THEN_topics_not_unsubscribed() {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
@@ -107,8 +107,7 @@ class LocalMqtt5ClientTest {
 
         client.stop();
 
-        assertThat("iot core client unsubscribed", () -> client.getSubscribedLocalMqttTopics().isEmpty(), eventuallyEval(is(true)));
-        assertThat("spooler client unsubscribed", () -> mockMqtt5Client.getSubscriptions().isEmpty(), eventuallyEval(is(true)));
+        assertThat("iot core client unsubscribed", () -> client.getSubscribedLocalMqttTopics().isEmpty(), eventuallyEval(is(false)));
     }
 
     @Test
