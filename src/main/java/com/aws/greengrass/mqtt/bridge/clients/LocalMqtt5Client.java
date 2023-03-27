@@ -220,6 +220,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .withMinReconnectDelayMs((long)MIN_WAIT_RETRY_IN_SECONDS * 1000);
 
         if (isSSL) {
+            mqttClientKeyStore.listenToCAUpdates(this::reset);
             this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
                     KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
             this.tlsContext = new TlsContext(tlsContextOptions);
@@ -248,6 +249,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.clientId = clientId;
         this.executorService = executorService;
         this.client = client;
+    }
+
+    void reset() {
+        // TODO
     }
 
     @Override
