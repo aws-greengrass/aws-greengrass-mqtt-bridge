@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
 public class ConfigTest {
-    private static final long TEST_TIME_OUT_SEC = 30L;
+    private static final long AWAIT_TIMEOUT_SECONDS = 30L;
     private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
             () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
@@ -72,7 +72,7 @@ public class ConfigTest {
         config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
         config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbroker:1234"), MERGE_UPDATE_BEHAVIOR.get());
 
-        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals(1, numRestarts.get());
     }
 
@@ -97,7 +97,7 @@ public class ConfigTest {
         for (int i = 0; i < numRestarts; i++) {
             // change the configuration and wait for bridge to restart
             config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, String.format("tcp://brokeruri:%d", i)), MERGE_UPDATE_BEHAVIOR.get());
-            assertTrue(bridgeRestarted.tryAcquire(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+            assertTrue(bridgeRestarted.tryAcquire(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         }
     }
 
@@ -115,7 +115,7 @@ public class ConfigTest {
                 .lookupTopics(CONFIGURATION_CONFIG_KEY);
         config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
 
-        assertTrue(bridgeRestarted.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker
@@ -250,6 +250,6 @@ public class ConfigTest {
         testContext.getKernel().getContext().waitForPublishQueueToClear();
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
-        assertTrue(bridgeErrored.await(TEST_TIME_OUT_SEC, TimeUnit.SECONDS));
+        assertTrue(bridgeErrored.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 }

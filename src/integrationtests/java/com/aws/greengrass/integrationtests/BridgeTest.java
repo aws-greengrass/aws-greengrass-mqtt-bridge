@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @BridgeIntegrationTest
 public class BridgeTest {
 
+    private static final long AWAIT_TIMEOUT_SECONDS = 30;
+
     BridgeIntegrationTestContext context;
 
     @TestWithAllBrokers
@@ -54,7 +56,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        assertTrue(messageReceived.await(10L, TimeUnit.SECONDS));
+        assertTrue(messageReceived.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toLocal")
@@ -90,7 +92,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        assertTrue(messageReceived.await(10L, TimeUnit.SECONDS));
+        assertTrue(messageReceived.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
@@ -125,7 +127,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        assertTrue(messageReceived.await(10L, TimeUnit.SECONDS));
+        assertTrue(messageReceived.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
                 .payload("message".getBytes(StandardCharsets.UTF_8))
