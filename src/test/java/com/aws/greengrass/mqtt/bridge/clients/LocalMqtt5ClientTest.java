@@ -67,6 +67,15 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
+    void GIVEN_client_WHEN_port_is_missing_THEN_succeeds() throws Exception {
+        client.stop();
+        client = new LocalMqtt5Client(URI.create("tcp://localhost"),
+                "test-client",
+                null,
+                executorService);
+    }
+
+    @Test
     void GIVEN_client_WHEN_fail_to_connect_THEN_connection_failure() {
         client.stop();
         createLocalMqtt5Client();
@@ -103,6 +112,19 @@ class LocalMqtt5ClientTest {
 
         assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedTopics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedTopics)));
+    }
+
+    @Test
+    void GIVEN_client_WHEN_subscription_fails_from_execution_exception_THEN_no_topics_subscribed() {
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/failed");
+        topics.add("iotcore/topic2");
+
+        mockMqtt5Client.throwExceptions = true;
+        client.updateSubscriptions(topics, message -> {});
+
+        assertTrue(client.getSubscribedLocalMqttTopics().isEmpty());
+        assertTrue(getMockSubscriptions().isEmpty());
     }
 
     @Test
@@ -169,6 +191,31 @@ class LocalMqtt5ClientTest {
         // verify subscriptions were made
         assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedSubscriptions)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedSubscriptions)));
+    }
+
+    @Test
+    void GIVEN_client_with_subscriptions_WHEN_topic_changed_fails_to_execution_exception_THEN_topic_still_there() {
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        client.updateSubscriptions(topics, message -> {});
+
+        // verify subscriptions were made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        Set<String> updatedTopics = new HashSet<>();
+        updatedTopics.add("iotcore/topic");
+        updatedTopics.add("iotcore/topic2/changed");
+
+        mockMqtt5Client.throwExceptions = true;
+
+        client.updateSubscriptions(updatedTopics, message -> {});
+
+        // verify no changes made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
     }
 
     @Test
@@ -247,6 +294,31 @@ class LocalMqtt5ClientTest {
         Set<String> expectedHandlers = new HashSet<>(topics);
         expectedHandlers.remove(failedPublish);
 
+        assertThat("messages published", () -> mockMqtt5Client.getPublished().stream().map(PublishPacket::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topicsPublished)));
+        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedHandlers)));
+    }
+
+    @Test
+    void GIVEN_client_with_subscriptions_WHEN_message_publish_fails_to_execution_exception_THEN_message_handler_not_invoked() throws Exception {
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
+        client.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
+
+        // verify subscriptions were made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        mockMqtt5Client.throwExceptions = true;
+
+        client.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
+        client.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
+        client.publish(MqttMessage.builder().topic("iotcore/topic/not/in/mapping").payload("message3".getBytes()).build());
+
+        Set<String> topicsPublished = new HashSet<>();
+        Set<String> expectedHandlers = new HashSet<>();
         assertThat("messages published", () -> mockMqtt5Client.getPublished().stream().map(PublishPacket::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topicsPublished)));
         assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedHandlers)));
     }

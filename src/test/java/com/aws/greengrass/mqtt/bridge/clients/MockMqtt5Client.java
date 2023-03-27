@@ -49,6 +49,8 @@ public class MockMqtt5Client {
     final NextReasonCode<UnsubAckPacket.UnsubAckReasonCode> nextUnsubAckReasonCode = new NextReasonCode<>();
     final NextReasonCode<ConnAckPacket.ConnectReasonCode> nextConnectReasonCode = new NextReasonCode<>();
 
+    volatile boolean throwExceptions = false;
+
     private final AtomicBoolean online = new AtomicBoolean(true);
     private final Object subscriptionsLock = new Object();
     @Getter
@@ -100,6 +102,12 @@ public class MockMqtt5Client {
             resp.completeExceptionally(new RuntimeException("subscription failed, not connected"));
             return resp;
         }
+        if (throwExceptions) {
+            CompletableFuture<SubAckPacket> resp = new CompletableFuture<>();
+            resp.completeExceptionally(new RuntimeException("subscription failed, simulated exception"));
+            return resp;
+        }
+
         SubscribePacket subscribe = invocation.getArgument(0);
 
         // mocking because crt packets have private constructors
@@ -131,6 +139,12 @@ public class MockMqtt5Client {
     }
 
     private CompletableFuture<PublishResult> onPublish(InvocationOnMock invocation) {
+        if (throwExceptions) {
+            CompletableFuture<PublishResult> resp = new CompletableFuture<>();
+            resp.completeExceptionally(new RuntimeException("publish failed, simulated exception"));
+            return resp;
+        }
+
         PublishPacket publish = invocation.getArgument(0);
 
         // mocking because crt packets have private constructors
@@ -158,6 +172,12 @@ public class MockMqtt5Client {
             resp.completeExceptionally(new RuntimeException("unsubscribe failed, not connected"));
             return resp;
         }
+        if (throwExceptions) {
+            CompletableFuture<UnsubAckPacket> resp = new CompletableFuture<>();
+            resp.completeExceptionally(new RuntimeException("unsubscribe failed, simulated exception"));
+            return resp;
+        }
+
         UnsubscribePacket unsubscribe = invocation.getArgument(0);
 
         List<UnsubAckPacket.UnsubAckReasonCode> reasonCodes = new ArrayList<>();
