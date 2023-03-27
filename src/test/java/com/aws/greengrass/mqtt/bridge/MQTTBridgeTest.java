@@ -123,8 +123,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         }
     }
 
-    // TODO test local client recreated when keystore updated
-
     @Test
     void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_after_shutdown_THEN_bridge_keystore_not_updated(ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, InterruptedException.class);
@@ -214,6 +212,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         verify(mockMessageBridge).addOrReplaceMessageClientAndUpdateSubscriptions(
                 eq(TopicMapping.TopicType.IotCore), any(IoTCoreClient.class));
     }
+
+    // TODO test local client recreated when keystore updated
 
     static class FakeMqttClientFactory extends LocalMqttClientFactory {
         public FakeMqttClientFactory() {
