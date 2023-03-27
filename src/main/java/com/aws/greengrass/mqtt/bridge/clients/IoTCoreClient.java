@@ -68,14 +68,13 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     private final MqttClientConnectionEvents connectionCallbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
+            stopSubscribing();
         }
 
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             synchronized (subscribeLock)  {
-                if (subscribeFuture != null) {
-                    subscribeFuture.cancel(true);
-                }
+                stopSubscribing();
                 // subscribe to any topics left to be subscribed
                 Set<String> topicsToSubscribe = new HashSet<>(toSubscribeIotCoreTopics);
                 topicsToSubscribe.removeAll(subscribedIotCoreTopics);
@@ -110,6 +109,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
      */
     @Override
     public void stop() {
+        stopSubscribing();
         removeMappingAndSubscriptions();
     }
 
@@ -246,6 +246,14 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
                 .qos(QOS.AT_LEAST_ONCE)
                 // TODO .noLocal()
                 .build()).get();
+    }
+
+    private void stopSubscribing() {
+        synchronized (subscribeLock) {
+            if (subscribeFuture != null) {
+                subscribeFuture.cancel(true);
+            }
+        }
     }
 
     @Override
