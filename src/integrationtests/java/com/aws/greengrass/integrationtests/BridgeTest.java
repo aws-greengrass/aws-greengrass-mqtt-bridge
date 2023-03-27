@@ -110,8 +110,8 @@ public class BridgeTest {
         context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
                 .topic("topic/toIotCore")
                 .callback(p -> {
-                    messageReceived.countDown();
                     m.compareAndSet(null, MqttMessage.fromSpoolerV5Model(p));
+                    messageReceived.countDown();
                 })
                 .build());
 
