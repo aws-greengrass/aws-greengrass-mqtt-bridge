@@ -16,6 +16,7 @@ import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -29,17 +30,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
 public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.bridge.model.MqttMessage> {
     private static final Logger LOGGER = LogManager.getLogger(IoTCoreClient.class);
-    public static final String TOPIC = "topic";
+    public static final String LOG_KEY_TOPIC = "topic";
     private final RetryUtils.RetryConfig subscribeRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(ExecutionException.class, TimeoutException.class)).build();
+
+    // TODO configurable?
+    private static final long MQTT_OPERATION_TIMEOUT_MS = Duration.ofMinutes(1).toMillis();
 
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedIotCoreTopics = ConcurrentHashMap.newKeySet();
@@ -54,11 +59,11 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
 
     private final Consumer<Publish> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
-        LOGGER.atTrace().kv(TOPIC, topic).log("Received IoT Core message");
+        LOGGER.atTrace().kv(LOG_KEY_TOPIC, topic).log("Received IoT Core message");
 
         Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> handler = messageHandler;
         if (handler == null) {
-            LOGGER.atWarn().kv(TOPIC, topic).log("IoT Core message received but message handler not set");
+            LOGGER.atWarn().kv(LOG_KEY_TOPIC, topic).log("IoT Core message received but message handler not set");
         } else {
             handler.accept(com.aws.greengrass.mqtt.bridge.model.MqttMessage.fromSpoolerV5Model(message));
         }
@@ -123,9 +128,9 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
         for (String topic : subscribedIotCoreTopics) {
             try {
                 unsubscribeFromIotCore(topic);
-                LOGGER.atDebug().kv(TOPIC, topic).log("Unsubscribed from topic");
+                LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
             } catch (ExecutionException | TimeoutException | MqttRequestException e) {
-                LOGGER.atWarn().kv(TOPIC, topic).setCause(e).log("Unable to unsubscribe");
+                LOGGER.atWarn().kv(LOG_KEY_TOPIC, topic).setCause(e).log("Unable to unsubscribe");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -137,7 +142,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
             throws InterruptedException, ExecutionException, TimeoutException, MqttRequestException {
         Unsubscribe unsubscribeRequest = Unsubscribe.builder().topic(topic).subscriptionCallback(iotCoreCallback)
                 .build();
-        iotMqttClient.unsubscribe(unsubscribeRequest).get();
+        iotMqttClient.unsubscribe(unsubscribeRequest).get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -181,10 +186,10 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
             for (String topic : topicsToRemove) {
                 try {
                     unsubscribeFromIotCore(topic);
-                    LOGGER.atDebug().kv(TOPIC, topic).log("Unsubscribed from topic");
+                    LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
                     subscribedIotCoreTopics.remove(topic);
                 } catch (MqttRequestException | ExecutionException | TimeoutException e) {
-                    LOGGER.atError().kv(TOPIC, topic).setCause(e).log("Unable to unsubscribe");
+                    LOGGER.atError().kv(LOG_KEY_TOPIC, topic).setCause(e).log("Unable to unsubscribe");
                     // If we are unable to unsubscribe, leave the topic in the set
                     // so that we can try to remove next time.
                 } catch (InterruptedException e) {
@@ -221,31 +226,30 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
                         // useless return
                         return null;
                     } catch (ExecutionException e) {
-                        Throwable cause = e.getCause();
+                        Throwable cause = Utils.getUltimateCause(e);
                         if (cause instanceof InterruptedException) {
                             throw (InterruptedException) cause;
-                        } else {
-                            throw e;
                         }
+                        throw e;
                     }
                 }, "subscribe-iotcore-topic", LOGGER);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception e) {
-                LOGGER.atError().kv(TOPIC, topic).setCause(e).log("Failed to subscribe to IoTCore topic");
+                LOGGER.atError().kv(LOG_KEY_TOPIC, topic).setCause(e).log("Failed to subscribe to IoTCore topic");
             }
         }
     }
 
     private void subscribeToIotCore(String topic)
-            throws InterruptedException, ExecutionException, MqttRequestException {
+            throws InterruptedException, ExecutionException, MqttRequestException, TimeoutException {
         iotMqttClient.subscribe(Subscribe.builder()
                 .topic(topic)
                 .callback(iotCoreCallback)
                 .qos(QOS.AT_LEAST_ONCE)
                 // TODO .noLocal()
-                .build()).get();
+                .build()).get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     @Override
