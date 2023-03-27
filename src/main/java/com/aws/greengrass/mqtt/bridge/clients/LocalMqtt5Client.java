@@ -220,7 +220,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         if (isSSL) {
             mqttClientKeyStore.listenToCAUpdates(this::reset);
             this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
-                    KEY_ALIAS, Arrays.toString(DEFAULT_KEYSTORE_PASSWORD));
+                    KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
             this.tlsContext = new TlsContext(tlsContextOptions);
             builder.withTlsContext(tlsContext);
         }
