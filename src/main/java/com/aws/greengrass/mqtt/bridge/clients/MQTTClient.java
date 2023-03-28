@@ -58,6 +58,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = this::reset;
     private final MQTTClientKeyStore mqttClientKeyStore;
 
