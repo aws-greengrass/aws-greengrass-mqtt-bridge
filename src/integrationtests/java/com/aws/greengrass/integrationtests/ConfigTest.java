@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
@@ -181,7 +182,7 @@ public class ConfigTest {
         expectedRouteOptions.put("mappingNotInMqttTopicMapping", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
 
         Map<String, Mqtt5RouteOptions> actualRouteOptions =
-                testContext.getKernel().getContext().get(MQTTBridge.class).getBridgeConfig().getMqtt5RouteOptions();
+                testContext.getKernel().getContext().get(BridgeConfigReference.class).get().getMqtt5RouteOptions();
 
         assertEquals(expectedRouteOptions, actualRouteOptions);
     }
