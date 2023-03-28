@@ -80,8 +80,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
-    private static final int MIN_RECCONECT_DELAY_MS = 1;
-    private static final int MAX_RECONNECT_DELAY_MS = 120;
+    private static final int MIN_RECONNECT_DELAY_SECONDS = 1;
+    private static final int MAX_RECONNECT_DELAY_SECONDS = 120;
+
+    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = this::reset;
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
 
@@ -446,11 +448,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                                 .withRequestProblemInformation(true)
                                 .withClientId(clientId).build())
                         // TODO configurable?
-                        .withMaxReconnectDelayMs(Duration.ofMillis(MAX_RECONNECT_DELAY_MS).toMillis())
-                        .withMinReconnectDelayMs(Duration.ofMillis(MIN_RECCONECT_DELAY_MS).toMillis());
+                        .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
+                        .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
 
         if (isSSL) {
-            mqttClientKeyStore.listenToCAUpdates(this::reset);
+            mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
             this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
                     KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
             this.tlsContext = new ClientTlsContext(tlsContextOptions);
