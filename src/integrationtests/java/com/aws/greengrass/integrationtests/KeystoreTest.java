@@ -72,6 +72,7 @@ public class KeystoreTest {
         assertTrue(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
+    // TODO disable for mac? Failed to create new aws_tls_ctx (aws_last_error: AWS_ERROR_SUCCESS(0), Success.)
     @TestWithMqtt5Broker
     @WithKernel("mqtt5_config_ssl.yaml")
     void GIVEN_mqtt_bridge_with_ssl_WHEN_startup_THEN_success(Broker broker) {

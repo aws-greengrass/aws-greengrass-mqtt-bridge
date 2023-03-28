@@ -58,7 +58,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
-
+    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = this::reset;
     private final MQTTClientKeyStore mqttClientKeyStore;
 
     private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
@@ -115,7 +115,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToCAUpdates(this::reset);
+        this.mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
         this.executorService = executorService;
     }
 
@@ -155,6 +155,8 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
+
+        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
     }
 
     private synchronized void removeMappingAndSubscriptions() {

@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 
+@SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private static final Logger LOGGER = LogManager.getLogger(LocalMqtt5Client.class);
@@ -83,6 +84,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final int MIN_RECONNECT_DELAY_SECONDS = 1;
     private static final int MAX_RECONNECT_DELAY_SECONDS = 120;
 
+    private boolean clientStarted = false; // crt close is not idempotent
+    private final Object clientLock = new Object();
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = this::reset;
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
@@ -200,7 +203,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
-        this.client = createCrtClient();
+        Mqtt5Client client = createCrtClient();
+        synchronized (clientLock) {
+            this.client = client;
+        }
     }
 
     /**
@@ -220,11 +226,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.clientId = clientId;
         this.mqttClientKeyStore = null;
         this.executorService = executorService;
-        this.client = client;
+        synchronized (clientLock) {
+            this.client = client;
+        }
     }
 
     @Override
     public void publish(MqttMessage message) throws MessageClientException {
+        Mqtt5Client client = getClient();
         if (!client.getIsConnected()) {
             return;
         }
@@ -279,7 +288,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             toSubscribeLocalMqttTopics.addAll(topics);
 
             LOGGER.atDebug().kv(LOG_KEY_TOPICS, topics).log("Updated local MQTT5 topics to subscribe");
-            if (client.getIsConnected()) {
+            if (getClient().getIsConnected()) {
                 updateSubscriptionsInternalAsync();
             }
         }
@@ -337,6 +346,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private void subscribe(String topic) {
+        Mqtt5Client client = getClient();
+
         if (!client.getIsConnected()) {
             return;
         }
@@ -378,6 +389,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private void unsubscribe(String topic) {
+        Mqtt5Client client = getClient();
+
         if (!client.getIsConnected()) {
             return;
         }
@@ -409,24 +422,53 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start()  {
-        client.start();
+        synchronized (clientLock) {
+            if (clientStarted) {
+                return;
+            }
+            client.start();
+            clientStarted = true;
+        }
     }
 
     @Override
     public void stop() {
-        synchronized (subscriptionsLock) {
-            cancelUpdateSubscriptionsTask();
+        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+        cancelUpdateSubscriptionsTask();
+        closeClient();
+    }
+
+    /**
+     * Get the underlying mqtt client.
+     *
+     * @return mqtt client
+     */
+    public Mqtt5Client getClient() {
+        synchronized (clientLock) {
+            return client;
         }
-        try {
-            client.stop(null);
-        } catch (CrtRuntimeException e) {
-            LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
-        }
-        if (this.tlsContext != null) {
-            this.tlsContext.close();
-        }
-        if (this.tlsContextOptions != null) {
-            this.tlsContextOptions.close();
+    }
+
+    private void closeClient() {
+        synchronized (clientLock) {
+            try {
+                if (clientStarted) {
+                    client.stop(null);
+                } else {
+                    client.close();
+                }
+            } catch (CrtRuntimeException e) {
+                LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
+            } finally {
+                clientStarted = false;
+            }
+
+            if (this.tlsContext != null) {
+                this.tlsContext.close();
+            }
+            if (this.tlsContextOptions != null) {
+                this.tlsContextOptions.close();
+            }
         }
     }
 
@@ -438,30 +480,32 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             port = isSSL ? DEFAULT_SSL_MQTT_PORT : DEFAULT_TCP_MQTT_PORT;
         }
 
-        Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
-                new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
-                        .withLifecycleEvents(connectionEventCallback)
-                        .withPublishEvents(publishEventsCallback)
-                        .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
-                        .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
-                        .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
-                                .withRequestProblemInformation(true)
-                                .withClientId(clientId).build())
-                        // TODO configurable?
-                        .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
-                        .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
-
-        if (isSSL) {
-            mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
-            this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
-                    KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
-            this.tlsContext = new ClientTlsContext(tlsContextOptions);
-            builder.withTlsContext(tlsContext);
-        }
-
         try {
+            Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
+                    new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
+                            .withLifecycleEvents(connectionEventCallback)
+                            .withPublishEvents(publishEventsCallback)
+                            .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                            .withOfflineQueueBehavior(
+                                    Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                            .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
+                                    .withRequestProblemInformation(true)
+                                    .withClientId(clientId).build())
+                            // TODO configurable?
+                            .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
+                            .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
+
+            if (isSSL) {
+                mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
+                this.tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(mqttClientKeyStore.getKeyStore(),
+                        KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
+                this.tlsContext = new ClientTlsContext(tlsContextOptions);
+                builder.withTlsContext(tlsContext);
+            }
+
             return new Mqtt5Client(builder.build());
         } catch (CrtRuntimeException e) {
+            mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
             throw new MQTTClientException("Unable to create an MQTT5 client", e);
         }
     }
@@ -469,7 +513,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     void reset() { // TODO callback shouldn't be synchronous
         stop();
         try {
-            this.client = createCrtClient();
+            Mqtt5Client client = createCrtClient();
+            synchronized (clientLock) {
+                this.client = client;
+            }
         } catch (MessageClientException e) {
             // TODO recover
             LOGGER.atError().cause(e).log("unable to start mqtt client during reset");
