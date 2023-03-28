@@ -7,6 +7,8 @@ package com.aws.greengrass.integrationtests.extensions;
 
 
 import com.aws.greengrass.clientdevices.auth.CertificateManager;
+import com.aws.greengrass.clientdevices.auth.api.ClientDevicesAuthServiceApi;
+import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -16,6 +18,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqttclient.MqttClient;
 import io.moquette.BrokerConstants;
@@ -30,16 +33,20 @@ import org.slf4j.event.Level;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.hivemq.HiveMQContainer;
 import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyStoreException;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -59,6 +66,8 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     HiveMQContainer v5Broker;
 
     Server v3Broker;
+
+    MQTTClientKeyStore clientKeyStore = new InitOnceMqttClientKeyStore();
 
     @Override
     public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext,
@@ -153,6 +162,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         kernel.getContext().put(MqttClient.class, mockMqttClient.getMqttClient());
 
         kernel.getContext().put(CertificateManager.class, mock(CertificateManager.class));
+        kernel.getContext().put(MQTTClientKeyStore.class, clientKeyStore);
     }
 
     private void startMqtt3Broker() throws IOException {
@@ -162,18 +172,28 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         v3Broker = new Server();
         v3Broker.startServer(brokerConf);
         context.setBrokerHost("localhost");
-        context.setBrokerPort(brokerPort);
+        context.setBrokerTCPPort(brokerPort);
         context.setBroker(Broker.MQTT3);
     }
 
-    private void startMqtt5Broker() {
+    private void startMqtt5Broker() throws KeyStoreException {
+        Certs certs = new Certs(clientKeyStore);
+
+        Path serverKeystorePath = context.getRootDir().resolve("server.jks");
+        certs.writeServerKeystore(serverKeystorePath);
+
         v5Broker = new HiveMQContainer(
                 DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
+                .withCopyFileToContainer(MountableFile.forHostPath(serverKeystorePath), "/opt/hivemq/server.jks")
+                .withHiveMQConfig(MountableFile.forClasspathResource("hivemq/config.xml"))
+                .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
+                .withExposedPorts(8883, 1883)
                 .withLogLevel(Level.DEBUG);
         v5Broker.start();
         context.setBroker(Broker.MQTT5);
         context.setBrokerHost(v5Broker.getHost());
-        context.setBrokerPort(v5Broker.getMqttPort());
+        context.setBrokerSSLPort(v5Broker.getMappedPort(8883));
+        context.setBrokerTCPPort(v5Broker.getMappedPort(1883));
     }
 
     private String getConfigFile(ExtensionContext extensionContext) {
@@ -219,10 +239,14 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
 
     private void pointBridgeToV5Broker() throws ServiceLoadException, InterruptedException {
         // point bridge to broker running in docker
+        String scheme = context.getConfig().getBrokerUri().getScheme();
         context.getKernel().locate(MQTTBridge.SERVICE_NAME)
                 .getConfig()
                 .lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
-                .withValue(String.format("tcp://%s:%d", context.getBrokerHost(), context.getBrokerPort()));
+                .withValue(String.format("%s://%s:%d",
+                        scheme,
+                        context.getBrokerHost(),
+                        "ssl".equalsIgnoreCase(scheme) ? context.getBrokerSSLPort() : context.getBrokerTCPPort()));
 
         // wait for bridge to restart
         CountDownLatch bridgeRunning = new CountDownLatch(1);
@@ -285,6 +309,22 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             return true;
         } catch (Throwable ex) {
             return false;
+        }
+    }
+
+    // otherwise, certs will be cleared out when bridge starts-up
+    public static class InitOnceMqttClientKeyStore extends MQTTClientKeyStore {
+        private final AtomicBoolean initialized = new AtomicBoolean();
+
+        public InitOnceMqttClientKeyStore() {
+            super(mock(ClientDevicesAuthServiceApi.class));
+        }
+
+        @Override
+        public void init() throws KeyStoreException, CertificateGenerationException {
+            if (initialized.compareAndSet(false, true)) {
+                super.init();
+            }
         }
     }
 }
