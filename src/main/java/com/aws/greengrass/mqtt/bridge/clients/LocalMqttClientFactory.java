@@ -57,8 +57,8 @@ public class LocalMqttClientFactory {
                 return new LocalMqtt5Client(
                         config.getBrokerUri(),
                         config.getClientId(),
-                        mqttClientKeyStore,
                         routeLookup,
+                        mqttClientKeyStore,
                         executorService
                 );
             case MQTT3: // fall-through
