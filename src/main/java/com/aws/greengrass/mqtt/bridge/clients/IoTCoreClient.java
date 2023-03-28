@@ -9,7 +9,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.Message;
-import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
@@ -23,13 +22,11 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -257,7 +254,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
                 .callback(iotCoreCallback)
                 .qos(QOS.AT_LEAST_ONCE);
 
-        routeLookup.isNoLocal(topic, TopicMapping.TopicType.IotCore).ifPresent(builder::noLocal);
+        routeLookup.noLocal(topic, TopicMapping.TopicType.IotCore).ifPresent(builder::noLocal);
 
         iotMqttClient.subscribe(builder.build()).get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }

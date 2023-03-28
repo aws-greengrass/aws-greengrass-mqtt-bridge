@@ -8,9 +8,8 @@ package com.aws.greengrass.mqtt.bridge.model;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
 
-import javax.inject.Inject;
-import java.util.Map;
 import java.util.Optional;
+import javax.inject.Inject;
 
 public class RouteLookup {
 
@@ -21,10 +20,11 @@ public class RouteLookup {
         this.config = config;
     }
 
-    public Optional<Boolean> isNoLocal(String route, TopicMapping.TopicType source) {
+    public Optional<Boolean> noLocal(String route, TopicMapping.TopicType source) {
         return getMqtt5RouteOptions(route, source).map(Mqtt5RouteOptions::isNoLocal);
     }
-    public Optional<Boolean> isRetainAsPublished(String route, TopicMapping.TopicType source) {
+
+    public Optional<Boolean> retainAsPublished(String route, TopicMapping.TopicType source) {
         return getMqtt5RouteOptions(route, source).map(Mqtt5RouteOptions::isRetainAsPublished);
     }
 

@@ -13,7 +13,6 @@ import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 /**
  * Bridges/Routes the messages flowing between clients to various brokers. This class process the topics mappings. It

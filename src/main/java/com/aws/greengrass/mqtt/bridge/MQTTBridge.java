@@ -62,6 +62,7 @@ public class MQTTBridge extends PluginService {
      *
      * @param topics                 topics passed by the Nucleus
      * @param topicMapping           mapping of mqtt topics to iotCore/pubsub topics
+     * @param messageBridge          message bridge
      * @param pubSubClient           pubsub client
      * @param ioTCoreClient          iot core client
      * @param kernel                 Greengrass kernel
