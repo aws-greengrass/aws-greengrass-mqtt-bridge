@@ -13,6 +13,7 @@ import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
+import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,6 +51,7 @@ public class MessageBridge {
      *
      * @param topicMapping topics mapping
      */
+    @Inject
     public MessageBridge(TopicMapping topicMapping) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);

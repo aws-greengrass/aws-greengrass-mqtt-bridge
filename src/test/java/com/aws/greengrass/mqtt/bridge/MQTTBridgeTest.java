@@ -66,7 +66,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
-        PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
@@ -79,11 +78,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                     .dflt("clientId");
 
-            try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
-                mqttBridge =
-                        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
-                                mockKernel, mockMqttClientKeyStore, localMqttClientFactory, executor, new BridgeConfigReference());
-            }
+            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
+                    mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
 
             ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
             when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -131,7 +127,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
-        PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
@@ -144,11 +139,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                     .dflt("clientId");
 
-            try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
-                mqttBridge =
-                        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
-                                mockKernel, mockMqttClientKeyStore, localMqttClientFactory, executor, new BridgeConfigReference());
-            }
+            mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
+                    mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
 
             ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
             when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -188,8 +180,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 .dflt("clientId");
 
         MQTTBridge mqttBridge =
-                new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubIPCEventStreamAgent.class),
-                        mock(MqttClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, executor, new BridgeConfigReference());
+                new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
+                        mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
         when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -218,7 +210,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
     static class FakeMqttClientFactory extends LocalMqttClientFactory {
         public FakeMqttClientFactory() {
-            super(null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

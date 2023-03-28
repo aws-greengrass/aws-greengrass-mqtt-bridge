@@ -7,7 +7,10 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
+import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -20,11 +23,13 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -56,6 +61,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     @Getter // for testing
     private final MqttClient iotMqttClient;
     private final ExecutorService executorService;
+    private final RouteLookup routeLookup;
 
     private final Consumer<Publish> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
@@ -91,13 +97,15 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     /**
      * Constructor for IoTCoreClient.
      *
-     * @param iotMqttClient for interacting with IoT Core
+     * @param iotMqttClient   for interacting with IoT Core
      * @param executorService for tasks asynchronously
+     * @param routeLookup     for looking-up route-specific configurations
      */
     @Inject
-    public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService) {
+    public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService, RouteLookup routeLookup) {
         this.iotMqttClient = iotMqttClient;
         this.executorService = executorService;
+        this.routeLookup = routeLookup;
         // onConnect handler required to handle case when bridge starts offline
         iotMqttClient.addToCallbackEvents(connectionCallbacks::onConnectionResumed, connectionCallbacks);
     }
@@ -244,12 +252,14 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
 
     private void subscribeToIotCore(String topic)
             throws InterruptedException, ExecutionException, MqttRequestException, TimeoutException {
-        iotMqttClient.subscribe(Subscribe.builder()
+        Subscribe.SubscribeBuilder builder = Subscribe.builder()
                 .topic(topic)
                 .callback(iotCoreCallback)
-                .qos(QOS.AT_LEAST_ONCE)
-                // TODO .noLocal()
-                .build()).get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                .qos(QOS.AT_LEAST_ONCE);
+
+        routeLookup.isNoLocal(topic, TopicMapping.TopicType.IotCore).ifPresent(builder::noLocal);
+
+        iotMqttClient.subscribe(builder.build()).get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     private void stopSubscribing() {

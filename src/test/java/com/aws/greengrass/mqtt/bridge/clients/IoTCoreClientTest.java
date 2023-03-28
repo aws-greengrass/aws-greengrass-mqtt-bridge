@@ -6,6 +6,7 @@
 package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -25,13 +26,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
 
     MockMqttClient mockMqttClient = new MockMqttClient(false);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
-    IoTCoreClient iotCoreClient = new IoTCoreClient(mockMqttClient.getMqttClient(), executorService);
+    IoTCoreClient iotCoreClient = new IoTCoreClient(mockMqttClient.getMqttClient(), executorService, mock(RouteLookup.class));
 
     @Test
     void GIVEN_client_with_no_subscriptions_WHEN_update_subscriptions_THEN_topics_subscribed() {

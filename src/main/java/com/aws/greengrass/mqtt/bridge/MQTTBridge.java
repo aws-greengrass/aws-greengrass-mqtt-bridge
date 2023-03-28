@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqtt.bridge;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -25,7 +24,6 @@ import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
-import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.Utils;
 import lombok.Getter;
@@ -37,7 +35,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 
@@ -54,8 +51,8 @@ public class MQTTBridge extends PluginService {
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
     @Getter // for tests
     private MessageClient<MqttMessage> localMqttClient;
-    private PubSubClient pubSubClient;
-    private IoTCoreClient ioTCoreClient;
+    private final PubSubClient pubSubClient;
+    private final IoTCoreClient ioTCoreClient;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
 
@@ -65,42 +62,34 @@ public class MQTTBridge extends PluginService {
      *
      * @param topics                 topics passed by the Nucleus
      * @param topicMapping           mapping of mqtt topics to iotCore/pubsub topics
-     * @param pubSubIPCAgent         IPC agent for pubsub
-     * @param iotMqttClient          mqtt client for iot core
+     * @param pubSubClient           pubsub client
+     * @param ioTCoreClient          iot core client
      * @param kernel                 Greengrass kernel
      * @param mqttClientKeyStore     KeyStore for MQTT Client
      * @param localMqttClientFactory local mqtt client factory
-     * @param executorService        Executor service
      * @param bridgeConfig           reference to bridge config
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
+    public MQTTBridge(Topics topics,
+                      TopicMapping topicMapping,
+                      MessageBridge messageBridge,
+                      PubSubClient pubSubClient,
+                      IoTCoreClient ioTCoreClient,
+                      Kernel kernel,
+                      MQTTClientKeyStore mqttClientKeyStore,
                       LocalMqttClientFactory localMqttClientFactory,
-                      ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
-    }
-
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
-                         PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
-                         MQTTClientKeyStore mqttClientKeyStore,
-                         LocalMqttClientFactory localMqttClientFactory,
-                         ExecutorService executorService,
-                         BridgeConfigReference bridgeConfig) {
         super(topics);
         this.topicMapping = topicMapping;
+        this.messageBridge = messageBridge;
+        this.pubSubClient = pubSubClient;
+        this.ioTCoreClient = ioTCoreClient;
         this.kernel = kernel;
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.messageBridge = messageBridge;
-        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
         this.localMqttClientFactory = localMqttClientFactory;
+        this.bridgeConfig = bridgeConfig;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
-        this.bridgeConfig = bridgeConfig;
     }
 
     @Override

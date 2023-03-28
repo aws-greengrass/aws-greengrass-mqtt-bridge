@@ -4,9 +4,12 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
@@ -38,12 +41,14 @@ import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
+import software.amazon.awssdk.services.greengrass.model.Subscription;
 
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +60,8 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -100,6 +107,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final RouteLookup routeLookup;
 
     /**
      * Protects access to update subscriptions task, and
@@ -191,17 +199,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param routeLookup        route lookup
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
+                            @NonNull RouteLookup routeLookup,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
+        this.routeLookup = routeLookup;
         this.executorService = executorService;
         Mqtt5Client client = createCrtClient();
         synchronized (clientLock) {
@@ -214,17 +225,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param routeLookup        route lookup
      * @param mqttClientKeyStore mqttClientKeyStore
      * @param executorService    Executor service
      * @param client             mqtt client;
      */
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     RouteLookup routeLookup,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      Mqtt5Client client) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
+        this.routeLookup = routeLookup;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         synchronized (clientLock) {
@@ -353,8 +367,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             return;
         }
         SubscribePacket subscribePacket = new SubscribePacket.SubscribePacketBuilder()
-                // TODO other mqtt5-specific fields
-                .withSubscription(topic, QOS.AT_LEAST_ONCE).build();
+                .withSubscription(
+                        topic,
+                        QOS.AT_LEAST_ONCE,
+                        routeLookup
+                                .noLocal(topic, TopicMapping.TopicType.LocalMqtt)
+                                .orElse(DEFAULT_NO_LOCAL),
+                        routeLookup
+                                .retainAsPublished(topic, TopicMapping.TopicType.LocalMqtt)
+                                .orElse(DEFAULT_RETAIN_AS_PUBLISHED),
+                        SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE_IF_NEW)
+                .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket)

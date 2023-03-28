@@ -10,6 +10,7 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
@@ -19,6 +20,7 @@ public class LocalMqttClientFactory {
     private final BridgeConfigReference config;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final RouteLookup routeLookup;
 
     /**
      * Create a new LocalMqttClientFactory.
@@ -26,14 +28,17 @@ public class LocalMqttClientFactory {
      * @param config             bridge config
      * @param mqttClientKeyStore mqtt client key store
      * @param executorService    executor service
+     * @param routeLookup        route lookup
      */
     @Inject
     public LocalMqttClientFactory(BridgeConfigReference config,
                                   MQTTClientKeyStore mqttClientKeyStore,
-                                  ExecutorService executorService) {
+                                  ExecutorService executorService,
+                                  RouteLookup routeLookup) {
         this.config = config;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
+        this.routeLookup = routeLookup;
     }
 
     /**
@@ -53,6 +58,7 @@ public class LocalMqttClientFactory {
                         config.getBrokerUri(),
                         config.getClientId(),
                         mqttClientKeyStore,
+                        routeLookup,
                         executorService
                 );
             case MQTT3: // fall-through

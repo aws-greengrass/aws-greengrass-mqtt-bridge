@@ -7,6 +7,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -56,6 +58,8 @@ class LocalMqtt5ClientTest {
     ExecutorService executorService = TestUtils.synchronousExecutorService();
     Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     MockMqtt5Client mockMqtt5Client;
+    @Mock
+    RouteLookup mockRouteLookup;
 
     LocalMqtt5Client client;
 
@@ -75,6 +79,7 @@ class LocalMqtt5ClientTest {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
+                mock(RouteLookup.class),
                 mock(MQTTClientKeyStore.class),
                 executorService);
     }
@@ -353,6 +358,7 @@ class LocalMqtt5ClientTest {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                mockRouteLookup,
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 null
