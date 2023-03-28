@@ -214,17 +214,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param mqttClientKeyStore mqttClientKeyStore
      * @param executorService    Executor service
      * @param client             mqtt client;
      */
-    @SuppressWarnings("PMD.NullAssignment")
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      Mqtt5Client client) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
-        this.mqttClientKeyStore = null;
+        this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         synchronized (clientLock) {
             this.client = client;
