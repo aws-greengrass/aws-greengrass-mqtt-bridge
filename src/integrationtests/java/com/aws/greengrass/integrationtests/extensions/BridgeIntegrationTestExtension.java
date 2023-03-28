@@ -34,6 +34,7 @@ import org.testcontainers.DockerClientFactory;
 import org.testcontainers.hivemq.HiveMQContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
+import software.amazon.awssdk.crt.Log;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -86,6 +87,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     public void interceptTestTemplateMethod(Invocation<Void> invocation,
                                             ReflectiveInvocationContext<Method> invocationContext,
                                             ExtensionContext extensionContext) throws Throwable {
+        Log.initLoggingToStderr(Log.LogLevel.Debug); // enable crt logs
         initializeContext(extensionContext);
 
         if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT3::equals)) {
