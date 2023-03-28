@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -73,7 +75,7 @@ class LocalMqtt5ClientTest {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
-                null,
+                mock(MQTTClientKeyStore.class),
                 executorService);
     }
 
@@ -351,6 +353,7 @@ class LocalMqtt5ClientTest {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                mock(MQTTClientKeyStore.class),
                 executorService,
                 null
         );
