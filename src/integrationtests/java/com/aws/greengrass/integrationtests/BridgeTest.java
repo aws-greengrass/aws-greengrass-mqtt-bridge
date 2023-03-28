@@ -21,12 +21,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnBiConsumer;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @BridgeIntegrationTest
 public class BridgeTest {
@@ -38,6 +40,51 @@ public class BridgeTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 2;
 
     BridgeIntegrationTestContext context;
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_to_iotcore_nolocal.yaml")
+    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_with_nolocal_WHEN_message_published_THEN_message_does_not_loop(Broker broker) throws Exception {
+        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeIotCoreNonLoopedTopic = asyncAssertOnConsumer(p ->
+                assertEquals(
+                        MqttMessage.builder()
+                                .topic("topic/noLocal")
+                                .payload("message".getBytes(StandardCharsets.UTF_8))
+                                // mqtt5-specific fields below.
+                                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                                .responseTopic("response topic")
+                                .messageExpiryIntervalSeconds(1234L)
+                                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                                .contentType("contentType")
+                                .build(),
+                        MqttMessage.fromSpoolerV5Model(p)), 1);
+
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic("noLocal")
+                .callback(subscribeIotCoreNonLoopedTopic.getRight())
+                .build());
+
+        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeIotCoreLoopedTopic
+                = asyncAssertOnConsumer(p -> {}, 0);
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic("topic/noLocal")
+                .callback(subscribeIotCoreLoopedTopic.getRight())
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic("noLocal")
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+
+        assertThrows(TimeoutException.class, () -> subscribeIotCoreLoopedTopic.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        subscribeIotCoreNonLoopedTopic.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
 
     @TestWithAllBrokers
     @WithKernel("mqtt3_local_and_iotcore.yaml")
