@@ -45,7 +45,7 @@ public class LocalMqttClientFactory {
     public MessageClient<MqttMessage> createLocalMqttClient() throws MessageClientException {
         BridgeConfig config = this.config.get();
         if (config == null) {
-            throw new IllegalStateException("Bridge configuration not set");
+            throw new MessageClientException("Unable to create message client, bridge configuration not set");
         }
         switch (config.getMqttVersion()) {
             case MQTT5:
