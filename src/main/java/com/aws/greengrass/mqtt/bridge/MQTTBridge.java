@@ -22,6 +22,7 @@ import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -55,8 +56,8 @@ public class MQTTBridge extends PluginService {
     private MessageClient<MqttMessage> localMqttClient;
     private PubSubClient pubSubClient;
     private IoTCoreClient ioTCoreClient;
-    @Getter // for unit testing
-    private BridgeConfig bridgeConfig;
+    @Getter // for tests
+    private final BridgeConfigReference bridgeConfig;
 
 
     /**
@@ -70,21 +71,25 @@ public class MQTTBridge extends PluginService {
      * @param mqttClientKeyStore     KeyStore for MQTT Client
      * @param localMqttClientFactory local mqtt client factory
      * @param executorService        Executor service
+     * @param bridgeConfig           reference to bridge config
      */
     @Inject
     public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
                       MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
                       LocalMqttClientFactory localMqttClientFactory,
-                      ExecutorService executorService) {
+                      ExecutorService executorService,
+                      BridgeConfigReference bridgeConfig) {
         this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService);
+                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
     }
 
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
                          MQTTClientKeyStore mqttClientKeyStore,
                          LocalMqttClientFactory localMqttClientFactory,
-                         ExecutorService executorService) {
+                         ExecutorService executorService,
+                         BridgeConfigReference bridgeConfig) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
@@ -95,6 +100,7 @@ public class MQTTBridge extends PluginService {
         this.localMqttClientFactory = localMqttClientFactory;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
+        this.bridgeConfig = bridgeConfig;
     }
 
     @Override
@@ -243,22 +249,22 @@ public class MQTTBridge extends PluginService {
         private final Topics configurationTopics = config.lookupTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
 
         private final BatchedSubscriber subscriber = new BatchedSubscriber(configurationTopics, (what) -> {
-            BridgeConfig prevConfig = bridgeConfig;
+            BridgeConfig newConfig;
             try {
-                bridgeConfig = BridgeConfig.fromTopics(configurationTopics);
+                newConfig = BridgeConfig.fromTopics(configurationTopics);
             } catch (InvalidConfigurationException e) {
                 serviceErrored(e);
                 return;
             }
 
-            localMqttClientFactory.setConfig(bridgeConfig);
+            BridgeConfig prevConfig = bridgeConfig.getAndSet(newConfig);
 
             // update topic mapping
-            if (prevConfig == null || !Objects.equals(prevConfig.getTopicMapping(), bridgeConfig.getTopicMapping())) {
+            if (prevConfig == null || !Objects.equals(prevConfig.getTopicMapping(), newConfig.getTopicMapping())) {
                 logger.atInfo("service-config-change")
-                        .kv("mapping", bridgeConfig.getTopicMapping())
+                        .kv("mapping", newConfig.getTopicMapping())
                         .log("Updating mapping");
-                topicMapping.updateMapping(bridgeConfig.getTopicMapping());
+                topicMapping.updateMapping(newConfig.getTopicMapping());
             }
 
             // initial config
@@ -266,7 +272,7 @@ public class MQTTBridge extends PluginService {
                 return;
             }
 
-            if (bridgeConfig.reinstallRequired(prevConfig)) {
+            if (newConfig.reinstallRequired(prevConfig)) {
                 logger.atInfo("service-config-change")
                         .log("Requesting re-installation of bridge");
                 requestReinstall();

@@ -13,6 +13,7 @@ import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
 import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import lombok.Data;
 
@@ -53,7 +54,7 @@ public class BridgeIntegrationTestContext {
     }
 
     public BridgeConfig getConfig() {
-        return getFromContext(MQTTBridge.class).getBridgeConfig();
+        return getFromContext(BridgeConfigReference.class).get();
     }
 
     public <T> T getFromContext(Class<T> clazz) {
