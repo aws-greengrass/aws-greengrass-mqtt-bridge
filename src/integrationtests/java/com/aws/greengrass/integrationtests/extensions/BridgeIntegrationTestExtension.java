@@ -53,6 +53,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private static final Logger logger = LogManager.getLogger(BridgeIntegrationTestExtension.class);
 
     BridgeIntegrationTestContext context;
+
     Kernel kernel;
 
     HiveMQContainer v5Broker;
