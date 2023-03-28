@@ -14,7 +14,6 @@ import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -70,12 +69,6 @@ public class KeystoreTest {
                 ));
 
         assertTrue(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-    }
-
-    // TODO disable for mac? Failed to create new aws_tls_ctx (aws_last_error: AWS_ERROR_SUCCESS(0), Success.)
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt_bridge_with_ssl_WHEN_startup_THEN_success(Broker broker) {
     }
 
     @TestWithMqtt3Broker

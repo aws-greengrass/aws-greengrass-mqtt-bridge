@@ -24,7 +24,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_mqtt5_broker_WHEN_test_starts_THEN_bridge_connects(Broker broker) {
         assertNotNull(context.getBroker());
         assertNotNull(context.getBrokerHost());
-        assertNotNull(context.getBrokerTCPPort());
+        assertNotNull(context.getBrokerPort());
         assertNotNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -34,7 +34,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_mqtt3_broker_WHEN_test_starts_THEN_bridge_connects(Broker broker) {
         assertNotNull(context.getBroker());
         assertNotNull(context.getBrokerHost());
-        assertNotNull(context.getBrokerTCPPort());
+        assertNotNull(context.getBrokerPort());
         assertNotNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -44,7 +44,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_any_broker_WHEN_test_starts_THEN_bridge_connects(Broker broker) {
         assertNotNull(context.getBroker());
         assertNotNull(context.getBrokerHost());
-        assertNotNull(context.getBrokerTCPPort());
+        assertNotNull(context.getBrokerPort());
         assertNotNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -54,7 +54,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_no_broker_and_no_kernel_WHEN_parameterized_test_executed_THEN_nothing_happens(String unused) {
         assertNull(context.getBroker());
         assertNull(context.getBrokerHost());
-        assertNull(context.getBrokerTCPPort());
+        assertNull(context.getBrokerPort());
         assertNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -62,7 +62,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_no_broker_and_no_kernel_WHEN_test_executed_THEN_nothing_happens() {
         assertNull(context.getBroker());
         assertNull(context.getBrokerHost());
-        assertNull(context.getBrokerTCPPort());
+        assertNull(context.getBrokerPort());
         assertNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -72,7 +72,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_kernel_and_no_broker_WHEN_test_starts_THEN_kernel_starts() {
         assertNull(context.getBroker());
         assertNull(context.getBrokerHost());
-        assertNull(context.getBrokerTCPPort());
+        assertNull(context.getBrokerPort());
         assertNotNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -83,7 +83,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_kernel_and_no_broker_WHEN_parameterized_test_starts_THEN_kernel_starts(String unused) {
         assertNull(context.getBroker());
         assertNull(context.getBrokerHost());
-        assertNull(context.getBrokerTCPPort());
+        assertNull(context.getBrokerPort());
         assertNotNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }
@@ -92,7 +92,7 @@ public class BridgeIntegrationTestExtensionTest {
     void GIVEN_broker_and_no_kernel_WHEN_test_starts_THEN_broker_starts(Broker broker) {
         assertNotNull(context.getBroker());
         assertNotNull(context.getBrokerHost());
-        assertNotNull(context.getBrokerTCPPort());
+        assertNotNull(context.getBrokerPort());
         assertNull(context.getKernel());
         assertNotNull(context.getRootDir());
     }

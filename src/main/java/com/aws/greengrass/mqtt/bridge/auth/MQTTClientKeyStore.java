@@ -92,12 +92,7 @@ public class MQTTClientKeyStore {
         clientDevicesAuthServiceApi.unsubscribeFromCertificateUpdates(clientCertificateRequest);
     }
 
-    /**
-     * Update keystore entry.
-     *
-     * @param certificateUpdate certificate update event
-     */
-    public void updateCert(CertificateUpdateEvent certificateUpdate) {
+    private void updateCert(CertificateUpdateEvent certificateUpdate) {
         try {
             LOGGER.atDebug().log("Storing new client certificate to be used on next connect attempt");
             X509Certificate[] certChain = Stream.concat(

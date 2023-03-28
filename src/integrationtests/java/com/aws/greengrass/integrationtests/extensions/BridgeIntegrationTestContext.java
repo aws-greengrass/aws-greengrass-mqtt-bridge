@@ -22,8 +22,7 @@ import java.nio.file.Path;
 @Data
 public class BridgeIntegrationTestContext {
     Broker broker;
-    Integer brokerSSLPort;
-    Integer brokerTCPPort;
+    Integer brokerPort;
     String brokerHost;
     Path rootDir;
     Kernel kernel;
