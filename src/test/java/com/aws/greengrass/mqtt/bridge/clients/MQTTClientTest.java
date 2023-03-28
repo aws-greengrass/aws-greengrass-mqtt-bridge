@@ -31,7 +31,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -84,6 +86,7 @@ public class MQTTClientTest {
 
         mqttClient.stop();
 
+        verify(mockMqttClientKeyStore).unsubscribeFromCAUpdates(any());
         subscriptions = fakeMqttClient.getSubscriptionTopics();
         assertThat(fakeMqttClient.isConnected(), is(false));
         assertThat(subscriptions, hasSize(0));
