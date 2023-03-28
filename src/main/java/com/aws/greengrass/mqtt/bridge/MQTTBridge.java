@@ -257,7 +257,7 @@ public class MQTTBridge extends PluginService {
                 return;
             }
 
-            BridgeConfig prevConfig = bridgeConfig.getAndUpdate(c -> newConfig);
+            BridgeConfig prevConfig = bridgeConfig.getAndSet(newConfig);
 
             // update topic mapping
             if (prevConfig == null || !Objects.equals(prevConfig.getTopicMapping(), newConfig.getTopicMapping())) {
