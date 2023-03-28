@@ -151,6 +151,14 @@ public class MQTTClientKeyStore {
     }
 
     /**
+     * Remove a listener from KeyStore updates.
+     * @param listener listener method
+     */
+    public synchronized void unsubscribeFromCAUpdates(UpdateListener listener) {
+        updateListeners.remove(listener);
+    }
+
+    /**
      * Gets SSL Socket Factory from Key Store.
      *
      * @return SSLSocketFactory
