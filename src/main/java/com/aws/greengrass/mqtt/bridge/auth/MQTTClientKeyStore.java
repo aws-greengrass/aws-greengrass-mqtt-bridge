@@ -24,6 +24,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -41,8 +42,8 @@ import javax.net.ssl.TrustManagerFactory;
 
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
-    public static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
-    public static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
+    static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
+    static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
     @Getter
     private KeyStore keyStore;
@@ -178,5 +179,28 @@ public class MQTTClientKeyStore {
         } catch (NoSuchAlgorithmException | UnrecoverableKeyException | KeyManagementException e) {
             throw new KeyStoreException("Unable to create SocketFactory from KeyStore", e);
         }
+    }
+
+    /**
+     * Retrieve the client cert from the keystore.
+     *
+     * @return PEM-encoded certificate
+     * @throws KeyStoreException if keystore has not been initialized
+     * @throws CertificateEncodingException if encoding error occurs
+     */
+    public String getCertificate() throws KeyStoreException, CertificateEncodingException {
+        return new String(keyStore.getCertificate(KEY_ALIAS).getEncoded());
+    }
+
+    /**
+     * Retrieve the client private key from the keystore.
+     *
+     * @return private key
+     * @throws UnrecoverableKeyException if the key cannot be recovered
+     * @throws KeyStoreException if the keystore has not been initialized
+     * @throws NoSuchAlgorithmException  if the algorithm for recovering the key cannot be found
+     */
+    public String getPrivateKey() throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
+        return new String(keyStore.getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD).getEncoded());
     }
 }
