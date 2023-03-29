@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
-import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -367,12 +366,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .withSubscription(
                         topic,
                         QOS.AT_LEAST_ONCE,
-                        routeLookup
-                                .noLocal(topic, TopicMapping.TopicType.LocalMqtt)
-                                .orElse(DEFAULT_NO_LOCAL),
-                        routeLookup
-                                .retainAsPublished(topic, TopicMapping.TopicType.LocalMqtt)
-                                .orElse(DEFAULT_RETAIN_AS_PUBLISHED),
+                        routeLookup.noLocal(topic, TopicMapping.TopicType.LocalMqtt).orElse(DEFAULT_NO_LOCAL),
+                        // always set retainAsPublished so we have the retain flag available,
+                        // when we bridge messages, we'll set retain flag based on user route configuration.
+                        true,
                         SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE_IF_NEW)
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");

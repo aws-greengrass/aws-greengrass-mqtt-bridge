@@ -7,7 +7,9 @@ package com.aws.greengrass.mqtt.bridge.model;
 
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import lombok.NonNull;
 
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 
@@ -20,24 +22,29 @@ public class RouteLookup {
         this.config = config;
     }
 
-    public Optional<Boolean> noLocal(String route, TopicMapping.TopicType source) {
-        return getMqtt5RouteOptions(route, source).map(Mqtt5RouteOptions::isNoLocal);
+    public Optional<Boolean> noLocal(String topic, TopicMapping.TopicType source) {
+        return getMqtt5RouteOptions(topic, source).map(Mqtt5RouteOptions::isNoLocal);
     }
 
-    public Optional<Boolean> retainAsPublished(String route, TopicMapping.TopicType source) {
-        return getMqtt5RouteOptions(route, source).map(Mqtt5RouteOptions::isRetainAsPublished);
-    }
-
-    private Optional<Mqtt5RouteOptions> getMqtt5RouteOptions(String route, TopicMapping.TopicType source) {
+    private Optional<Mqtt5RouteOptions> getMqtt5RouteOptions(String topic, TopicMapping.TopicType source) {
         return Optional.ofNullable(config.get())
                 .filter(c -> c.getMqttVersion() == MqttVersion.MQTT5)
-                .filter(c -> isSourceInTopicMapping(c, route, source))
-                .map(BridgeConfig::getMqtt5RouteOptions)
-                .map(opts -> opts.get(route));
+                .flatMap(c -> getMqtt5RouteOptions(c, topic, source));
     }
 
-    private static boolean isSourceInTopicMapping(BridgeConfig conf, String route, TopicMapping.TopicType source) {
-        TopicMapping.MappingEntry entry = conf.getTopicMapping().get(route);
-        return entry != null && entry.getSource() == source;
+    private static Optional<Mqtt5RouteOptions> getMqtt5RouteOptions(@NonNull BridgeConfig conf,
+                                                                    @NonNull String topic,
+                                                                    @NonNull TopicMapping.TopicType source) {
+        Map<String, Mqtt5RouteOptions> options = conf.getMqtt5RouteOptions();
+        return findRouteName(conf, topic, source).map(options::get);
+    }
+
+    private static Optional<String> findRouteName(BridgeConfig conf, String topic, TopicMapping.TopicType source) {
+        return conf.getTopicMapping().entrySet().stream()
+                .filter(e -> e.getValue() != null
+                        && e.getValue().getSource() == source
+                        && e.getValue().getTopic().equals(topic))
+                .map(Map.Entry::getKey)
+                .findFirst();
     }
 }

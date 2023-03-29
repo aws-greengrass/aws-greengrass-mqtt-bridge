@@ -3,32 +3,13 @@ services:
     configuration:
       brokerUri: 'tcp://localhost:8883'
       mqtt5RouteOptions:
-        toIotCoreNoLocal:
+        toIotCore:
           noLocal: true
-      # This test checks that noLocal on local broker will break topic loop.
-      #
-      #  local publish:                        noLocal
-      #  iot core receives and forwards:       noLocal -> topic/noLocal
-      #  local receives and does NOT forward:  topic/noLocal
-      #  iot core does NOT receive on topic:   topic/noLocal
       mqttTopicMapping:
         toIotCore:
-          topic: noLocal
+          topic: topic/toIotCore
           source: LocalMqtt
           target: IotCore
-        toLocal:
-          topic: noLocal
-          source: IotCore
-          target: LocalMqtt
-          targetTopicPrefix: topic
-        toIotCoreNoLocal:
-          topic: topic/noLocal
-          source: LocalMqtt
-          target: IotCore
-        toLocalLoop:
-          topic: topic/noLocal
-          source: IotCore
-          target: LocalMqtt
       brokerClient:
         version: "mqtt5"
   main:

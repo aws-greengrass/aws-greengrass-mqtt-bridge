@@ -44,35 +44,17 @@ public class BridgeTest {
     @TestWithMqtt5Broker
     @WithKernel("mqtt5_local_to_iotcore_nolocal.yaml")
     void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_with_nolocal_WHEN_message_published_THEN_message_does_not_loop(Broker broker) throws Exception {
-        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeIotCoreNonLoopedTopic = asyncAssertOnConsumer(p ->
-                assertEquals(
-                        MqttMessage.builder()
-                                .topic("topic/noLocal")
-                                .payload("message".getBytes(StandardCharsets.UTF_8))
-                                // mqtt5-specific fields below.
-                                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
-                                .responseTopic("response topic")
-                                .messageExpiryIntervalSeconds(1234L)
-                                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
-                                .contentType("contentType")
-                                .build(),
-                        MqttMessage.fromSpoolerV5Model(p)), 1);
-
-        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-                .topic("noLocal")
-                .callback(subscribeIotCoreNonLoopedTopic.getRight())
-                .build());
-
-        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeIotCoreLoopedTopic
+        Pair<CompletableFuture<Void>, Consumer<Publish>> iotCoreTopicSubscription
                 = asyncAssertOnConsumer(p -> {}, 0);
+
         context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-                .topic("topic/noLocal")
-                .callback(subscribeIotCoreLoopedTopic.getRight())
-                .build());
+                .topic("topic/toIotCore")
+                .callback(iotCoreTopicSubscription.getRight())
+                .build()).get(5L, TimeUnit.SECONDS);
 
         context.getLocalV5Client().publish(
                 MqttMessage.builder()
-                        .topic("noLocal")
+                        .topic("topic/toIotCore")
                         .payload("message".getBytes(StandardCharsets.UTF_8))
                         // mqtt5-specific fields below.
                         .userProperties(Collections.singletonList(new UserProperty("key", "val")))
@@ -82,8 +64,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        assertThrows(TimeoutException.class, () -> subscribeIotCoreLoopedTopic.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        subscribeIotCoreNonLoopedTopic.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        assertThrows(TimeoutException.class, () -> iotCoreTopicSubscription.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithAllBrokers
