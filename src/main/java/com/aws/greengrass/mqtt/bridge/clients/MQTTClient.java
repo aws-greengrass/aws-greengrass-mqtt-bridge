@@ -54,7 +54,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private Future<?> connectFuture;
     private Future<?> subscribeFuture;
     @Getter // for testing
-    private IMqttClient mqttClientInternal;
+    private volatile IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
