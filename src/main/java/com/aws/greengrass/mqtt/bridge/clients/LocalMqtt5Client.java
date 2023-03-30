@@ -41,8 +41,6 @@ import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
 
 import java.net.URI;
 import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.util.Collections;
@@ -56,6 +54,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
+import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -470,6 +471,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
     private Mqtt5Client createCrtClient() throws MessageClientException {
         boolean isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
 
@@ -498,9 +500,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
             if (isSSL) {
                 mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
-                tlsContextOptions = TlsContextOptions.createWithMtls(
-                        mqttClientKeyStore.getCertificate(),
-                        mqttClientKeyStore.getPrivateKey());
+                tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(
+                        mqttClientKeyStore.getKeyStore(), KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
+                tlsContextOptions.overrideDefaultTrustStore(
+                        mqttClientKeyStore.getRootCACert().orElseThrow(
+                                () -> new MQTTClientException("unable to set default trust store, "
+                                        + "root ca cert not found")));
                 tlsContext = new ClientTlsContext(tlsContextOptions);
                 builder.withTlsContext(tlsContext);
             }
@@ -515,9 +520,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             }
 
             return client;
-        } catch (CrtRuntimeException | KeyStoreException
-                 | CertificateEncodingException | UnrecoverableKeyException | NoSuchAlgorithmException e) {
+        } catch (MessageClientException | CrtRuntimeException | KeyStoreException | CertificateEncodingException e) {
             mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+            if (e instanceof MessageClientException) {
+                throw (MessageClientException) e;
+            }
             throw new MQTTClientException("Unable to create an MQTT5 client", e);
         }
     }

@@ -24,13 +24,16 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Stream;
@@ -42,8 +45,8 @@ import javax.net.ssl.TrustManagerFactory;
 
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
-    static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
-    static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
+    public static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
+    public static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
     @Getter
     private KeyStore keyStore;
@@ -133,6 +136,23 @@ public class MQTTClientKeyStore {
         updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
     }
 
+    /**
+     * Get the root CA cert from the key store.
+     *
+     * @return root ca cert
+     * @throws KeyStoreException if keystore has not been initialized
+     * @throws CertificateEncodingException if an encoding error occurs
+     */
+    public Optional<String> getRootCACert() throws KeyStoreException, CertificateEncodingException {
+        Certificate certificate = keyStore.getCertificate("CA0");
+        if (certificate == null) {
+            return Optional.empty();
+        }
+        String cert = Base64.getEncoder().encodeToString(certificate.getEncoded());
+        return Optional.of(String.join(System.lineSeparator(),
+                "-----BEGIN CERTIFICATE-----", cert, "-----END CERTIFICATE-----"));
+    }
+
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
         byte[] certBytes = certPem.getBytes(StandardCharsets.UTF_8);
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -179,28 +199,5 @@ public class MQTTClientKeyStore {
         } catch (NoSuchAlgorithmException | UnrecoverableKeyException | KeyManagementException e) {
             throw new KeyStoreException("Unable to create SocketFactory from KeyStore", e);
         }
-    }
-
-    /**
-     * Retrieve the client cert from the keystore.
-     *
-     * @return PEM-encoded certificate
-     * @throws KeyStoreException if keystore has not been initialized
-     * @throws CertificateEncodingException if encoding error occurs
-     */
-    public String getCertificate() throws KeyStoreException, CertificateEncodingException {
-        return new String(keyStore.getCertificate(KEY_ALIAS).getEncoded());
-    }
-
-    /**
-     * Retrieve the client private key from the keystore.
-     *
-     * @return private key
-     * @throws UnrecoverableKeyException if the key cannot be recovered
-     * @throws KeyStoreException if the keystore has not been initialized
-     * @throws NoSuchAlgorithmException  if the algorithm for recovering the key cannot be found
-     */
-    public String getPrivateKey() throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
-        return new String(keyStore.getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD).getEncoded());
     }
 }
