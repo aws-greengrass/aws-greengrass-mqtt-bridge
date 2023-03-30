@@ -503,9 +503,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(
                         mqttClientKeyStore.getKeyStore(), KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
                 tlsContextOptions.overrideDefaultTrustStore(
-                        mqttClientKeyStore.getRootCACert().orElseThrow(
+                        mqttClientKeyStore.getCACertChain().orElseThrow(
                                 () -> new MQTTClientException("unable to set default trust store, "
-                                        + "root ca cert not found")));
+                                        + "no ca cert found")));
                 tlsContext = new ClientTlsContext(tlsContextOptions);
                 builder.withTlsContext(tlsContext);
             }

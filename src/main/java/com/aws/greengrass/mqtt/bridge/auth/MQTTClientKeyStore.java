@@ -29,6 +29,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Enumeration;
@@ -137,20 +138,39 @@ public class MQTTClientKeyStore {
     }
 
     /**
-     * Get the root CA cert from the key store.
+     * Get the CA cert chain from the key store.
      *
-     * @return root ca cert
+     * @return ca cert chain
      * @throws KeyStoreException if keystore has not been initialized
      * @throws CertificateEncodingException if an encoding error occurs
      */
-    public Optional<String> getRootCACert() throws KeyStoreException, CertificateEncodingException {
-        Certificate certificate = keyStore.getCertificate("CA0");
-        if (certificate == null) {
+    @SuppressWarnings("PMD.InsufficientStringBufferDeclaration")
+    public Optional<String> getCACertChain() throws KeyStoreException, CertificateEncodingException {
+        List<Certificate> caCerts = getCACerts();
+        if (caCerts.isEmpty()) {
             return Optional.empty();
         }
-        String cert = Base64.getEncoder().encodeToString(certificate.getEncoded());
-        return Optional.of(String.join(System.lineSeparator(),
-                "-----BEGIN CERTIFICATE-----", cert, "-----END CERTIFICATE-----"));
+        StringBuilder chain = new StringBuilder("-----BEGIN CERTIFICATE-----");
+        for (Certificate cert : caCerts) {
+            String encodedCert = Base64.getEncoder().encodeToString(cert.getEncoded());
+            chain.append(System.lineSeparator())
+                    .append(encodedCert);
+        }
+        return Optional.of(chain.append(System.lineSeparator())
+                .append("-----END CERTIFICATE-----")
+                .toString());
+    }
+
+    private List<Certificate> getCACerts() throws KeyStoreException {
+        List<Certificate> certs = new ArrayList<>();
+        for (int certInd = 0; ; certInd++) {
+            Certificate cert = keyStore.getCertificate("CA" + certInd);
+            if (cert == null) {
+                break;
+            }
+            certs.add(cert);
+        }
+        return certs;
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
