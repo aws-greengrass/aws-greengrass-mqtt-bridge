@@ -13,7 +13,6 @@ import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationExce
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
-import jdk.internal.joptsimple.internal.Strings;
 import lombok.Getter;
 
 import java.io.ByteArrayInputStream;
@@ -153,7 +152,7 @@ public class MQTTClientKeyStore {
         if (certs.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(Strings.join(certs,""));
+        return Optional.of(String.join("", certs));
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
