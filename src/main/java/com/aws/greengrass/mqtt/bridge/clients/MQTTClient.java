@@ -121,6 +121,10 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     void reset() {
+        if (mqttClientInternal == null) {
+            LOGGER.atDebug().log("Client not yet initialized, skipping reset");
+            return;
+        }
         if (mqttClientInternal.isConnected()) {
             try {
                 mqttClientInternal.disconnect();
@@ -146,8 +150,8 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      */
     @Override
     public void stop() {
+        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
         removeMappingAndSubscriptions();
-
         try {
             if (mqttClientInternal.isConnected()) {
                 mqttClientInternal.disconnect();
@@ -156,8 +160,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
-
-        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
     }
 
     private synchronized void removeMappingAndSubscriptions() {
