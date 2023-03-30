@@ -140,7 +140,7 @@ public class MQTTClientKeyStore {
     }
 
     private synchronized List<String> getCaCerts() {
-        return new ArrayList<>(caCerts);
+        return caCerts;
     }
 
     /**
