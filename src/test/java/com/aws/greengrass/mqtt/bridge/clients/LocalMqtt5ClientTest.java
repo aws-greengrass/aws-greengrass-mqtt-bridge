@@ -5,8 +5,13 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -34,7 +39,9 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -51,6 +58,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class LocalMqtt5ClientTest {
@@ -59,12 +67,14 @@ class LocalMqtt5ClientTest {
     Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     MockMqtt5Client mockMqtt5Client;
     @Mock
+    BridgeConfig bridgeConfig;
     RouteLookup mockRouteLookup;
 
     LocalMqtt5Client client;
 
     @BeforeEach
     void setUp() {
+        mockRouteLookup = new RouteLookup(new BridgeConfigReference(bridgeConfig));
         createLocalMqtt5Client();
         client.start();
     }
@@ -72,6 +82,39 @@ class LocalMqtt5ClientTest {
     @AfterEach
     void tearDown() {
         client.stop();
+    }
+
+    @Test
+    void GIVEN_client_WHEN_publish_on_nolocal_route_THEN_no_publish_occurs() throws Exception {
+        when(bridgeConfig.getMqttVersion()).thenReturn(MqttVersion.MQTT5);
+
+        Map<String, TopicMapping.MappingEntry> topicMapping = new HashMap<>();
+        topicMapping.put("topic", new TopicMapping.MappingEntry("iotcore/topic", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
+        topicMapping.put("topic2", new TopicMapping.MappingEntry("iotcore/topic2", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
+        when(bridgeConfig.getTopicMapping()).thenReturn(topicMapping);
+
+        Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
+        routeOptions.put("topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+        when(bridgeConfig.getMqtt5RouteOptions()).thenReturn(routeOptions);
+
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
+        client.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
+
+        // verify subscriptions were made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        client.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
+        client.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
+
+        Set<String> expectedInvokedHandlers = new HashSet<>();
+        expectedInvokedHandlers.add("iotcore/topic2");
+        assertThat("messages published", () -> mockMqtt5Client.getPublished().stream().map(PublishPacket::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedInvokedHandlers)));
     }
 
     @Test

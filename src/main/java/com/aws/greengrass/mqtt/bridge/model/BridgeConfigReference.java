@@ -15,4 +15,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class BridgeConfigReference extends AtomicReference<BridgeConfig> {
     private static final long serialVersionUID = 4845695073418707546L;
+
+    public BridgeConfigReference(BridgeConfig initialValue) {
+        super(initialValue);
+    }
+
+    public BridgeConfigReference() {
+        super();
+    }
 }
