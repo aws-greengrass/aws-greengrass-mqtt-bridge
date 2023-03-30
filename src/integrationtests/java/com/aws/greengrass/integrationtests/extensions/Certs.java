@@ -44,6 +44,7 @@ class Certs {
     private final KeyPair serverKeyPair;
     private final X509Certificate serverCert;
     private final KeyStore serverKeyStore;
+    private final KeyStore serverTrustStore;
 
     public Certs(MQTTClientKeyStore clientKeyStore) throws KeyStoreException {
         try {
@@ -55,6 +56,7 @@ class Certs {
             this.serverCert = genServerCert(serverKeyPair);
             initClientKeyStoreWithCerts(clientKeyStore);
             this.serverKeyStore = createServerKeystore();
+            this.serverTrustStore = createServerTruststore();
         } catch (CertificateException | IOException | OperatorCreationException
                  | NoSuchAlgorithmException | CertificateGenerationException e) {
             throw new KeyStoreException(e);
@@ -68,7 +70,7 @@ class Certs {
                 keyPair,
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)),
-                "Greengrass Bridge Integration Test CA"
+                "localhost"
         );
     }
 
@@ -82,9 +84,9 @@ class Certs {
         return CertificateHelper.issueServerCertificate(
                 caCert,
                 caKeys.getPrivate(),
-                CertificateHelper.getX500Name("mqtt-bridge"),
+                CertificateHelper.getX500Name("localhost"),
                 keyPair.getPublic(),
-                Collections.emptyList(),
+                Collections.singletonList("localhost"),
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)));
     }
@@ -95,7 +97,7 @@ class Certs {
         return CertificateHelper.issueClientCertificate(
                 caCert,
                 caKeys.getPrivate(),
-                CertificateHelper.getX500Name("mqtt-bridge"),
+                CertificateHelper.getX500Name("client"),
                 keyPair.getPublic(),
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)));
@@ -122,6 +124,24 @@ class Certs {
         return serverKeyStore;
     }
 
+    private KeyStore createServerTruststore() throws KeyStoreException {
+        KeyStore serverTruststore = KeyStore.getInstance(KeyStore.getDefaultType());
+
+        // create empty keystore
+        try {
+            serverTruststore.load(null, serverKeystorePassword.toCharArray());
+        } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
+            throw new KeyStoreException("Unable to load keystore", e);
+        }
+
+        serverTruststore.setCertificateEntry(
+                "client",
+                clientCert
+        );
+
+        return serverTruststore;
+    }
+
     private MQTTClientKeyStore initClientKeyStoreWithCerts(MQTTClientKeyStore clientKeyStore)
             throws KeyStoreException, CertificateException, IOException, CertificateGenerationException {
         clientKeyStore.init();
@@ -135,6 +155,14 @@ class Certs {
             serverKeyStore.store(fos, serverKeystorePassword.toCharArray());
         } catch (IOException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
             throw new KeyStoreException("unable to write keystore to " + output, e);
+        }
+    }
+
+    public void writeServerTruststore(Path output) throws KeyStoreException {
+        try (OutputStream fos = Files.newOutputStream(output)) {
+            serverTrustStore.store(fos, serverKeystorePassword.toCharArray());
+        } catch (IOException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
+            throw new KeyStoreException("unable to write truststore to " + output, e);
         }
     }
 }

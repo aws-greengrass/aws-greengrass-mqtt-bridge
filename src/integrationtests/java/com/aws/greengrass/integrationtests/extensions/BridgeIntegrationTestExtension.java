@@ -181,12 +181,16 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private void startMqtt5Broker() throws KeyStoreException {
         Certs certs = new Certs(clientKeyStore);
 
-        Path serverKeystorePath = context.getRootDir().resolve("server.jks");
+        Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
         certs.writeServerKeystore(serverKeystorePath);
+
+        Path serverTruststorePath = context.getRootDir().resolve("truststore.jks");
+        certs.writeServerTruststore(serverTruststorePath);
 
         v5Broker = new HiveMQContainer(
                 DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
-                .withCopyFileToContainer(MountableFile.forHostPath(serverKeystorePath), "/opt/hivemq/server.jks")
+                .withCopyFileToContainer(MountableFile.forHostPath(serverKeystorePath), "/opt/hivemq/hivemq.jks")
+                .withCopyFileToContainer(MountableFile.forHostPath(serverTruststorePath), "/opt/hivemq/truststore.jks")
                 .withHiveMQConfig(MountableFile.forClasspathResource("hivemq/config.xml"))
                 .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
                 .withExposedPorts(8883, 1883)
