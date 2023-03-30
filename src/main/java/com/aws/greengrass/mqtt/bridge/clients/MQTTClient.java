@@ -105,6 +105,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
+            this.mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
             throw new MQTTClientException("Unable to create an MQTT client", e);
         }
     }
