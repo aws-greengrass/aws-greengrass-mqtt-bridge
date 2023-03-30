@@ -52,7 +52,7 @@ public class MQTTClientKeyStore {
     private KeyStore keyStore;
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
     private final Set<UpdateListener> updateListeners = new CopyOnWriteArraySet<>();
-    private final List<String> caCerts = new ArrayList<>();
+    private List<String> caCerts = new ArrayList<>();
     private final GetCertificateRequest clientCertificateRequest;
 
     @FunctionalInterface
@@ -136,17 +136,12 @@ public class MQTTClientKeyStore {
         updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
     }
 
-    private void setCaCerts(List<String> caCerts) {
-        synchronized (this.caCerts) {
-            this.caCerts.clear();
-            this.caCerts.addAll(caCerts);
-        }
+    private synchronized void setCaCerts(List<String> caCerts) {
+        this.caCerts = caCerts;
     }
 
-    private List<String> getCaCerts() {
-        synchronized (caCerts) {
-            return new ArrayList<>(caCerts);
-        }
+    private synchronized List<String> getCaCerts() {
+        return new ArrayList<>(caCerts);
     }
 
     /**
