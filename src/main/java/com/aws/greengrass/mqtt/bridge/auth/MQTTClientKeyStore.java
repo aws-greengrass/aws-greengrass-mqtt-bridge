@@ -27,9 +27,11 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Stream;
@@ -41,6 +43,8 @@ import javax.net.ssl.TrustManagerFactory;
 
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
+    private static final String BEGIN_CERT = "-----BEGIN CERTIFICATE-----";
+    private static final String END_CERT = "-----END CERTIFICATE-----";
     public static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
     public static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
@@ -48,6 +52,7 @@ public class MQTTClientKeyStore {
     private KeyStore keyStore;
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
     private final Set<UpdateListener> updateListeners = new CopyOnWriteArraySet<>();
+    private final List<String> caCerts = new ArrayList<>();
     private final GetCertificateRequest clientCertificateRequest;
 
     @FunctionalInterface
@@ -123,13 +128,50 @@ public class MQTTClientKeyStore {
                 keyStore.deleteEntry(alias);
             }
         }
-
         for (int i = 0; i < caCerts.size(); i++) {
             X509Certificate caCert = pemToX509Certificate(caCerts.get(i));
             keyStore.setCertificateEntry("CA" + i, caCert);
         }
-
+        setCaCerts(caCerts);
         updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
+    }
+
+    private void setCaCerts(List<String> caCerts) {
+        synchronized (this.caCerts) {
+            this.caCerts.clear();
+            this.caCerts.addAll(caCerts);
+        }
+    }
+
+    private List<String> getCaCerts() {
+        synchronized (caCerts) {
+            return new ArrayList<>(caCerts);
+        }
+    }
+
+    /**
+     * Return CA cert chain as a string.
+     *
+     * @return ca certs
+     */
+    public Optional<String> getCaCertsAsString() {
+        List<String> certs = getCaCerts();
+        if (certs.isEmpty()) {
+            return Optional.empty();
+        }
+        StringBuilder result = new StringBuilder(BEGIN_CERT);
+        for (String cert : certs) {
+            String trimmedCert = cert
+                    .replace(BEGIN_CERT, "")
+                    .replace(END_CERT, "")
+                    .trim();
+            result.append(System.lineSeparator())
+                    .append(trimmedCert);
+        }
+        return Optional.of(result
+                .append(System.lineSeparator())
+                .append(END_CERT)
+                .toString());
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
