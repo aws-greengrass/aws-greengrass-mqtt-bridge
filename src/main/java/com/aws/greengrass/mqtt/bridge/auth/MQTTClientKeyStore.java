@@ -13,6 +13,7 @@ import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationExce
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import jdk.internal.joptsimple.internal.Strings;
 import lombok.Getter;
 
 import java.io.ByteArrayInputStream;
@@ -43,8 +44,6 @@ import javax.net.ssl.TrustManagerFactory;
 
 public class MQTTClientKeyStore {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClientKeyStore.class);
-    private static final String BEGIN_CERT = "-----BEGIN CERTIFICATE-----";
-    private static final String END_CERT = "-----END CERTIFICATE-----";
     public static final char[] DEFAULT_KEYSTORE_PASSWORD = "".toCharArray();
     public static final String KEY_ALIAS = "aws-greengrass-mqttbridge";
 
@@ -154,19 +153,7 @@ public class MQTTClientKeyStore {
         if (certs.isEmpty()) {
             return Optional.empty();
         }
-        StringBuilder result = new StringBuilder(BEGIN_CERT);
-        for (String cert : certs) {
-            String trimmedCert = cert
-                    .replace(BEGIN_CERT, "")
-                    .replace(END_CERT, "")
-                    .trim();
-            result.append(System.lineSeparator())
-                    .append(trimmedCert);
-        }
-        return Optional.of(result
-                .append(System.lineSeparator())
-                .append(END_CERT)
-                .toString());
+        return Optional.of(Strings.join(certs,""));
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
