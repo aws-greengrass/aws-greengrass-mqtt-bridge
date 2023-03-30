@@ -150,9 +150,10 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private void startKernel(ExtensionContext extensionContext, String configFile) throws InterruptedException {
         System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         System.setProperty("aws.region", "us-west-2"); // nucleus DeviceConfiguration expects a region
-        kernel = new Kernel();
+        Kernel kernel = new Kernel();
         customizeKernelContext(kernel);
-        startKernelWithConfig(extensionContext, configFile);
+        startKernelWithConfig(kernel, extensionContext, configFile);
+        this.kernel = kernel;
         context.setKernel(kernel);
     }
 
@@ -214,7 +215,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 });
     }
 
-    private void startKernelWithConfig(ExtensionContext extensionContext, String configFileName) throws InterruptedException {
+    private void startKernelWithConfig(Kernel kernel, ExtensionContext extensionContext, String configFileName) throws InterruptedException {
         URL configFile = extensionContext.getRequiredTestClass().getResource(configFileName);
         if (configFile == null) {
             fail("Config file " + configFileName + " not found");

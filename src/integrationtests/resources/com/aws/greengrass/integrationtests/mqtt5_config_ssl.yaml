@@ -1,22 +1,22 @@
 services:
-aws.greengrass.Nucleus:
-  configuration:
-    logging:
-      level: "DEBUG"
-aws.greengrass.clientdevices.mqtt.Bridge:
-  configuration:
-    brokerUri: "ssl://localhost:8883"
-    mqttTopicMapping:
-      toIotCore:
-        topic: topic/toIotCore
-        source: LocalMqtt
-        target: IotCore
-      toLocal:
-        topic: topic/toLocal
-        source: IotCore
-        target: LocalMqtt
-    brokerClient:
-      version: "mqtt5"
+  aws.greengrass.Nucleus:
+    configuration:
+      logging:
+        level: "DEBUG"
+  aws.greengrass.clientdevices.mqtt.Bridge:
+    configuration:
+      brokerUri: "ssl://localhost:8883"
+      mqttTopicMapping:
+        toIotCore:
+          topic: topic/toIotCore
+          source: LocalMqtt
+          target: IotCore
+        toLocal:
+          topic: topic/toLocal
+          source: IotCore
+          target: LocalMqtt
+      brokerClient:
+        version: "mqtt5"
 main:
   dependencies:
     - aws.greengrass.clientdevices.mqtt.Bridge
