@@ -40,8 +40,6 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
 
 import java.net.URI;
-import java.security.KeyStoreException;
-import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
@@ -97,7 +95,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
-    @Setter(AccessLevel.PACKAGE) // for testing
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -208,10 +205,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
-        Mqtt5Client client = createCrtClient();
-        synchronized (clientLock) {
-            this.client = client;
-        }
+        setClient(createCrtClient());
     }
 
     /**
@@ -499,11 +493,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             TlsContextOptions tlsContextOptions = null;
 
             if (isSSL) {
-                mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
                 tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(
                         mqttClientKeyStore.getKeyStore(), KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
                 tlsContextOptions.overrideDefaultTrustStore(
-                        mqttClientKeyStore.getCACertChain().orElseThrow(
+                        mqttClientKeyStore.getCaCertsAsString().orElseThrow(
                                 () -> new MQTTClientException("unable to set default trust store, "
                                         + "no ca cert found")));
                 tlsContext = new ClientTlsContext(tlsContextOptions);
@@ -520,7 +513,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             }
 
             return client;
-        } catch (MessageClientException | CrtRuntimeException | KeyStoreException | CertificateEncodingException e) {
+        } catch (MessageClientException | CrtRuntimeException e) {
             mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
             if (e instanceof MessageClientException) {
                 throw (MessageClientException) e;
@@ -529,13 +522,23 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
+    void setClient(Mqtt5Client client) {
+        synchronized (clientLock) {
+            if (isSSL()) {
+                mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
+            }
+            this.client = client;
+        }
+    }
+
+    private boolean isSSL() {
+        return "ssl".equalsIgnoreCase(brokerUri.getScheme());
+    }
+
     void reset() { // TODO callback shouldn't be synchronous
         stop();
         try {
-            Mqtt5Client client = createCrtClient();
-            synchronized (clientLock) {
-                this.client = client;
-            }
+            setClient(createCrtClient());
         } catch (MessageClientException e) {
             // TODO recover
             LOGGER.atError().cause(e).log("unable to start mqtt client during reset");
