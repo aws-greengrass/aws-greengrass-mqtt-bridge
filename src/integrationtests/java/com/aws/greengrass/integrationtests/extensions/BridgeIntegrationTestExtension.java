@@ -87,7 +87,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     public void interceptTestTemplateMethod(Invocation<Void> invocation,
                                             ReflectiveInvocationContext<Method> invocationContext,
                                             ExtensionContext extensionContext) throws Throwable {
-        Log.initLoggingToStderr(Log.LogLevel.Debug); // enable crt logs
+        Log.initLoggingToStderr(Log.LogLevel.Trace); // enable crt logs
         initializeContext(extensionContext);
 
         if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT3::equals)) {
@@ -152,14 +152,13 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private void startKernel(ExtensionContext extensionContext, String configFile) throws InterruptedException {
         System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         System.setProperty("aws.region", "us-west-2"); // nucleus DeviceConfiguration expects a region
-        Kernel kernel = new Kernel();
-        customizeKernelContext(kernel);
-        startKernelWithConfig(kernel, extensionContext, configFile);
-        this.kernel = kernel;
+        kernel = new Kernel();
+        customizeKernelContext();
+        startKernelWithConfig(extensionContext, configFile);
         context.setKernel(kernel);
     }
 
-    private void customizeKernelContext(Kernel kernel) {
+    private void customizeKernelContext() {
         MockMqttClient mockMqttClient = new MockMqttClient(false);
         kernel.getContext().put(MockMqttClient.class, mockMqttClient);
         kernel.getContext().put(MqttClient.class, mockMqttClient.getMqttClient());
@@ -217,7 +216,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 });
     }
 
-    private void startKernelWithConfig(Kernel kernel, ExtensionContext extensionContext, String configFileName) throws InterruptedException {
+    private void startKernelWithConfig(ExtensionContext extensionContext, String configFileName) throws InterruptedException {
         URL configFile = extensionContext.getRequiredTestClass().getResource(configFileName);
         if (configFile == null) {
             fail("Config file " + configFileName + " not found");

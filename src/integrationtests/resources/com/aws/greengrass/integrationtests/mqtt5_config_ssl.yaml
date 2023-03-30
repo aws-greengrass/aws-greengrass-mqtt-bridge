@@ -17,6 +17,6 @@ services:
           target: LocalMqtt
       brokerClient:
         version: "mqtt5"
-main:
-  dependencies:
-    - aws.greengrass.clientdevices.mqtt.Bridge
+  main:
+    dependencies:
+      - aws.greengrass.clientdevices.mqtt.Bridge

@@ -473,6 +473,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             port = isSSL ? DEFAULT_SSL_MQTT_PORT : DEFAULT_TCP_MQTT_PORT;
         }
 
+        TlsContext tlsContext = null;
+        TlsContextOptions tlsContextOptions = null;
         try {
             Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder
                     = new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
@@ -487,9 +489,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     // TODO configurable?
                     .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
                     .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
-
-            TlsContext tlsContext = null;
-            TlsContextOptions tlsContextOptions = null;
 
             if (isSSL) {
                 tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(
@@ -514,6 +513,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             return client;
         } catch (MessageClientException | CrtRuntimeException e) {
             mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+            if (tlsContextOptions != null) {
+                tlsContextOptions.close();
+            }
+            if (tlsContext != null) {
+                tlsContext.close();
+            }
             if (e instanceof MessageClientException) {
                 throw (MessageClientException) e;
             }
