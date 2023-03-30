@@ -54,7 +54,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private Future<?> connectFuture;
     private Future<?> subscribeFuture;
     @Getter // for testing
-    private IMqttClient mqttClientInternal;
+    private volatile IMqttClient mqttClientInternal;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
@@ -105,6 +105,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
+            this.mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
             throw new MQTTClientException("Unable to create an MQTT client", e);
         }
     }
@@ -121,6 +122,10 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     void reset() {
+        if (mqttClientInternal == null) {
+            LOGGER.atDebug().log("Client not yet initialized, skipping reset");
+            return;
+        }
         if (mqttClientInternal.isConnected()) {
             try {
                 mqttClientInternal.disconnect();
@@ -146,8 +151,8 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      */
     @Override
     public void stop() {
+        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
         removeMappingAndSubscriptions();
-
         try {
             if (mqttClientInternal.isConnected()) {
                 mqttClientInternal.disconnect();
@@ -156,8 +161,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
         }
-
-        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
     }
 
     private synchronized void removeMappingAndSubscriptions() {
