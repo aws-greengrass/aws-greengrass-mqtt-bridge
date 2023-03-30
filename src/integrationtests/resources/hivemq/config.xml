@@ -14,11 +14,15 @@
             <bind-address>0.0.0.0</bind-address>
             <tls>
                 <keystore>
-                    <path>server.jks</path>
+                    <path>hivemq.jks</path>
                     <password>${SERVER_JKS_PASSWORD}</password>
                     <private-key-password>${SERVER_JKS_PASSWORD}</private-key-password>
                 </keystore>
-                <client-authentication-mode>NONE</client-authentication-mode>
+                <client-authentication-mode>REQUIRED</client-authentication-mode>
+                <truststore>
+                    <path>truststore.jks</path>
+                    <password>${SERVER_JKS_PASSWORD}</password>
+                </truststore>
             </tls>
         </tls-tcp-listener>
     </listeners>
