@@ -27,9 +27,11 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Stream;
@@ -48,6 +50,7 @@ public class MQTTClientKeyStore {
     private KeyStore keyStore;
     private final ClientDevicesAuthServiceApi clientDevicesAuthServiceApi;
     private final Set<UpdateListener> updateListeners = new CopyOnWriteArraySet<>();
+    private List<String> caCerts = new ArrayList<>();
     private final GetCertificateRequest clientCertificateRequest;
 
     @FunctionalInterface
@@ -92,7 +95,12 @@ public class MQTTClientKeyStore {
         clientDevicesAuthServiceApi.unsubscribeFromCertificateUpdates(clientCertificateRequest);
     }
 
-    private void updateCert(CertificateUpdateEvent certificateUpdate) {
+    /**
+     * Update keystore entry.
+     *
+     * @param certificateUpdate certificate update event
+     */
+    public void updateCert(CertificateUpdateEvent certificateUpdate) {
         try {
             LOGGER.atDebug().log("Storing new client certificate to be used on next connect attempt");
             X509Certificate[] certChain = Stream.concat(
@@ -123,13 +131,33 @@ public class MQTTClientKeyStore {
                 keyStore.deleteEntry(alias);
             }
         }
-
         for (int i = 0; i < caCerts.size(); i++) {
             X509Certificate caCert = pemToX509Certificate(caCerts.get(i));
             keyStore.setCertificateEntry("CA" + i, caCert);
         }
-
+        setCaCerts(caCerts);
         updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
+    }
+
+    private synchronized void setCaCerts(List<String> caCerts) {
+        this.caCerts = caCerts;
+    }
+
+    private synchronized List<String> getCaCerts() {
+        return caCerts;
+    }
+
+    /**
+     * Return CA cert chain as a string.
+     *
+     * @return ca certs
+     */
+    public Optional<String> getCaCertsAsString() {
+        List<String> certs = getCaCerts();
+        if (certs.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(String.join("", certs));
     }
 
     private X509Certificate pemToX509Certificate(String certPem) throws IOException, CertificateException {
