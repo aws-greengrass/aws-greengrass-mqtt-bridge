@@ -213,12 +213,13 @@ public final class BridgeConfig {
             return Collections.emptyMap();
         }
         Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
-        for (String route : topicMapping.keySet()) {
-            TopicMapping.MappingEntry mapping = topicMapping.get(route);
+        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.entrySet()) {
+            String route = entry.getKey();
+            TopicMapping.MappingEntry mapping = entry.getValue();
             if (mapping.getSource() != source) {
                 continue;
             }
-            if (!mqtt5RouteOptions.containsKey(route)) {
+            if (!mqtt5RouteOptions.containsKey(entry.getKey())) {
                 continue;
             }
             opts.put(mapping.getTopic(), mqtt5RouteOptions.get(route));
