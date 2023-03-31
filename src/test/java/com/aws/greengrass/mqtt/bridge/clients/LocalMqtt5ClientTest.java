@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -111,7 +109,7 @@ class LocalMqtt5ClientTest {
         topics.add("iotcore/failed");
         topics.add("iotcore/topic2");
 
-        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
+        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID);
         client.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedTopics = new HashSet<>();
@@ -346,20 +344,22 @@ class LocalMqtt5ClientTest {
 
     @Test
     void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
-            (ExtensionContext context) {
-        ignoreExceptionOfType(context, CrtRuntimeException.class);
+            (ExtensionContext context) throws RetryableMqttOperationException {
+        ignoreExceptionOfType(context, RetryableMqttOperationException.class);
         String topic = "iotcore/topic";
         Set<String> topics = new HashSet<>();
         topics.add(topic);
-        LocalMqtt5Client clientSpy = spy(client);
 
-        doThrow(CrtRuntimeException.class).doNothing().when(clientSpy).subscribe(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+        mockMqtt5Client.nextSubAckReasonCode.add(topic, SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
         clientSpy.updateSubscriptions(topics, message -> {});
+
         verify(clientSpy, times(2)).subscribe(topic);
     }
 
     @Test
-    void GIVEN_client_with_subscription_request_WHEN_nonretryable_reason_code_received_THEN_dont_retry() {
+    void GIVEN_client_with_subscription_request_WHEN_nonretryable_reason_code_received_THEN_dont_retry()
+            throws RetryableMqttOperationException {
         String topic = "iotcore/topic";
         Set<String> topics = new HashSet<>();
         topics.add(topic);
