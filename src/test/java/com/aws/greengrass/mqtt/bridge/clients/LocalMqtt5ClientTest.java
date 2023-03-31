@@ -10,6 +10,7 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,7 @@ import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
 import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
+import software.amazon.awssdk.crt.mqtt5.QOS;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.DisconnectPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -62,7 +65,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-@MockitoSettings(strictness = Strictness.LENIENT)
+//@MockitoSettings(strictness = Strictness.LENIENT)
 class LocalMqtt5ClientTest {
 
     ExecutorService executorService = TestUtils.synchronousExecutorService();
@@ -354,24 +357,17 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry() {
+    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
+            (ExtensionContext context) {
+        ignoreExceptionOfType(context, CrtRuntimeException.class);
         String topic = "iotcore/topic";
         Set<String> topics = new HashSet<>();
         topics.add(topic);
         LocalMqtt5Client clientSpy = spy(client);
 
         doThrow(CrtRuntimeException.class).doNothing().when(clientSpy).subscribe(topic);
-        //doReturn(new CrtRuntimeException(""), null).when(clientSpy).subscribe(topic);
-
-
-        try {
-            clientSpy.subscribeToTopics(topics);
-        } catch (CrtRuntimeException ignored) {}
-        //clientSpy.subscribeToTopics(topics);
-
-        // verify that the client retries the subscription
-        //verify(clientSpy, timeout(2000)).subscribeToTopics(topics);
-        verify(clientSpy, atLeast(2)).subscribe(topic);
+        clientSpy.updateSubscriptions(topics, message -> {});
+        verify(clientSpy, times(2)).subscribe(topic);
     }
 
     @Test
@@ -381,7 +377,7 @@ class LocalMqtt5ClientTest {
         topics.add(topic);
         LocalMqtt5Client clientSpy = spy(client);
 
-        clientSpy.subscribeToTopics(topics);
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         //verify that the subscription is not retried
         verify(clientSpy, times(1)).subscribe(topic);

@@ -339,7 +339,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    void subscribeToTopics(Set<String> topics) {
+    private void subscribeToTopics(Set<String> topics) {
         for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
@@ -389,6 +389,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic");
+                // throw exception to trigger RetryUtils
                 throw new CrtRuntimeException("Failed to subscribe to topic");
             }
         } catch (TimeoutException | ExecutionException e) {
