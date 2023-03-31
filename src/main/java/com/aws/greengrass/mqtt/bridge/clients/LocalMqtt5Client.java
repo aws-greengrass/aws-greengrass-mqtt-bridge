@@ -8,11 +8,15 @@ import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
@@ -38,7 +42,14 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UserProperty;
 
+import java.io.IOException;
 import java.net.URI;
+import java.security.Key;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
@@ -473,6 +484,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             port = isSSL ? DEFAULT_SSL_MQTT_PORT : DEFAULT_TCP_MQTT_PORT;
         }
 
+        TlsContext tlsContext = null;
+        TlsContextOptions tlsContextOptions = null;
         try {
             Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder
                     = new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
@@ -488,12 +501,21 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
                     .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
 
-            TlsContext tlsContext = null;
-            TlsContextOptions tlsContextOptions = null;
-
             if (isSSL) {
-                tlsContextOptions = TlsContextOptions.createWithMtlsJavaKeystore(
-                        mqttClientKeyStore.getKeyStore(), KEY_ALIAS, new String(DEFAULT_KEYSTORE_PASSWORD));
+                // aws-c-io requires PKCS#1 key encoding for non-linux
+                // https://github.com/awslabs/aws-c-io/issues/260
+                // once this is resolved we can remove the conversion
+                Key key = mqttClientKeyStore.getKeyStore().getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
+                PrivateKeyInfo pkInfo = PrivateKeyInfo.getInstance(key.getEncoded());
+                ASN1Encodable privateKeyPKCS1ASN1Encodable = pkInfo.parsePrivateKey();
+                ASN1Primitive privateKeyPKCS1ASN1 = privateKeyPKCS1ASN1Encodable.toASN1Primitive();
+                byte[] privateKeyPKCS1 = privateKeyPKCS1ASN1.getEncoded();
+                String privateKey = EncryptionUtils.encodeToPem("RSA PRIVATE KEY", privateKeyPKCS1);
+
+                Certificate certificateData = mqttClientKeyStore.getKeyStore().getCertificate(KEY_ALIAS);
+                String certificatePem = EncryptionUtils.encodeToPem("CERTIFICATE", certificateData.getEncoded());
+
+                tlsContextOptions = TlsContextOptions.createWithMtls(certificatePem, privateKey);
                 tlsContextOptions.overrideDefaultTrustStore(
                         mqttClientKeyStore.getCaCertsAsString().orElseThrow(
                                 () -> new MQTTClientException("unable to set default trust store, "
@@ -501,23 +523,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 tlsContext = new ClientTlsContext(tlsContextOptions);
                 builder.withTlsContext(tlsContext);
             }
-
-            Mqtt5Client client = new Mqtt5Client(builder.build());
-
+            return new Mqtt5Client(builder.build());
+        } catch (CrtRuntimeException | IOException | KeyStoreException
+                 | NoSuchAlgorithmException | UnrecoverableKeyException | CertificateEncodingException e) {
+            throw new MQTTClientException("Unable to create an MQTT5 client", e);
+        } finally {
             if (tlsContextOptions != null) {
                 tlsContextOptions.close();
             }
             if (tlsContext != null) {
                 tlsContext.close();
             }
-
-            return client;
-        } catch (MessageClientException | CrtRuntimeException e) {
-            mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
-            if (e instanceof MessageClientException) {
-                throw (MessageClientException) e;
-            }
-            throw new MQTTClientException("Unable to create an MQTT5 client", e);
         }
     }
 
