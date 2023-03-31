@@ -112,7 +112,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
-    private final Set<Integer> nonRetryableSubAckReasonCodes = new HashSet<Integer>(){{
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    private final Set<Integer> nonRetryableSubAckReasonCodes = new HashSet<Integer>() {{
        this.add(SubAckPacket.SubAckReasonCode.NOT_AUTHORIZED.getValue());
        this.add(SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
        this.add(SubAckPacket.SubAckReasonCode.SHARED_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
