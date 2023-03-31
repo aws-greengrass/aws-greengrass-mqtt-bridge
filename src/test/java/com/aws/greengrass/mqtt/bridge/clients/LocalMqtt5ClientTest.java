@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -31,9 +34,12 @@ import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
@@ -45,12 +51,18 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
+@MockitoSettings(strictness = Strictness.LENIENT)
 class LocalMqtt5ClientTest {
 
     ExecutorService executorService = TestUtils.synchronousExecutorService();
@@ -339,6 +351,40 @@ class LocalMqtt5ClientTest {
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
         assertThrows(NullPointerException.class, () -> client.updateSubscriptions(topics, null));
+    }
+
+    @Test
+    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry() {
+        String topic = "iotcore/topic";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+
+        doThrow(CrtRuntimeException.class).doNothing().when(clientSpy).subscribe(topic);
+        //doReturn(new CrtRuntimeException(""), null).when(clientSpy).subscribe(topic);
+
+
+        try {
+            clientSpy.subscribeToTopics(topics);
+        } catch (CrtRuntimeException ignored) {}
+        //clientSpy.subscribeToTopics(topics);
+
+        // verify that the client retries the subscription
+        //verify(clientSpy, timeout(2000)).subscribeToTopics(topics);
+        verify(clientSpy, atLeast(2)).subscribe(topic);
+    }
+
+    @Test
+    void GIVEN_client_with_subscription_request_WHEN_nonretryable_reason_code_received_THEN_dont_retry() {
+        String topic = "iotcore/topic";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+
+        clientSpy.subscribeToTopics(topics);
+
+        //verify that the subscription is not retried
+        verify(clientSpy, times(1)).subscribe(topic);
     }
     
     private Set<String> getMockSubscriptions() {

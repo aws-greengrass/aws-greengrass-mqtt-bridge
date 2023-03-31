@@ -77,6 +77,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final String LOG_KEY_REASON = "reason";
     private static final String LOG_KEY_MESSAGE = "message";
     private static final String LOG_KEY_ERROR = "error";
+    public static final String RETRY = "retry";
+    public static final String NO_RETRY = "no retry";
 
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
@@ -110,6 +112,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+    private final Set<Integer> nonRetryableSubAckReasonCodes = new HashSet<Integer>(){{
+       this.add(SubAckPacket.SubAckReasonCode.NOT_AUTHORIZED.getValue());
+       this.add(SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
+       this.add(SubAckPacket.SubAckReasonCode.SHARED_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
+       this.add(SubAckPacket.SubAckReasonCode.SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED.getValue());
+       this.add(SubAckPacket.SubAckReasonCode.WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
+    }};
     private Future<?> updateSubscriptionsTask;
 
     @Getter(AccessLevel.PACKAGE)
@@ -330,11 +339,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void subscribeToTopics(Set<String> topics) {
+    void subscribeToTopics(Set<String> topics) {
         for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
-                    subscribe(topic); // TODO retry based on return code
+                    subscribe(topic);
                     return null;
                 }, "subscribe-mqtt5-topic", LOGGER);
             } catch (InterruptedException e) {
@@ -346,7 +355,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    private void subscribe(String topic) {
+    void subscribe(String topic) {
         Mqtt5Client client = getClient();
 
         if (!client.getIsConnected()) {
@@ -368,16 +377,23 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Successfully subscribed to topic");
+            } else if (subAckPacket.getReasonCodes().stream().allMatch(this::skipSubscribeRetry)) {
+                LOGGER.atError()
+                        .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
+                        .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
+                        .kv(LOG_KEY_TOPIC, topic)
+                        .log("Failed to subscribe to topic with a non-retryable reason code, not retrying");
             } else {
                 LOGGER.atError()
                         .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic");
+                throw new CrtRuntimeException("Failed to subscribe to topic");
             }
         } catch (TimeoutException | ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
-                    .log("failed to subscribe");
+                    .log("Failed to subscribe to topic");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -387,6 +403,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return rc == SubAckPacket.SubAckReasonCode.GRANTED_QOS_0
                 || rc == SubAckPacket.SubAckReasonCode.GRANTED_QOS_1
                 || rc == SubAckPacket.SubAckReasonCode.GRANTED_QOS_2;
+    }
+
+    private boolean skipSubscribeRetry(SubAckPacket.SubAckReasonCode rc) {
+        return nonRetryableSubAckReasonCodes.contains(rc);
     }
 
     private void unsubscribe(String topic) {
