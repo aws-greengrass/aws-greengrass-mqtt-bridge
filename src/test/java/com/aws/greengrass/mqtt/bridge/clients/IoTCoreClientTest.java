@@ -5,17 +5,26 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -26,14 +35,25 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
 
     MockMqttClient mockMqttClient = new MockMqttClient(false);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
-    IoTCoreClient iotCoreClient = new IoTCoreClient(mockMqttClient.getMqttClient(), executorService, mock(RouteLookup.class));
+    @Mock
+    BridgeConfig bridgeConfig;
+    IoTCoreClient iotCoreClient;
+
+    @BeforeEach
+    void setUp() {
+        iotCoreClient = new IoTCoreClient(
+                mockMqttClient.getMqttClient(),
+                executorService,
+                new RouteLookup(new BridgeConfigReference(bridgeConfig))
+        );
+    }
 
     @Test
     void GIVEN_client_with_no_subscriptions_WHEN_update_subscriptions_THEN_topics_subscribed() {
@@ -132,6 +152,39 @@ public class IoTCoreClientTest {
         assertThat("messages published", () -> mockMqttClient.getPublished().stream().map(Publish::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topicsPublished)));
 
         assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(topics)));
+    }
+
+    @Test
+    void GIVEN_client_with_subscriptions_nolocal_WHEN_message_published_THEN_message_handler_not_invoked() throws Exception {
+        when(bridgeConfig.getMqttVersion()).thenReturn(MqttVersion.MQTT5);
+
+        Map<String, TopicMapping.MappingEntry> topicMapping = new HashMap<>();
+        topicMapping.put("topic", new TopicMapping.MappingEntry("iotcore/topic", TopicMapping.TopicType.IotCore, TopicMapping.TopicType.LocalMqtt));
+        topicMapping.put("topic2", new TopicMapping.MappingEntry("iotcore/topic2", TopicMapping.TopicType.IotCore, TopicMapping.TopicType.LocalMqtt));
+        when(bridgeConfig.getTopicMapping()).thenReturn(topicMapping);
+
+        Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
+        routeOptions.put("topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+        when(bridgeConfig.getMqtt5RouteOptions()).thenReturn(routeOptions);
+
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
+        iotCoreClient.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
+
+        // verify subscriptions were made
+        assertThat("subscribed topics iot core client", () -> iotCoreClient.getSubscribedIotCoreTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics spooler client", () -> mockMqttClient.getSubscriptions().stream().map(Subscribe::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+
+        iotCoreClient.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
+        iotCoreClient.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
+
+        Set<String> expectedInvokedHandlers = new HashSet<>();
+        expectedInvokedHandlers.add("iotcore/topic2");
+        assertThat("messages published", () -> mockMqttClient.getPublished().stream().map(Publish::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedInvokedHandlers)));
     }
 
     @Test
