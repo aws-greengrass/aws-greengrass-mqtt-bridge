@@ -110,6 +110,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+    private final Set<Integer> nonRetryableUnSubAckReasonCodes = new HashSet<Integer>() {{
+        this.add(UnsubAckPacket.UnsubAckReasonCode.SUCCESS.getValue());
+        this.add(UnsubAckPacket.UnsubAckReasonCode.NO_SUBSCRIPTION_EXISTED.getValue());
+        this.add(UnsubAckPacket.UnsubAckReasonCode.NOT_AUTHORIZED.getValue());
+        this.add(UnsubAckPacket.UnsubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
+    }};
     private Future<?> updateSubscriptionsTask;
 
     @Getter(AccessLevel.PACKAGE)
@@ -312,8 +318,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     if (Thread.currentThread().isInterrupted()) {
                         return;
                     }
-                    unsubscribe(topic);
-                    // TODO retry unsubscribe failures
+                    try {
+                        RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
+                            unsubscribe(topic);
+                            return null;
+                        }, "unsubscribe-mqtt5-topic", LOGGER);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception e) {
+                        LOGGER.atError().setCause(e).kv(LOG_KEY_TOPIC, topic).log("Failed to unsubscribe");
+                    }
                 }
                 LOGGER.atDebug().kv(LOG_KEY_TOPICS, topicsToSubscribe).log("Subscribing to MQTT topics");
                 subscribeToTopics(topicsToSubscribe);
@@ -389,7 +404,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 || rc == SubAckPacket.SubAckReasonCode.GRANTED_QOS_2;
     }
 
-    private void unsubscribe(String topic) {
+    void unsubscribe(String topic) {
         Mqtt5Client client = getClient();
 
         if (!client.getIsConnected()) {
@@ -401,15 +416,23 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
                     .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            if (!unsubAckPacket.getReasonCodes().contains(UnsubAckPacket.UnsubAckReasonCode.SUCCESS)) {
+            if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
+                LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
+            } else if (unsubAckPacket.getReasonCodes().stream().allMatch(this::skipUnsubscribeRetry)) {
                 LOGGER.atDebug()
                         .kv(LOG_KEY_TOPIC, topic)
                         .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
                         .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
-                        .log("failed to unsubscribe");
+                        .log("Failed to unsubscribe from topic with a non-retryable reason code, not retrying");
                 return;
+            } else {
+                LOGGER.atDebug()
+                        .kv(LOG_KEY_TOPIC, topic)
+                        .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
+                        .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
+                        .log("Failed to unsubscribe from topic");
+                throw new CrtRuntimeException("Failed to unsubscribe from topic");
             }
-            LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
@@ -419,6 +442,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean unsubscribeIsSuccessful(UnsubAckPacket.UnsubAckReasonCode rc) {
+        return rc == UnsubAckPacket.UnsubAckReasonCode.SUCCESS;
+    }
+
+    private boolean skipUnsubscribeRetry(UnsubAckPacket.UnsubAckReasonCode rc) {
+        return nonRetryableUnSubAckReasonCodes.contains(rc.getValue());
     }
 
     @Override

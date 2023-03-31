@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -45,9 +46,11 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -339,6 +342,47 @@ class LocalMqtt5ClientTest {
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
         assertThrows(NullPointerException.class, () -> client.updateSubscriptions(topics, null));
+    }
+
+    @Test
+    void GIVEN_client_WHEN_unsubscribe_from_topic_with_retryable_reason_code_THEN_retry_unsubscribe
+            (ExtensionContext context) {
+        ignoreExceptionOfType(context, CrtRuntimeException.class);
+        String topic = "iotcore/topic";
+        String topic2 = "iotcore/topic2";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+
+        // subscribe to topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+
+        topics.remove(topic);
+        topics.add(topic2);
+        doThrow(CrtRuntimeException.class).doNothing().when(clientSpy).unsubscribe(topic);
+
+        // subscribe to new topics, this will unsubscribe from the old topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+        verify(clientSpy, times(2)).unsubscribe(topic);
+    }
+
+    @Test
+    void GIVEN_client_WHEN_unsubscribe_from_topic_with_retryable_reason_code_THEN_dont_retry() {
+        String topic = "iotcore/topic";
+        String topic2 = "iotcore/topic2";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+
+        // subscribe to topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+
+        topics.remove(topic);
+        topics.add(topic2);
+
+        // subscribe to new topics, this will unsubscribe from the old topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+        verify(clientSpy, times(1)).unsubscribe(topic);
     }
     
     private Set<String> getMockSubscriptions() {
