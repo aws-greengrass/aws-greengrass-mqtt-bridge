@@ -17,6 +17,7 @@ import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.IotCoreClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
@@ -47,12 +48,14 @@ public class MQTTBridge extends PluginService {
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final LocalMqttClientFactory localMqttClientFactory;
+    private final IotCoreClientFactory iotCoreClientFactory;
     private final ConfigurationChangeHandler configurationChangeHandler;
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
     @Getter // for tests
     private MessageClient<MqttMessage> localMqttClient;
+    @Getter // for tests
+    private IoTCoreClient iotCoreClient;
     private final PubSubClient pubSubClient;
-    private final IoTCoreClient ioTCoreClient;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
 
@@ -64,10 +67,10 @@ public class MQTTBridge extends PluginService {
      * @param topicMapping           mapping of mqtt topics to iotCore/pubsub topics
      * @param messageBridge          message bridge
      * @param pubSubClient           pubsub client
-     * @param ioTCoreClient          iot core client
      * @param kernel                 Greengrass kernel
      * @param mqttClientKeyStore     KeyStore for MQTT Client
      * @param localMqttClientFactory local mqtt client factory
+     * @param iotCoreClientFactory   iot core client factory
      * @param bridgeConfig           reference to bridge config
      */
     @Inject
@@ -75,19 +78,19 @@ public class MQTTBridge extends PluginService {
                       TopicMapping topicMapping,
                       MessageBridge messageBridge,
                       PubSubClient pubSubClient,
-                      IoTCoreClient ioTCoreClient,
                       Kernel kernel,
                       MQTTClientKeyStore mqttClientKeyStore,
                       LocalMqttClientFactory localMqttClientFactory,
+                      IotCoreClientFactory iotCoreClientFactory,
                       BridgeConfigReference bridgeConfig) {
         super(topics);
         this.topicMapping = topicMapping;
         this.messageBridge = messageBridge;
         this.pubSubClient = pubSubClient;
-        this.ioTCoreClient = ioTCoreClient;
         this.kernel = kernel;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.localMqttClientFactory = localMqttClientFactory;
+        this.iotCoreClientFactory = iotCoreClientFactory;
         this.bridgeConfig = bridgeConfig;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
@@ -119,9 +122,10 @@ public class MQTTBridge extends PluginService {
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
                     TopicMapping.TopicType.Pubsub, pubSubClient);
 
-            ioTCoreClient.start();
+            iotCoreClient = iotCoreClientFactory.createIotCoreClient();
+            iotCoreClient.start();
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.IotCore, ioTCoreClient);
+                    TopicMapping.TopicType.IotCore, iotCoreClient);
 
             reportState(State.RUNNING);
         } catch (MessageClientException e) {
@@ -145,8 +149,8 @@ public class MQTTBridge extends PluginService {
         }
 
         messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
-        if (ioTCoreClient != null) {
-            ioTCoreClient.stop();
+        if (iotCoreClient != null) {
+            iotCoreClient.stop();
         }
     }
 

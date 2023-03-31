@@ -5,14 +5,9 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
-import com.aws.greengrass.mqtt.bridge.BridgeConfig;
-import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
-import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
-import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -20,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -39,6 +33,7 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -58,7 +53,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class LocalMqtt5ClientTest {
@@ -66,15 +60,11 @@ class LocalMqtt5ClientTest {
     ExecutorService executorService = TestUtils.synchronousExecutorService();
     Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     MockMqtt5Client mockMqtt5Client;
-    @Mock
-    BridgeConfig bridgeConfig;
-    RouteLookup mockRouteLookup;
 
     LocalMqtt5Client client;
 
     @BeforeEach
     void setUp() {
-        mockRouteLookup = new RouteLookup(new BridgeConfigReference(bridgeConfig));
         createLocalMqtt5Client();
         client.start();
     }
@@ -86,16 +76,10 @@ class LocalMqtt5ClientTest {
 
     @Test
     void GIVEN_client_WHEN_publish_on_nolocal_route_THEN_no_publish_occurs() throws Exception {
-        when(bridgeConfig.getMqttVersion()).thenReturn(MqttVersion.MQTT5);
-
-        Map<String, TopicMapping.MappingEntry> topicMapping = new HashMap<>();
-        topicMapping.put("topic", new TopicMapping.MappingEntry("iotcore/topic", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
-        topicMapping.put("topic2", new TopicMapping.MappingEntry("iotcore/topic2", TopicMapping.TopicType.LocalMqtt, TopicMapping.TopicType.IotCore));
-        when(bridgeConfig.getTopicMapping()).thenReturn(topicMapping);
-
         Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
-        routeOptions.put("topic", Mqtt5RouteOptions.builder().noLocal(true).build());
-        when(bridgeConfig.getMqtt5RouteOptions()).thenReturn(routeOptions);
+        routeOptions.put("iotcore/topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+
+        createLocalMqtt5ClientWithMqtt5Options(routeOptions);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -122,7 +106,7 @@ class LocalMqtt5ClientTest {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
-                mock(RouteLookup.class),
+                Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
                 executorService);
     }
@@ -398,10 +382,14 @@ class LocalMqtt5ClientTest {
     }
 
     private void createLocalMqtt5Client() {
+        createLocalMqtt5ClientWithMqtt5Options(Collections.emptyMap());
+    }
+
+    private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
-                mockRouteLookup,
+                opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 null

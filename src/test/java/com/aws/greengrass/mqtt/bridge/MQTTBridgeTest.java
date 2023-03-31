@@ -12,6 +12,7 @@ import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.IotCoreClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
@@ -68,6 +69,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
+        IotCoreClientFactory iotCoreClientFactory = new FakeIotCoreClientFactory();
 
         try (Context context = new Context()) {
             Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
@@ -77,7 +79,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                     .dflt("clientId");
 
             mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
-                    mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
+                    mockKernel, mockMqttClientKeyStore, localMqttClientFactory, iotCoreClientFactory,
+                    new BridgeConfigReference());
 
             ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
             when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -129,6 +132,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         MQTTBridge mqttBridge;
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
+        IotCoreClientFactory iotCoreClientFactory = new FakeIotCoreClientFactory();
 
         try (Context context = new Context()) {
             Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
@@ -138,7 +142,8 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                     .dflt("clientId");
 
             mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
-                    mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
+                    mockKernel, mockMqttClientKeyStore, localMqttClientFactory, iotCoreClientFactory,
+                    new BridgeConfigReference());
 
             ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
             when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -170,6 +175,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
+        IotCoreClientFactory iotCoreClientFactory = new FakeIotCoreClientFactory();
 
         Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
         config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
@@ -177,9 +183,9 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_CLIENT_ID)
                 .dflt("clientId");
 
-        MQTTBridge mqttBridge =
-                new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
-                        mock(IoTCoreClient.class), mockKernel, mockMqttClientKeyStore, localMqttClientFactory, new BridgeConfigReference());
+        MQTTBridge mqttBridge = new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mock(PubSubClient.class),
+                mockKernel, mockMqttClientKeyStore, localMqttClientFactory, iotCoreClientFactory,
+                new BridgeConfigReference());
 
         ClientDevicesAuthService mockClientAuthService = mock(ClientDevicesAuthService.class);
         when(mockKernel.locate(ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME))
@@ -208,7 +214,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
     static class FakeMqttClientFactory extends LocalMqttClientFactory {
         public FakeMqttClientFactory() {
-            super(null, null, null, null);
+            super(null, null, null);
         }
 
         @Override
@@ -240,6 +246,17 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                     return (MqttMessage) message.toMqtt();
                 }
             };
+        }
+    }
+
+    static class FakeIotCoreClientFactory extends IotCoreClientFactory {
+        public FakeIotCoreClientFactory() {
+            super(null, null, null);
+        }
+
+        @Override
+        public IoTCoreClient createIotCoreClient() {
+            return mock(IoTCoreClient.class);
         }
     }
 }

@@ -5,13 +5,8 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
-import com.aws.greengrass.mqtt.bridge.BridgeConfig;
-import com.aws.greengrass.mqtt.bridge.TopicMapping;
-import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
-import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
-import com.aws.greengrass.mqtt.bridge.model.RouteLookup;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -19,9 +14,9 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,24 +30,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
 
     MockMqttClient mockMqttClient = new MockMqttClient(false);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
-    @Mock
-    BridgeConfig bridgeConfig;
     IoTCoreClient iotCoreClient;
 
     @BeforeEach
     void setUp() {
-        iotCoreClient = new IoTCoreClient(
-                mockMqttClient.getMqttClient(),
-                executorService,
-                new RouteLookup(new BridgeConfigReference(bridgeConfig))
-        );
+        createClientWithMqtt5RouteOptions(Collections.emptyMap());
     }
 
     @Test
@@ -156,16 +144,10 @@ public class IoTCoreClientTest {
 
     @Test
     void GIVEN_client_with_subscriptions_nolocal_WHEN_message_published_THEN_message_handler_not_invoked() throws Exception {
-        when(bridgeConfig.getMqttVersion()).thenReturn(MqttVersion.MQTT5);
-
-        Map<String, TopicMapping.MappingEntry> topicMapping = new HashMap<>();
-        topicMapping.put("topic", new TopicMapping.MappingEntry("iotcore/topic", TopicMapping.TopicType.IotCore, TopicMapping.TopicType.LocalMqtt));
-        topicMapping.put("topic2", new TopicMapping.MappingEntry("iotcore/topic2", TopicMapping.TopicType.IotCore, TopicMapping.TopicType.LocalMqtt));
-        when(bridgeConfig.getTopicMapping()).thenReturn(topicMapping);
-
         Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
-        routeOptions.put("topic", Mqtt5RouteOptions.builder().noLocal(true).build());
-        when(bridgeConfig.getMqtt5RouteOptions()).thenReturn(routeOptions);
+        routeOptions.put("iotcore/topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+
+        createClientWithMqtt5RouteOptions(routeOptions);
 
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -203,5 +185,13 @@ public class IoTCoreClientTest {
     private void setOffline() {
         mockMqttClient.offline();
         iotCoreClient.getConnectionCallbacks().onConnectionInterrupted(0);
+    }
+
+    private void createClientWithMqtt5RouteOptions(Map<String, Mqtt5RouteOptions> opts) {
+        iotCoreClient = new IoTCoreClient(
+                mockMqttClient.getMqttClient(),
+                executorService,
+                opts
+        );
     }
 }
