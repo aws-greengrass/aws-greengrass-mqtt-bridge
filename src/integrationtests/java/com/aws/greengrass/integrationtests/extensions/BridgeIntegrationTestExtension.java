@@ -37,6 +37,7 @@ import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
@@ -117,7 +119,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         // hack to set bridge to use mqtt5 broker after startup,
         // since testcontainers picks a dynamic broker port
         if (context.broker == Broker.MQTT5) {
-            pointBridgeToV5Broker();
+            pointBridgeToV5Broker(extensionContext);
         }
 
         // TODO support for offline scenarios?
@@ -241,7 +243,10 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         }
     }
 
-    private void pointBridgeToV5Broker() throws ServiceLoadException, InterruptedException {
+    private void pointBridgeToV5Broker(ExtensionContext extensionContext) throws ServiceLoadException, InterruptedException {
+        // we'll get connection errors since we start up context and then swap to the correct port.
+        ignoreExceptionOfType(extensionContext, ConnectException.class);
+
         // point bridge to broker running in docker
         String scheme = context.getConfig().getBrokerUri().getScheme();
         context.getKernel().locate(MQTTBridge.SERVICE_NAME)
