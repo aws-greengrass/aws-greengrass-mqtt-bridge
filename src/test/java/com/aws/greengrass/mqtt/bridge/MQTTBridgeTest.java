@@ -6,6 +6,8 @@
 package com.aws.greengrass.mqtt.bridge;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
+import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
+import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -30,8 +32,9 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -93,7 +96,19 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
             mockClientAuthConfig
                     .lookup(ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                    .withValue(Arrays.asList("CA1", "CA2"));
+                    .withValue(Arrays.asList(
+                            CertificateHelper.toPem(
+                                    CertificateHelper.createCACertificate(
+                                            CertificateStore.newRSAKeyPair(2048),
+                                            Date.from(Instant.now()),
+                                            Date.from(Instant.now().plusSeconds(100)),
+                                            "CA1")),
+                            CertificateHelper.toPem(
+                                    CertificateHelper.createCACertificate(
+                                            CertificateStore.newRSAKeyPair(2048),
+                                            Date.from(Instant.now()),
+                                            Date.from(Instant.now().plusSeconds(100)),
+                                            "CA2"))));
             context.waitForPublishQueueToClear();
 
             mqttBridge.install();
@@ -101,11 +116,12 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             mqttBridge.shutdown();
             ArgumentCaptor<List<String>> caListCaptor = ArgumentCaptor.forClass(List.class);
             verify(mockMqttClientKeyStore).updateCA(caListCaptor.capture());
-            assertThat(caListCaptor.getValue(), is(Arrays.asList("CA1", "CA2")));
+            assertThat(caListCaptor.getValue().size(), is(2));
 
+            // test invalid cda ca config
             mockClientAuthConfig
                     .lookup(ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                    .withValue(Collections.emptyList());
+                    .withValue("invalid");
             context.waitForPublishQueueToClear();
 
             reset(mockMqttClientKeyStore);
@@ -118,7 +134,19 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
             reset(mockMqttClientKeyStore);
             mockClientAuthConfig
                     .lookup(ClientDevicesAuthService.CERTIFICATES_KEY, ClientDevicesAuthService.AUTHORITIES_TOPIC)
-                    .withValue(Arrays.asList("CA1", "CA2"));
+                    .withValue(Arrays.asList(
+                            CertificateHelper.toPem(
+                                    CertificateHelper.createCACertificate(
+                                            CertificateStore.newRSAKeyPair(2048),
+                                            Date.from(Instant.now()),
+                                            Date.from(Instant.now().plusSeconds(100)),
+                                            "CA1")),
+                            CertificateHelper.toPem(
+                                    CertificateHelper.createCACertificate(
+                                            CertificateStore.newRSAKeyPair(2048),
+                                            Date.from(Instant.now()),
+                                            Date.from(Instant.now().plusSeconds(100)),
+                                            "CA2"))));
             context.waitForPublishQueueToClear();
             verify(mockMqttClientKeyStore, never()).updateCA(caListCaptor.capture());
         }
