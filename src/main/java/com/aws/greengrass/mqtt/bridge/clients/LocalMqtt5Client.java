@@ -377,28 +377,21 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket)
                     .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            if (subAckPacket.getReasonCodes().stream().allMatch(this::retrySubscribe)) {
-                // received a retryable reason code
-                LOGGER.atError()
+            if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
+                // subscription succeeded
+                synchronized (subscriptionsLock) {
+                    subscribedLocalMqttTopics.add(topic);
+                }
+                LOGGER.atDebug()
                         .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
-                        .log("Failed to subscribe to topic");
-                // throw exception to trigger RetryUtils
-                throw new RetryableMqttOperationException("Failed to subscribe to topic");
+                        .log("Successfully subscribed to topic");
+            } else if (subAckPacket.getReasonCodes().stream().allMatch(this::retrySubscribe)) {
+                // subscription failed with a retryable reason code, throw exception to trigger RetryUtils
+                throw new RetryableMqttOperationException("Failed to subscribe to " + topic + " with reason codes "
+                        + subAckPacket.getReasonCodes() + ": " + subAckPacket.getReasonString());
             } else {
-                if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
-                    // subscription succeeded
-                    synchronized (subscriptionsLock) {
-                        subscribedLocalMqttTopics.add(topic);
-                    }
-                    LOGGER.atDebug()
-                            .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
-                            .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
-                            .kv(LOG_KEY_TOPIC, topic)
-                            .log("Successfully subscribed to topic");
-                    return;
-                }
                 // subscription failed with a non-retryable reason code
                 LOGGER.atError()
                         .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
