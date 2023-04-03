@@ -48,7 +48,7 @@ public class IotCoreClientFactory {
             throw new MessageClientException("Unable to create message client, bridge configuration not set");
         }
         return new IoTCoreClient(
-            mqttClient,
+                mqttClient,
                 executorService,
                 config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.IotCore)
         );
