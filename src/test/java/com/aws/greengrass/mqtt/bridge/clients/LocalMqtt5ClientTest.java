@@ -104,19 +104,23 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() {
+    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() throws RetryableMqttOperationException {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/failed");
         topics.add("iotcore/topic2");
+        LocalMqtt5Client clientSpy = spy(client);
 
         mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID);
-        client.updateSubscriptions(topics, message -> {});
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedTopics = new HashSet<>();
         expectedTopics.add("iotcore/topic2");
 
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedTopics)));
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(expectedTopics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedTopics)));
+        // verify that the subscription was not retried
+        verify(clientSpy, times(1)).subscribe("iotcore/failed");
     }
 
     @Test
@@ -354,21 +358,10 @@ class LocalMqtt5ClientTest {
         mockMqtt5Client.nextSubAckReasonCode.add(topic, SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
         clientSpy.updateSubscriptions(topics, message -> {});
 
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
         verify(clientSpy, times(2)).subscribe(topic);
-    }
-
-    @Test
-    void GIVEN_client_with_subscription_request_WHEN_nonretryable_reason_code_received_THEN_dont_retry()
-            throws RetryableMqttOperationException {
-        String topic = "iotcore/topic";
-        Set<String> topics = new HashSet<>();
-        topics.add(topic);
-        LocalMqtt5Client clientSpy = spy(client);
-
-        clientSpy.updateSubscriptions(topics, message -> {});
-
-        //verify that the subscription is not retried
-        verify(clientSpy, times(1)).subscribe(topic);
     }
     
     private Set<String> getMockSubscriptions() {
