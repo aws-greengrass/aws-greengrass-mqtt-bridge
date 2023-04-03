@@ -27,13 +27,11 @@ import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
-import com.aws.greengrass.util.Utils;
 import lombok.Getter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -191,24 +189,24 @@ public class MQTTBridge extends PluginService {
 
         private void onCAChange() {
             findCATopic()
-                    .map(this::caTopicToPojo)
-                    .filter(certs -> !Utils.isEmpty(certs))
+                    .flatMap(this::caTopicToPojo)
                     .ifPresent(this::updateCA);
         }
 
         @SuppressWarnings("unchecked")
-        private List<String> caTopicToPojo(Topic topic) {
+        private Optional<List<String>> caTopicToPojo(Topic topic) {
             Object pojo = topic.toPOJO();
             if (pojo == null) {
-                return Collections.emptyList();
+                logger.atWarn().log("CDA CA topic not set");
+                return Optional.empty();
             }
 
             if (pojo instanceof List) {
-                return (List<String>) pojo;
+                return Optional.of((List<String>) pojo);
             }
 
             logger.atWarn().log("CDA CA topic malformed, expected a list but got: " + pojo.getClass());
-            return Collections.emptyList();
+            return Optional.empty();
         }
 
         private void updateCA(List<String> certs) {
