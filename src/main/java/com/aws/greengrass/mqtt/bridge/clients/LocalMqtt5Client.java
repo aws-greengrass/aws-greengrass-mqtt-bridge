@@ -6,6 +6,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.EncryptionUtils;
@@ -54,6 +55,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -65,6 +68,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -108,6 +112,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final Map<String, Mqtt5RouteOptions> optionsByTopic;
 
     /**
      * Protects access to update subscriptions task, and
@@ -203,17 +208,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param optionsByTopic     mqtt5 route options
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
+                            @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
+        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
         setClient(createCrtClient());
     }
@@ -223,17 +231,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param optionsByTopic     mqtt5 route options
      * @param mqttClientKeyStore mqttClientKeyStore
      * @param executorService    Executor service
      * @param client             mqtt client;
      */
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      Mqtt5Client client) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
+        this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         synchronized (clientLock) {
@@ -362,8 +373,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             return;
         }
         SubscribePacket subscribePacket = new SubscribePacket.SubscribePacketBuilder()
-                // TODO other mqtt5-specific fields
-                .withSubscription(topic, QOS.AT_LEAST_ONCE).build();
+                .withSubscription(
+                        topic,
+                        QOS.AT_LEAST_ONCE,
+                        isNoLocal(topic),
+                        // always set retainAsPublished so we have the retain flag available,
+                        // when we bridge messages, we'll set retain flag based on user route configuration.
+                        true,
+                        SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE)
+                .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket)
@@ -390,6 +408,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean isNoLocal(String topic) {
+        return Optional.ofNullable(optionsByTopic.get(topic))
+                .map(Mqtt5RouteOptions::isNoLocal)
+                .orElse(DEFAULT_NO_LOCAL);
     }
 
     private boolean subscriptionIsSuccessful(SubAckPacket.SubAckReasonCode rc) {
