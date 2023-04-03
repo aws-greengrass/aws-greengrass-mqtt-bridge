@@ -6,6 +6,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.EncryptionUtils;
@@ -54,6 +55,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -65,6 +68,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -74,7 +78,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final RetryUtils.RetryConfig mqttExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Collections.singletonList(CrtRuntimeException.class)).build();
+                    .retryableExceptions(Collections.singletonList(RetryableMqttOperationException.class)).build();
 
     // TODO configurable?
     private static final long MQTT_OPERATION_TIMEOUT_MS = Duration.ofMinutes(1).toMillis();
@@ -87,7 +91,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final String LOG_KEY_REASON = "reason";
     private static final String LOG_KEY_MESSAGE = "message";
     private static final String LOG_KEY_ERROR = "error";
-
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
@@ -108,6 +111,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final Map<String, Mqtt5RouteOptions> optionsByTopic;
 
     /**
      * Protects access to update subscriptions task, and
@@ -118,11 +122,36 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Set<String> subscribedLocalMqttTopics = new HashSet<>();
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
     private final Set<Integer> nonRetryableUnSubAckReasonCodes = new HashSet<Integer>() {{
+        // A successful reason code does not need to be retried
         this.add(UnsubAckPacket.UnsubAckReasonCode.SUCCESS.getValue());
-        this.add(UnsubAckPacket.UnsubAckReasonCode.NO_SUBSCRIPTION_EXISTED.getValue());
+
+        // Authorization will take time to fix, better to give up
         this.add(UnsubAckPacket.UnsubAckReasonCode.NOT_AUTHORIZED.getValue());
+
+        // These failures cannot be resolved by retrying
+        this.add(UnsubAckPacket.UnsubAckReasonCode.NO_SUBSCRIPTION_EXISTED.getValue());
         this.add(UnsubAckPacket.UnsubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
+    }};
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    private final Set<Integer> nonRetryableSubAckReasonCodes = new HashSet<Integer>() {{
+        // Successful reason codes don't need to be retried
+        this.add(SubAckPacket.SubAckReasonCode.GRANTED_QOS_0.getValue());
+        this.add(SubAckPacket.SubAckReasonCode.GRANTED_QOS_1.getValue());
+        this.add(SubAckPacket.SubAckReasonCode.GRANTED_QOS_2.getValue());
+
+        // Authorization will take time to fix, better to give up
+        this.add(SubAckPacket.SubAckReasonCode.NOT_AUTHORIZED.getValue());
+
+        // Indicates that the subscription topic filter is not allowed for the client, cannot be resolved by retrying
+        this.add(SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
+
+        // These indicate that the subscribe packet or subscription's topic filter contain info that is not supported
+        // by the server, retrying will not change what the server supports
+        this.add(SubAckPacket.SubAckReasonCode.SHARED_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
+        this.add(SubAckPacket.SubAckReasonCode.SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED.getValue());
+        this.add(SubAckPacket.SubAckReasonCode.WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
     }};
     private Future<?> updateSubscriptionsTask;
 
@@ -209,17 +238,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param optionsByTopic     mqtt5 route options
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
+                            @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.mqttClientKeyStore = mqttClientKeyStore;
+        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
         setClient(createCrtClient());
     }
@@ -229,17 +261,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      *
      * @param brokerUri          broker uri
      * @param clientId           client id
+     * @param optionsByTopic     mqtt5 route options
      * @param mqttClientKeyStore mqttClientKeyStore
      * @param executorService    Executor service
      * @param client             mqtt client;
      */
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      Mqtt5Client client) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
+        this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         synchronized (clientLock) {
@@ -358,7 +393,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         for (String topic : topics) {
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
-                    subscribe(topic); // TODO retry based on return code
+                    subscribe(topic);
                     return null;
                 }, "subscribe-mqtt5-topic", LOGGER);
             } catch (InterruptedException e) {
@@ -370,20 +405,28 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    private void subscribe(String topic) {
+    void subscribe(String topic) throws RetryableMqttOperationException {
         Mqtt5Client client = getClient();
 
         if (!client.getIsConnected()) {
             return;
         }
         SubscribePacket subscribePacket = new SubscribePacket.SubscribePacketBuilder()
-                // TODO other mqtt5-specific fields
-                .withSubscription(topic, QOS.AT_LEAST_ONCE).build();
+                .withSubscription(
+                        topic,
+                        QOS.AT_LEAST_ONCE,
+                        isNoLocal(topic),
+                        // always set retainAsPublished so we have the retain flag available,
+                        // when we bridge messages, we'll set retain flag based on user route configuration.
+                        true,
+                        SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE)
+                .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket)
                     .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
+                // subscription succeeded
                 synchronized (subscriptionsLock) {
                     subscribedLocalMqttTopics.add(topic);
                 }
@@ -392,19 +435,30 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Successfully subscribed to topic");
+            } else if (subAckPacket.getReasonCodes().stream().allMatch(this::retrySubscribe)) {
+                // subscription failed with a retryable reason code, throw exception to trigger RetryUtils
+                throw new RetryableMqttOperationException("Failed to subscribe to " + topic + " with reason codes "
+                        + subAckPacket.getReasonCodes() + ": " + subAckPacket.getReasonString());
             } else {
+                // subscription failed with a non-retryable reason code
                 LOGGER.atError()
                         .kv(LOG_KEY_REASON_CODES, subAckPacket.getReasonCodes())
                         .kv(LOG_KEY_REASON, subAckPacket.getReasonString())
                         .kv(LOG_KEY_TOPIC, topic)
-                        .log("Failed to subscribe to topic");
+                        .log("Failed to subscribe to topic with a non-retryable reason code, not retrying");
             }
         } catch (TimeoutException | ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
-                    .log("failed to subscribe");
+                    .log("Failed to subscribe to topic");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean isNoLocal(String topic) {
+        return Optional.ofNullable(optionsByTopic.get(topic))
+                .map(Mqtt5RouteOptions::isNoLocal)
+                .orElse(DEFAULT_NO_LOCAL);
     }
 
     private boolean subscriptionIsSuccessful(SubAckPacket.SubAckReasonCode rc) {
@@ -413,7 +467,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 || rc == SubAckPacket.SubAckReasonCode.GRANTED_QOS_2;
     }
 
-    void unsubscribe(String topic) {
+    private boolean retrySubscribe(SubAckPacket.SubAckReasonCode rc) {
+        return !nonRetryableSubAckReasonCodes.contains(rc.getValue());
+    }
+
+    void unsubscribe(String topic) throws RetryableMqttOperationException {
         Mqtt5Client client = getClient();
 
         if (!client.getIsConnected()) {
@@ -426,21 +484,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
                     .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
+                // successfully unsubscribed
                 LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
-            } else if (unsubAckPacket.getReasonCodes().stream().allMatch(this::skipUnsubscribeRetry)) {
+            } else if (unsubAckPacket.getReasonCodes().stream().allMatch(this::retryUnsubscribe)) {
+                // failed to unsubscribe with a retryable reason code, throw exception to trigger RetryUtils
+                throw new RetryableMqttOperationException("Failed to unsubscribe from " + topic + " with reason codes "
+                    + unsubAckPacket.getReasonCodes() + ": " + unsubAckPacket.getReasonString());
+            } else {
+                // failed to unsubscribe with a non-retryable reason code
                 LOGGER.atDebug()
                         .kv(LOG_KEY_TOPIC, topic)
                         .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
                         .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
                         .log("Failed to unsubscribe from topic with a non-retryable reason code, not retrying");
                 return;
-            } else {
-                LOGGER.atDebug()
-                        .kv(LOG_KEY_TOPIC, topic)
-                        .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
-                        .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
-                        .log("Failed to unsubscribe from topic");
-                throw new CrtRuntimeException("Failed to unsubscribe from topic");
             }
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
@@ -457,8 +514,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return rc == UnsubAckPacket.UnsubAckReasonCode.SUCCESS;
     }
 
-    private boolean skipUnsubscribeRetry(UnsubAckPacket.UnsubAckReasonCode rc) {
-        return nonRetryableUnSubAckReasonCodes.contains(rc.getValue());
+    private boolean retryUnsubscribe(UnsubAckPacket.UnsubAckReasonCode rc) {
+        return !nonRetryableUnSubAckReasonCodes.contains(rc.getValue());
     }
 
     @Override

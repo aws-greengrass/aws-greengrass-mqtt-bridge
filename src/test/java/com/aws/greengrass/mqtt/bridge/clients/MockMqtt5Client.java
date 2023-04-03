@@ -226,11 +226,15 @@ public class MockMqtt5Client {
                 synchronized (subscriptionsLock) {
                     for (SubscribePacket subscribe : subscriptions) {
                         for (SubscribePacket.Subscription subscription : subscribe.getSubscriptions()) {
-                            if (subscription.getTopicFilter().equals(publish.getTopic())) {
-                                PublishReturn publishReturn = mock(PublishReturn.class);
-                                when(publishReturn.getPublishPacket()).thenReturn(publish);
-                                publishEvents.onMessageReceived(client, publishReturn);
+                            if (subscription.getNoLocal() != null && subscription.getNoLocal()) {
+                                continue;
                             }
+                            if (!subscription.getTopicFilter().equals(publish.getTopic())) {
+                                continue;
+                            }
+                            PublishReturn publishReturn = mock(PublishReturn.class);
+                            when(publishReturn.getPublishPacket()).thenReturn(publish);
+                            publishEvents.onMessageReceived(client, publishReturn);
                         }
                     }
                 }

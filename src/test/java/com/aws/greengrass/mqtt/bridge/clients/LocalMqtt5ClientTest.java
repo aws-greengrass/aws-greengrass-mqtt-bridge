@@ -6,6 +6,7 @@
 package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -33,7 +33,10 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -46,7 +49,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -74,10 +76,38 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
+    void GIVEN_client_WHEN_publish_on_nolocal_route_THEN_no_publish_occurs() throws Exception {
+        Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
+        routeOptions.put("iotcore/topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+
+        createLocalMqtt5ClientWithMqtt5Options(routeOptions);
+
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
+        client.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
+
+        // verify subscriptions were made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        client.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
+        client.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
+
+        Set<String> expectedInvokedHandlers = new HashSet<>();
+        expectedInvokedHandlers.add("iotcore/topic2");
+        assertThat("messages published", () -> mockMqtt5Client.getPublished().stream().map(PublishPacket::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedInvokedHandlers)));
+    }
+
+    @Test
     void GIVEN_client_WHEN_port_is_missing_THEN_succeeds() throws Exception {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
+                Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
                 executorService);
     }
@@ -106,19 +136,23 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() {
+    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() throws RetryableMqttOperationException {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/failed");
         topics.add("iotcore/topic2");
+        LocalMqtt5Client clientSpy = spy(client);
 
-        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
-        client.updateSubscriptions(topics, message -> {});
+        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID);
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedTopics = new HashSet<>();
         expectedTopics.add("iotcore/topic2");
 
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedTopics)));
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(expectedTopics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedTopics)));
+        // verify that the subscription was not retried
+        verify(clientSpy, times(1)).subscribe("iotcore/failed");
     }
 
     @Test
@@ -175,31 +209,38 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_WHEN_topic_changed_and_unsubscribe_fails_THEN_topic_still_there() {
+    void GIVEN_client_with_subscriptions_WHEN_topic_changed_and_unsubscribe_fails_THEN_topic_still_there()
+            throws RetryableMqttOperationException {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
+        LocalMqtt5Client clientSpy = spy(client);
 
-        client.updateSubscriptions(topics, message -> {});
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics local client", () -> clientSpy.getSubscribedLocalMqttTopics(),
+                eventuallyEval(is(topics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
 
         topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2/changed");
 
-        mockMqtt5Client.nextUnsubAckReasonCode.add("iotcore/topic2", UnsubAckPacket.UnsubAckReasonCode.UNSPECIFIED_ERROR);
+        mockMqtt5Client.nextUnsubAckReasonCode.add("iotcore/topic2",
+                UnsubAckPacket.UnsubAckReasonCode.TOPIC_FILTER_INVALID);
 
-        client.updateSubscriptions(topics, message -> {});
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedSubscriptions = new HashSet<>(topics);
         expectedSubscriptions.add("iotcore/topic2");
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedSubscriptions)));
-        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedSubscriptions)));
+        assertThat("subscribed topics local client", () -> clientSpy.getSubscribedLocalMqttTopics(),
+                eventuallyEval(is(expectedSubscriptions)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions,
+                eventuallyEval(is(expectedSubscriptions)));
+        verify(clientSpy, times(1)).unsubscribe("iotcore/topic2");
     }
 
     @Test
@@ -346,8 +387,8 @@ class LocalMqtt5ClientTest {
 
     @Test
     void GIVEN_client_WHEN_unsubscribe_from_topic_with_retryable_reason_code_THEN_retry_unsubscribe
-            (ExtensionContext context) {
-        ignoreExceptionOfType(context, CrtRuntimeException.class);
+            (ExtensionContext context) throws RetryableMqttOperationException {
+        ignoreExceptionOfType(context, RetryableMqttOperationException.class);
         String topic = "iotcore/topic";
         String topic2 = "iotcore/topic2";
         Set<String> topics = new HashSet<>();
@@ -359,30 +400,32 @@ class LocalMqtt5ClientTest {
 
         topics.remove(topic);
         topics.add(topic2);
-        doThrow(CrtRuntimeException.class).doNothing().when(clientSpy).unsubscribe(topic);
+        mockMqtt5Client.nextUnsubAckReasonCode.add(topic, UnsubAckPacket.UnsubAckReasonCode.UNSPECIFIED_ERROR);
 
         // subscribe to new topics, this will unsubscribe from the old topics
         clientSpy.updateSubscriptions(topics, message -> {});
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
         verify(clientSpy, times(2)).unsubscribe(topic);
     }
 
     @Test
-    void GIVEN_client_WHEN_unsubscribe_from_topic_with_retryable_reason_code_THEN_dont_retry() {
+    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
+        (ExtensionContext context) throws RetryableMqttOperationException {
+        ignoreExceptionOfType(context, RetryableMqttOperationException.class);
         String topic = "iotcore/topic";
-        String topic2 = "iotcore/topic2";
         Set<String> topics = new HashSet<>();
         topics.add(topic);
+
         LocalMqtt5Client clientSpy = spy(client);
-
-        // subscribe to topics
+        mockMqtt5Client.nextSubAckReasonCode.add(topic, SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
         clientSpy.updateSubscriptions(topics, message -> {});
 
-        topics.remove(topic);
-        topics.add(topic2);
-
-        // subscribe to new topics, this will unsubscribe from the old topics
-        clientSpy.updateSubscriptions(topics, message -> {});
-        verify(clientSpy, times(1)).unsubscribe(topic);
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+        verify(clientSpy, times(2)).subscribe(topic);
     }
     
     private Set<String> getMockSubscriptions() {
@@ -394,9 +437,14 @@ class LocalMqtt5ClientTest {
     }
 
     private void createLocalMqtt5Client() {
+        createLocalMqtt5ClientWithMqtt5Options(Collections.emptyMap());
+    }
+
+    private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 null
