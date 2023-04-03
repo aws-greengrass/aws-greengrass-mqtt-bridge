@@ -83,18 +83,6 @@ public class KeystoreTest {
         ignoreExceptionOfType(context, IllegalArgumentException.class);
         ignoreExceptionOfType(context, NullPointerException.class);
 
-        CountDownLatch keyStoreUpdated = new CountDownLatch(1);
-        MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(keyStoreUpdated::countDown);
-
-        Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
-                SERVICES_NAMESPACE_TOPIC,
-                ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME,
-                RUNTIME_STORE_NAMESPACE_TOPIC,
-                ClientDevicesAuthService.CERTIFICATES_KEY,
-                ClientDevicesAuthService.AUTHORITIES_TOPIC
-        );
-
         // break bridge
         CountDownLatch bridgeIsBroken = new CountDownLatch(1);
         GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
@@ -112,17 +100,25 @@ public class KeystoreTest {
         testContext.getKernel().getContext().addGlobalStateChangeListener(listener);
         assertTrue(bridgeIsBroken.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
+        CountDownLatch keyStoreUpdated = new CountDownLatch(1);
+        MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
+        keyStore.listenToCAUpdates(keyStoreUpdated::countDown);
+
         // update topic with CA
+        Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                ClientDevicesAuthService.CLIENT_DEVICES_AUTH_SERVICE_NAME,
+                RUNTIME_STORE_NAMESPACE_TOPIC,
+                ClientDevicesAuthService.CERTIFICATES_KEY,
+                ClientDevicesAuthService.AUTHORITIES_TOPIC
+        );
         certificateAuthoritiesTopic.withValue(
-                Collections.singletonList(
-                        CertificateHelper.toPem(
-                                CertificateHelper.createCACertificate(
-                                        CertificateStore.newRSAKeyPair(2048),
-                                        Date.from(Instant.now()),
-                                        Date.from(Instant.now().plusSeconds(100)),
-                                        "CA"
-                                ))
-                ));
+                Collections.singletonList(CertificateHelper.toPem(
+                        CertificateHelper.createCACertificate(
+                                CertificateStore.newRSAKeyPair(2048),
+                                Date.from(Instant.now()),
+                                Date.from(Instant.now().plusSeconds(100)),
+                                "CA"))));
 
         // shouldn't update
         assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
