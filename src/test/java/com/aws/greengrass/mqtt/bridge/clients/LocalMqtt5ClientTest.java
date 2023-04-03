@@ -6,6 +6,7 @@
 package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -32,7 +33,10 @@ import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -72,10 +76,38 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
+    void GIVEN_client_WHEN_publish_on_nolocal_route_THEN_no_publish_occurs() throws Exception {
+        Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
+        routeOptions.put("iotcore/topic", Mqtt5RouteOptions.builder().noLocal(true).build());
+
+        createLocalMqtt5ClientWithMqtt5Options(routeOptions);
+
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
+        client.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
+
+        // verify subscriptions were made
+        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        client.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
+        client.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
+
+        Set<String> expectedInvokedHandlers = new HashSet<>();
+        expectedInvokedHandlers.add("iotcore/topic2");
+        assertThat("messages published", () -> mockMqtt5Client.getPublished().stream().map(PublishPacket::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedInvokedHandlers)));
+    }
+
+    @Test
     void GIVEN_client_WHEN_port_is_missing_THEN_succeeds() throws Exception {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
+                Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
                 executorService);
     }
@@ -373,9 +405,14 @@ class LocalMqtt5ClientTest {
     }
 
     private void createLocalMqtt5Client() {
+        createLocalMqtt5ClientWithMqtt5Options(Collections.emptyMap());
+    }
+
+    private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 null

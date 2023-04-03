@@ -346,6 +346,63 @@ class BridgeConfigTest {
     }
 
     @Test
+    void GIVEN_config_WHEN_get_route_options_for_source_THEN_options_returned() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.IotCore.toString(), "target", TopicMapping.TopicType.LocalMqtt.toString()),
+                        "m3",
+                        Utils.immutableMap("topic", "mqtt/topic3", "source", TopicMapping.TopicType.Pubsub.toString(), "target", TopicMapping.TopicType.LocalMqtt.toString())));
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
+                Utils.immutableMap(
+                        "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "false"),
+                        "m2", Utils.immutableMap("noLocal", "false", "retainAsPublished",  "true")));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForLocalMqtt = new HashMap<>();
+        expectedOptsForLocalMqtt.put("mqtt/topic", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
+        assertEquals(expectedOptsForLocalMqtt, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForIotCore = new HashMap<>();
+        expectedOptsForIotCore.put("mqtt/topic2", Mqtt5RouteOptions.builder().noLocal(false).retainAsPublished(true).build());
+        assertEquals(expectedOptsForIotCore, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.IotCore));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForPubSub = new HashMap<>();
+        assertEquals(expectedOptsForPubSub, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.Pubsub));
+    }
+
+    @Test
+    void GIVEN_config_mqtt_3_WHEN_get_route_options_for_source_THEN_no_options_returned() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt3");
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic2", "source", TopicMapping.TopicType.IotCore.toString(), "target", TopicMapping.TopicType.LocalMqtt.toString())));
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
+                Utils.immutableMap(
+                        "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "false"),
+                        "m2", null,
+                        "m3", Utils.immutableMap("noLocal", "false", "retainAsPublished",  "true")));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForLocalMqtt = new HashMap<>();
+        assertEquals(expectedOptsForLocalMqtt, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForIotCore = new HashMap<>();
+        assertEquals(expectedOptsForIotCore, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.IotCore));
+
+        Map<String, Mqtt5RouteOptions> expectedOptsForPubSub = new HashMap<>();
+        assertEquals(expectedOptsForPubSub, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsForSource(TopicMapping.TopicType.Pubsub));
+    }
+
+    @Test
     void GIVEN_invalid_mqtt5_route_options_WHEN_bridge_config_created_THEN_exception_thrown() {
         String invalidSource = "INVALID_SOURCE";
 

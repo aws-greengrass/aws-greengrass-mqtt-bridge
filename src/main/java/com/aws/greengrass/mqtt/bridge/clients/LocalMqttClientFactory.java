@@ -7,6 +7,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -52,6 +53,7 @@ public class LocalMqttClientFactory {
                 return new LocalMqtt5Client(
                         config.getBrokerUri(),
                         config.getClientId(),
+                        config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
                         mqttClientKeyStore,
                         executorService
                 );

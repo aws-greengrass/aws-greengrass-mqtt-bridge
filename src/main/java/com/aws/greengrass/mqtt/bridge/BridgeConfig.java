@@ -24,6 +24,8 @@ import lombok.ToString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -195,6 +197,34 @@ public final class BridgeConfig {
             return MAX_SESSION_EXPIRY_INTERVAL;
         }
         return sessionExpiryInterval;
+    }
+
+    /**
+     * Get mqtt5 route options for a {@link com.aws.greengrass.mqtt.bridge.TopicMapping.TopicType},
+     * grouped by topic names.
+     *
+     * <p>If bridge is not configured for mqtt5, no options will be returned.
+     *
+     * @param source source type
+     * @return route options by topic name
+     */
+    public Map<String, Mqtt5RouteOptions> getMqtt5RouteOptionsForSource(TopicMapping.TopicType source) {
+        if (mqttVersion != MqttVersion.MQTT5) {
+            return Collections.emptyMap();
+        }
+        Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
+        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.entrySet()) {
+            String route = entry.getKey();
+            TopicMapping.MappingEntry mapping = entry.getValue();
+            if (mapping.getSource() != source) {
+                continue;
+            }
+            if (!mqtt5RouteOptions.containsKey(entry.getKey())) {
+                continue;
+            }
+            opts.put(mapping.getTopic(), mqtt5RouteOptions.get(route));
+        }
+        return opts;
     }
 
     /**
