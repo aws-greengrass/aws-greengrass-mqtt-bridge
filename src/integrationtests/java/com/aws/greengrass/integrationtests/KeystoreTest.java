@@ -21,18 +21,22 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -45,9 +49,9 @@ public class KeystoreTest {
     @TestWithMqtt3Broker
     @WithKernel("config.yaml")
     void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated(Broker broker) throws Exception {
-        CountDownLatch keyStoreUpdated = new CountDownLatch(1);
+        Pair<CompletableFuture<Void>, Consumer<Void>> keystoreUpdated = asyncAssertOnConsumer(p -> {}, 1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(keyStoreUpdated::countDown);
+        keyStore.listenToCAUpdates(() -> keystoreUpdated.getRight().accept(null));
 
         Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
                 SERVICES_NAMESPACE_TOPIC,
@@ -57,7 +61,11 @@ public class KeystoreTest {
                 ClientDevicesAuthService.AUTHORITIES_TOPIC
         );
 
-        // update topic with CA
+        // update topic with invalid content
+        certificateAuthoritiesTopic.withValue("garbage");
+        testContext.getKernel().getContext().waitForPublishQueueToClear();
+
+        // update topic with valid CA
         certificateAuthoritiesTopic.withValue(
                 Collections.singletonList(
                         CertificateHelper.toPem(
@@ -69,7 +77,7 @@ public class KeystoreTest {
                                 ))
                 ));
 
-        assertTrue(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        keystoreUpdated.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     @TestWithMqtt5Broker
