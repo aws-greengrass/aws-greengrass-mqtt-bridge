@@ -104,13 +104,9 @@ public class MockMqttClient {
                 published.add(publish);
                 synchronized (subscriptionsLock) {
                     for (Subscribe subscribe : subscriptions) {
-                        if (!subscribe.getTopic().equals(publish.getTopic())) {
-                            continue;
+                        if (subscribe.getTopic().equals(publish.getTopic())) {
+                            subscribe.getCallback().accept(publish);
                         }
-                        if (subscribe.isNoLocal()) {
-                            continue;
-                        }
-                        subscribe.getCallback().accept(publish);
                     }
                 }
                 iter.remove();

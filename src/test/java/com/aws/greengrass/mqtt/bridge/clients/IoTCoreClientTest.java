@@ -5,21 +5,16 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
-import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -36,12 +31,7 @@ public class IoTCoreClientTest {
 
     MockMqttClient mockMqttClient = new MockMqttClient(false);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
-    IoTCoreClient iotCoreClient;
-
-    @BeforeEach
-    void setUp() {
-        createClientWithMqtt5RouteOptions(Collections.emptyMap());
-    }
+    IoTCoreClient iotCoreClient = new IoTCoreClient(mockMqttClient.getMqttClient(), executorService);
 
     @Test
     void GIVEN_client_with_no_subscriptions_WHEN_update_subscriptions_THEN_topics_subscribed() {
@@ -143,33 +133,6 @@ public class IoTCoreClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_nolocal_WHEN_message_published_THEN_message_handler_not_invoked() throws Exception {
-        Map<String, Mqtt5RouteOptions> routeOptions = new HashMap<>();
-        routeOptions.put("iotcore/topic", Mqtt5RouteOptions.builder().noLocal(true).build());
-
-        createClientWithMqtt5RouteOptions(routeOptions);
-
-        Set<String> topics = new HashSet<>();
-        topics.add("iotcore/topic");
-        topics.add("iotcore/topic2");
-
-        Set<String> topicsReceived = ConcurrentHashMap.newKeySet();
-        iotCoreClient.updateSubscriptions(topics, m -> topicsReceived.add(m.getTopic()));
-
-        // verify subscriptions were made
-        assertThat("subscribed topics iot core client", () -> iotCoreClient.getSubscribedIotCoreTopics(), eventuallyEval(is(topics)));
-        assertThat("subscribed topics spooler client", () -> mockMqttClient.getSubscriptions().stream().map(Subscribe::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
-
-        iotCoreClient.publish(MqttMessage.builder().topic("iotcore/topic").payload("message1".getBytes()).build());
-        iotCoreClient.publish(MqttMessage.builder().topic("iotcore/topic2").payload("message2".getBytes()).build());
-
-        Set<String> expectedInvokedHandlers = new HashSet<>();
-        expectedInvokedHandlers.add("iotcore/topic2");
-        assertThat("messages published", () -> mockMqttClient.getPublished().stream().map(Publish::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
-        assertThat("handlers invoked", () -> topicsReceived, eventuallyEval(is(expectedInvokedHandlers)));
-    }
-
-    @Test
     void GIVEN_iotcore_client_WHEN_update_subscriptions_with_null_message_handler_THEN_throws() {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
@@ -185,13 +148,5 @@ public class IoTCoreClientTest {
     private void setOffline() {
         mockMqttClient.offline();
         iotCoreClient.getConnectionCallbacks().onConnectionInterrupted(0);
-    }
-
-    private void createClientWithMqtt5RouteOptions(Map<String, Mqtt5RouteOptions> opts) {
-        iotCoreClient = new IoTCoreClient(
-                mockMqttClient.getMqttClient(),
-                executorService,
-                opts
-        );
     }
 }

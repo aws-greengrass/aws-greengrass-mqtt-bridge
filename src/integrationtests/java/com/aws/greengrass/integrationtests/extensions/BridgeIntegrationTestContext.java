@@ -33,7 +33,7 @@ public class BridgeIntegrationTestContext {
     }
 
     public IoTCoreClient getIotCoreClient() {
-        return getFromContext(MQTTBridge.class).getIotCoreClient();
+        return getFromContext(IoTCoreClient.class);
     }
 
     public MQTTClient getLocalV3Client() {

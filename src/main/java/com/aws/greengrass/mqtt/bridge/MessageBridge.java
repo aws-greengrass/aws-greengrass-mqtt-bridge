@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import javax.inject.Inject;
 
 /**
  * Bridges/Routes the messages flowing between clients to various brokers. This class process the topics mappings. It
@@ -51,7 +50,6 @@ public class MessageBridge {
      *
      * @param topicMapping topics mapping
      */
-    @Inject
     public MessageBridge(TopicMapping topicMapping) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);

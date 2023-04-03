@@ -67,32 +67,6 @@ public class BridgeTest {
         assertThrows(TimeoutException.class, () -> iotCoreTopicSubscription.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_iotcore_to_local_nolocal.yaml")
-    void GIVEN_mqtt5_and_mapping_between_iotcore_and_local_with_nolocal_WHEN_message_published_THEN_message_does_not_loop(Broker broker) throws Exception {
-        Pair<CompletableFuture<Void>, Consumer<Publish>> iotCoreTopicSubscription
-                = asyncAssertOnConsumer(p -> {}, 0);
-        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-                .topic("topic/toLocal")
-                .noLocal(true)
-                .callback(iotCoreTopicSubscription.getRight())
-                .build()).get(5L, TimeUnit.SECONDS);
-
-        context.getIotCoreClient().publish(
-                MqttMessage.builder()
-                        .topic("topic/toLocal")
-                        .payload("message".getBytes(StandardCharsets.UTF_8))
-                        // mqtt5-specific fields below.
-                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
-                        .responseTopic("response topic")
-                        .messageExpiryIntervalSeconds(1234L)
-                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
-                        .contentType("contentType")
-                        .build());
-
-        assertThrows(TimeoutException.class, () -> iotCoreTopicSubscription.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-    }
-
     @TestWithAllBrokers
     @WithKernel("mqtt3_local_and_iotcore.yaml")
     void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_iotcore_message_received_THEN_message_bridged_to_local(Broker broker) throws Exception {
