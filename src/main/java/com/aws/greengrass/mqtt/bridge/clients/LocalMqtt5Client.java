@@ -380,7 +380,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         // always set retainAsPublished so we have the retain flag available,
                         // when we bridge messages, we'll set retain flag based on user route configuration.
                         true,
-                        SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE_IF_NEW)
+                        SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE)
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
