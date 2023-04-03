@@ -52,6 +52,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -135,19 +136,23 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() {
+    void GIVEN_client_WHEN_subscription_fails_THEN_no_topics_subscribed() throws RetryableMqttOperationException {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/failed");
         topics.add("iotcore/topic2");
+        LocalMqtt5Client clientSpy = spy(client);
 
-        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
-        client.updateSubscriptions(topics, message -> {});
+        mockMqtt5Client.nextSubAckReasonCode.add("iotcore/failed", SubAckPacket.SubAckReasonCode.TOPIC_FILTER_INVALID);
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedTopics = new HashSet<>();
         expectedTopics.add("iotcore/topic2");
 
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedTopics)));
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(expectedTopics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedTopics)));
+        // verify that the subscription was not retried
+        verify(clientSpy, times(1)).subscribe("iotcore/failed");
     }
 
     @Test
@@ -371,6 +376,24 @@ class LocalMqtt5ClientTest {
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
         assertThrows(NullPointerException.class, () -> client.updateSubscriptions(topics, null));
+    }
+
+    @Test
+    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
+            (ExtensionContext context) throws RetryableMqttOperationException {
+        ignoreExceptionOfType(context, RetryableMqttOperationException.class);
+        String topic = "iotcore/topic";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
+        LocalMqtt5Client clientSpy = spy(client);
+        mockMqtt5Client.nextSubAckReasonCode.add(topic, SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR);
+        clientSpy.updateSubscriptions(topics, message -> {});
+
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+        verify(clientSpy, times(2)).subscribe(topic);
     }
     
     private Set<String> getMockSubscriptions() {
