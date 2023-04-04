@@ -219,7 +219,7 @@ class LocalMqtt5ClientTest {
         clientSpy.updateSubscriptions(topics, message -> {});
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> clientSpy.getSubscribedLocalMqttTopics(),
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
                 eventuallyEval(is(topics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
 
@@ -236,7 +236,7 @@ class LocalMqtt5ClientTest {
         expectedSubscriptions.add("iotcore/topic2");
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> clientSpy.getSubscribedLocalMqttTopics(),
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
                 eventuallyEval(is(expectedSubscriptions)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions,
                 eventuallyEval(is(expectedSubscriptions)));

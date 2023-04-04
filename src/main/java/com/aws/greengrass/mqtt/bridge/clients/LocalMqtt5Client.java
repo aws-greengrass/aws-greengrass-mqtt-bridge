@@ -437,8 +437,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .log("Successfully subscribed to topic");
             } else if (subAckPacket.getReasonCodes().stream().allMatch(this::retrySubscribe)) {
                 // subscription failed with a retryable reason code, throw exception to trigger RetryUtils
-                throw new RetryableMqttOperationException("Failed to subscribe to " + topic + " with reason codes "
-                        + subAckPacket.getReasonCodes() + ": " + subAckPacket.getReasonString());
+                int rc = subAckPacket.getReasonCodes().stream().findFirst().get().getValue();
+                throw new RetryableMqttOperationException(String.format("Failed to subscribe to %s with reason code "
+                                + "%d: %s", topic, rc, subAckPacket.getReasonString()));
             } else {
                 // subscription failed with a non-retryable reason code
                 LOGGER.atError()
@@ -488,8 +489,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
             } else if (unsubAckPacket.getReasonCodes().stream().allMatch(this::retryUnsubscribe)) {
                 // failed to unsubscribe with a retryable reason code, throw exception to trigger RetryUtils
-                throw new RetryableMqttOperationException("Failed to unsubscribe from " + topic + " with reason codes "
-                    + unsubAckPacket.getReasonCodes() + ": " + unsubAckPacket.getReasonString());
+                int rc = unsubAckPacket.getReasonCodes().stream().findFirst().get().getValue();
+                throw new RetryableMqttOperationException(String.format("Failed to unsubscribe from %s with reason "
+                        + "code %d: %s", topic, rc, unsubAckPacket.getReasonString()));
             } else {
                 // failed to unsubscribe with a non-retryable reason code
                 LOGGER.atDebug()
