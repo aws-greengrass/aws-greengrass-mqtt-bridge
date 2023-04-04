@@ -12,6 +12,7 @@ import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
+import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -52,8 +53,8 @@ public class ConfigTest {
 
     BridgeIntegrationTestContext testContext;
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(Broker broker, ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
 
@@ -71,7 +72,7 @@ public class ConfigTest {
                 .lookupTopics(CONFIGURATION_CONFIG_KEY);
 
         config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, "tcp://newbroker:1234"), MERGE_UPDATE_BEHAVIOR.get());
+        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, String.format("tcp://localhost:%d", testContext.getBrokerTCPPort())), MERGE_UPDATE_BEHAVIOR.get());
 
         assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals(1, numRestarts.get());
@@ -97,7 +98,7 @@ public class ConfigTest {
         int numRestarts = 5;
         for (int i = 0; i < numRestarts; i++) {
             // change the configuration and wait for bridge to restart
-            config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, String.format("tcp://brokeruri:%d", i)), MERGE_UPDATE_BEHAVIOR.get());
+            config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, String.format("clientId%d", i)), MERGE_UPDATE_BEHAVIOR.get());
             assertTrue(bridgeRestarted.tryAcquire(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         }
     }
