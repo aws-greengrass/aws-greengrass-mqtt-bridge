@@ -123,6 +123,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
     @SuppressWarnings("PMD.DoubleBraceInitialization")
+    private final Set<Integer> nonRetryableUnSubAckReasonCodes = new HashSet<Integer>() {{
+        // A successful reason code does not need to be retried
+        this.add(UnsubAckPacket.UnsubAckReasonCode.SUCCESS.getValue());
+
+        // Authorization will take time to fix, better to give up
+        this.add(UnsubAckPacket.UnsubAckReasonCode.NOT_AUTHORIZED.getValue());
+
+        // These failures cannot be resolved by retrying
+        this.add(UnsubAckPacket.UnsubAckReasonCode.NO_SUBSCRIPTION_EXISTED.getValue());
+        this.add(UnsubAckPacket.UnsubAckReasonCode.TOPIC_FILTER_INVALID.getValue());
+    }};
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
     private final Set<Integer> nonRetryableSubAckReasonCodes = new HashSet<Integer>() {{
         // Successful reason codes don't need to be retried
         this.add(SubAckPacket.SubAckReasonCode.GRANTED_QOS_0.getValue());
@@ -350,8 +362,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     if (Thread.currentThread().isInterrupted()) {
                         return;
                     }
-                    unsubscribe(topic);
-                    // TODO retry unsubscribe failures
+                    try {
+                        RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
+                            unsubscribe(topic);
+                            return null;
+                        }, "unsubscribe-mqtt5-topic", LOGGER);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception e) {
+                        LOGGER.atError().setCause(e).kv(LOG_KEY_TOPIC, topic).log("Failed to unsubscribe");
+                    }
                 }
                 LOGGER.atDebug().kv(LOG_KEY_TOPICS, topicsToSubscribe).log("Subscribing to MQTT topics");
                 subscribeToTopics(topicsToSubscribe);
@@ -416,8 +437,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .log("Successfully subscribed to topic");
             } else if (subAckPacket.getReasonCodes().stream().allMatch(this::retrySubscribe)) {
                 // subscription failed with a retryable reason code, throw exception to trigger RetryUtils
-                throw new RetryableMqttOperationException("Failed to subscribe to " + topic + " with reason codes "
-                        + subAckPacket.getReasonCodes() + ": " + subAckPacket.getReasonString());
+                int rc = subAckPacket.getReasonCodes().stream().findFirst().get().getValue();
+                throw new RetryableMqttOperationException(String.format("Failed to subscribe to %s with reason code "
+                                + "%d: %s", topic, rc, subAckPacket.getReasonString()));
             } else {
                 // subscription failed with a non-retryable reason code
                 LOGGER.atError()
@@ -450,7 +472,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return !nonRetryableSubAckReasonCodes.contains(rc.getValue());
     }
 
-    private void unsubscribe(String topic) {
+    void unsubscribe(String topic) throws RetryableMqttOperationException {
         Mqtt5Client client = getClient();
 
         if (!client.getIsConnected()) {
@@ -462,15 +484,23 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         try {
             UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
                     .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            if (!unsubAckPacket.getReasonCodes().contains(UnsubAckPacket.UnsubAckReasonCode.SUCCESS)) {
+            if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
+                // successfully unsubscribed
+                LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
+            } else if (unsubAckPacket.getReasonCodes().stream().allMatch(this::retryUnsubscribe)) {
+                // failed to unsubscribe with a retryable reason code, throw exception to trigger RetryUtils
+                int rc = unsubAckPacket.getReasonCodes().stream().findFirst().get().getValue();
+                throw new RetryableMqttOperationException(String.format("Failed to unsubscribe from %s with reason "
+                        + "code %d: %s", topic, rc, unsubAckPacket.getReasonString()));
+            } else {
+                // failed to unsubscribe with a non-retryable reason code
                 LOGGER.atDebug()
                         .kv(LOG_KEY_TOPIC, topic)
                         .kv(LOG_KEY_REASON_STRING, unsubAckPacket.getReasonString())
                         .kv(LOG_KEY_REASON_CODES, unsubAckPacket.getReasonCodes())
-                        .log("failed to unsubscribe");
+                        .log("Failed to unsubscribe from topic with a non-retryable reason code, not retrying");
                 return;
             }
-            LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
@@ -480,6 +510,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean unsubscribeIsSuccessful(UnsubAckPacket.UnsubAckReasonCode rc) {
+        return rc == UnsubAckPacket.UnsubAckReasonCode.SUCCESS;
+    }
+
+    private boolean retryUnsubscribe(UnsubAckPacket.UnsubAckReasonCode rc) {
+        return !nonRetryableUnSubAckReasonCodes.contains(rc.getValue());
     }
 
     @Override

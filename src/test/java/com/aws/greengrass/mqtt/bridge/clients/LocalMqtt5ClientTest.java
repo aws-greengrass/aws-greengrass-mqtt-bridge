@@ -209,31 +209,38 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscriptions_WHEN_topic_changed_and_unsubscribe_fails_THEN_topic_still_there() {
+    void GIVEN_client_with_subscriptions_WHEN_topic_changed_and_unsubscribe_fails_THEN_topic_still_there()
+            throws RetryableMqttOperationException {
         Set<String> topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2");
+        LocalMqtt5Client clientSpy = spy(client);
 
-        client.updateSubscriptions(topics, message -> {});
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
 
         topics = new HashSet<>();
         topics.add("iotcore/topic");
         topics.add("iotcore/topic2/changed");
 
-        mockMqtt5Client.nextUnsubAckReasonCode.add("iotcore/topic2", UnsubAckPacket.UnsubAckReasonCode.UNSPECIFIED_ERROR);
+        mockMqtt5Client.nextUnsubAckReasonCode.add("iotcore/topic2",
+                UnsubAckPacket.UnsubAckReasonCode.TOPIC_FILTER_INVALID);
 
-        client.updateSubscriptions(topics, message -> {});
+        clientSpy.updateSubscriptions(topics, message -> {});
 
         Set<String> expectedSubscriptions = new HashSet<>(topics);
         expectedSubscriptions.add("iotcore/topic2");
 
         // verify subscriptions were made
-        assertThat("subscribed topics local client", () -> client.getSubscribedLocalMqttTopics(), eventuallyEval(is(expectedSubscriptions)));
-        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(expectedSubscriptions)));
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(expectedSubscriptions)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions,
+                eventuallyEval(is(expectedSubscriptions)));
+        verify(clientSpy, times(1)).unsubscribe("iotcore/topic2");
     }
 
     @Test
@@ -379,8 +386,33 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
+    void GIVEN_client_WHEN_unsubscribe_from_topic_with_retryable_reason_code_THEN_retry_unsubscribe
             (ExtensionContext context) throws RetryableMqttOperationException {
+        ignoreExceptionOfType(context, RetryableMqttOperationException.class);
+        String topic = "iotcore/topic";
+        String topic2 = "iotcore/topic2";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+        LocalMqtt5Client clientSpy = spy(client);
+
+        // subscribe to topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+
+        topics.remove(topic);
+        topics.add(topic2);
+        mockMqtt5Client.nextUnsubAckReasonCode.add(topic, UnsubAckPacket.UnsubAckReasonCode.UNSPECIFIED_ERROR);
+
+        // subscribe to new topics, this will unsubscribe from the old topics
+        clientSpy.updateSubscriptions(topics, message -> {});
+        assertThat("subscribed topics local client", clientSpy::getSubscribedLocalMqttTopics,
+                eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+        verify(clientSpy, times(2)).unsubscribe(topic);
+    }
+
+    @Test
+    void GIVEN_client_with_subscription_request_WHEN_retryable_reason_code_received_THEN_subscription_will_retry
+        (ExtensionContext context) throws RetryableMqttOperationException {
         ignoreExceptionOfType(context, RetryableMqttOperationException.class);
         String topic = "iotcore/topic";
         Set<String> topics = new HashSet<>();
