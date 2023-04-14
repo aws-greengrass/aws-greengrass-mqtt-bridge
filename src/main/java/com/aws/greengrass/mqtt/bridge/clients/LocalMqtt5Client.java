@@ -299,7 +299,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .withContentType(message.getContentType())
                 .withCorrelationData(message.getCorrelationData())
                 .withResponseTopic(message.getResponseTopic())
-                .withUserProperties(convertUserProperty(message.getUserProperties()))
+                .withUserProperties(message.getUserProperties() == null
+                        ? null : convertUserProperty(message.getUserProperties()))
                 .withMessageExpiryIntervalSeconds(message.getMessageExpiryIntervalSeconds())
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, message.getTopic()).kv(LOG_KEY_MESSAGE, message)
