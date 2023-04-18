@@ -79,7 +79,7 @@ public class ConfigTest {
     }
 
     @TestWithMqtt5Broker
-    @WithKernel("mqtt5_connect_options")
+    @WithKernel("mqtt5_connect_options.yaml")
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_connect_options_set_in_config_THEN_local_client_uses_configured_values(Broker broker, ExtensionContext context) {
         long expectedSessionExpiryInterval = 10;
         long expectedMaximumPacketSize = 100;
