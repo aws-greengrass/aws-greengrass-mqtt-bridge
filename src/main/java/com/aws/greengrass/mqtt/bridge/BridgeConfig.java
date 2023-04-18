@@ -56,7 +56,7 @@ public final class BridgeConfig {
     private static final int MIN_RECEIVE_MAXIMUM = 1;
     private static final int MAX_RECEIVE_MAXIMUM = 65_535;
     private static final long MIN_MAXIMUM_PACKET_SIZE = 1;
-    public static final long MAX_MAXIMUM_PACKET_SIZE = 4_294_967_295L;
+    private static final long MAX_MAXIMUM_PACKET_SIZE = 4_294_967_295L;
     private static final long MIN_SESSION_EXPIRY_INTERVAL = 0;
     private static final long MAX_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
 

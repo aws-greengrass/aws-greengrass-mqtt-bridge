@@ -1,0 +1,12 @@
+services:
+  aws.greengrass.clientdevices.mqtt.Bridge:
+    configuration:
+      brokerUri: 'tcp://localhost:8883'
+      brokerClient:
+        version: "mqtt5"
+        receiveMaximum: 1000
+        maximumPacketSize: 100
+        sessionExpiryInterval: 10
+  main:
+    dependencies:
+      - aws.greengrass.clientdevices.mqtt.Bridge

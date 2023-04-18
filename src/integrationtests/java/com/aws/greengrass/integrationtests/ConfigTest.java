@@ -78,6 +78,24 @@ public class ConfigTest {
         assertEquals(1, numRestarts.get());
     }
 
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_connect_options")
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_connect_options_set_in_config_THEN_local_client_uses_configured_values(Broker broker, ExtensionContext context) {
+        long expectedSessionExpiryInterval = 10;
+        long expectedMaximumPacketSize = 100;
+        int expectedReceiveMaximum = 1000;
+
+        // verify that the config is correctly read
+        assertEquals(expectedSessionExpiryInterval, testContext.getConfig().getSessionExpiryInterval());
+        assertEquals(expectedMaximumPacketSize, testContext.getConfig().getMaximumPacketSize());
+        assertEquals(expectedReceiveMaximum, testContext.getConfig().getReceiveMaximum());
+
+        // verify that the brokerClient config values are correctly set in the local client
+        assertEquals(expectedSessionExpiryInterval, testContext.getLocalV5Client().sessionExpiryInterval);
+        assertEquals(expectedMaximumPacketSize, testContext.getLocalV5Client().maximumPacketSize);
+        assertEquals(expectedReceiveMaximum, testContext.getLocalV5Client().receiveMaximum);
+    }
+
     @TestWithMqtt3Broker
     @WithKernel("config.yaml")
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(Broker broker, ExtensionContext context) throws Exception {

@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
-import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -109,9 +108,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
-    private final long sessionExpiryInterval;
-    private final Long maximumPacketSize;
-    private final int receiveMaximum;
+    public final long sessionExpiryInterval;
+    public final Long maximumPacketSize;
+    public final int receiveMaximum;
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -438,7 +437,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         topic,
                         QOS.AT_LEAST_ONCE,
                         isNoLocal(topic),
-                        retainAsPublished(topic),
+                        // always set retainAsPublished so we have the retain flag available,
+                        // when we bridge messages, we'll set retain flag based on user route configuration.
+                        true,
                         SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE)
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
@@ -480,12 +481,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return Optional.ofNullable(optionsByTopic.get(topic))
                 .map(Mqtt5RouteOptions::isNoLocal)
                 .orElse(DEFAULT_NO_LOCAL);
-    }
-
-    private boolean retainAsPublished(String topic) {
-        return Optional.ofNullable(optionsByTopic.get(topic))
-                .map(Mqtt5RouteOptions::isRetainAsPublished)
-                .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
 
     private boolean subscriptionIsSuccessful(SubAckPacket.SubAckReasonCode rc) {
@@ -614,8 +609,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             .withRequestProblemInformation(true)
                             .withClientId(clientId)
                             .withSessionExpiryIntervalSeconds(sessionExpiryInterval)
-                            .withMaximumPacketSizeBytes(maximumPacketSize != null ? maximumPacketSize :
-                                    BridgeConfig.MAX_MAXIMUM_PACKET_SIZE).build())
+                            .withMaximumPacketSizeBytes(maximumPacketSize)
+                            .withReceiveMaximum((long) receiveMaximum)
+                            .build())
                     // TODO make configurable
                     .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
                     .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
