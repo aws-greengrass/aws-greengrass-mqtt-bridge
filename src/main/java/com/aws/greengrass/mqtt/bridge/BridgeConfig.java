@@ -56,16 +56,16 @@ public final class BridgeConfig {
     private static final int MIN_RECEIVE_MAXIMUM = 1;
     private static final int MAX_RECEIVE_MAXIMUM = 65_535;
     private static final long MIN_MAXIMUM_PACKET_SIZE = 1;
-    private static final long MAX_MAXIMUM_PACKET_SIZE = 4_294_967_295L;
+    public static final long MAX_MAXIMUM_PACKET_SIZE = 4_294_967_295L;
     private static final long MIN_SESSION_EXPIRY_INTERVAL = 0;
     private static final long MAX_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    private static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
-    private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
-    private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
+    public static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
+    public static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
+    public static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
 
 
     private final URI brokerUri;

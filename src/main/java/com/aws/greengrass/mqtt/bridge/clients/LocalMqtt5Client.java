@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.DEFAULT_KEYSTORE_PASSWORD;
 import static com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore.KEY_ALIAS;
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
 @SuppressWarnings("PMD.CloseResource")
 public class LocalMqtt5Client implements MessageClient<MqttMessage> {
@@ -108,6 +109,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
+    private final long sessionExpiryInterval;
+    private final Long maximumPacketSize;
+    private final int receiveMaximum;
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -236,15 +240,21 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     /**
      * Construct a LocalMqtt5Client.
      *
-     * @param brokerUri          broker uri
-     * @param clientId           client id
-     * @param optionsByTopic     mqtt5 route options
-     * @param mqttClientKeyStore KeyStore for MQTT Client
-     * @param executorService    Executor service
+     * @param brokerUri             broker uri
+     * @param clientId              client id
+     * @param sessionExpiryInterval session expiry interval
+     * @param maximumPacketSize     maximum packet size
+     * @param receiveMaximum        receive maximum
+     * @param optionsByTopic        mqtt5 route options
+     * @param mqttClientKeyStore    KeyStore for MQTT Client
+     * @param executorService       Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
+                            long sessionExpiryInterval,
+                            Long maximumPacketSize,
+                            int receiveMaximum,
                             @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService) throws MessageClientException {
@@ -253,21 +263,30 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
+        this.sessionExpiryInterval = sessionExpiryInterval;
+        this.maximumPacketSize = maximumPacketSize;
+        this.receiveMaximum = receiveMaximum;
         setClient(createCrtClient());
     }
 
     /**
      * Construct a LocalMqtt5Client for testing.
      *
-     * @param brokerUri          broker uri
-     * @param clientId           client id
-     * @param optionsByTopic     mqtt5 route options
-     * @param mqttClientKeyStore mqttClientKeyStore
-     * @param executorService    Executor service
-     * @param client             mqtt client;
+     * @param brokerUri             broker uri
+     * @param clientId              client id
+     * @param sessionExpiryInterval session expiry interval
+     * @param maximumPacketSize     maximum packet size
+     * @param receiveMaximum        receive maximum
+     * @param optionsByTopic        mqtt5 route options
+     * @param mqttClientKeyStore    mqttClientKeyStore
+     * @param executorService       Executor service
+     * @param client                mqtt client;
      */
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     long sessionExpiryInterval,
+                     Long maximumPacketSize,
+                     int receiveMaximum,
                      @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
@@ -277,6 +296,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
+        this.sessionExpiryInterval = sessionExpiryInterval;
+        this.maximumPacketSize = maximumPacketSize;
+        this.receiveMaximum = receiveMaximum;
         synchronized (clientLock) {
             this.client = client;
         }
@@ -416,9 +438,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         topic,
                         QOS.AT_LEAST_ONCE,
                         isNoLocal(topic),
-                        // always set retainAsPublished so we have the retain flag available,
-                        // when we bridge messages, we'll set retain flag based on user route configuration.
-                        true,
+                        retainAsPublished(topic),
                         SubscribePacket.RetainHandlingType.SEND_ON_SUBSCRIBE)
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
@@ -460,6 +480,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return Optional.ofNullable(optionsByTopic.get(topic))
                 .map(Mqtt5RouteOptions::isNoLocal)
                 .orElse(DEFAULT_NO_LOCAL);
+    }
+
+    private boolean retainAsPublished(String topic) {
+        return Optional.ofNullable(optionsByTopic.get(topic))
+                .map(Mqtt5RouteOptions::isRetainAsPublished)
+                .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
 
     private boolean subscriptionIsSuccessful(SubAckPacket.SubAckReasonCode rc) {
@@ -577,20 +603,22 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         TlsContext tlsContext = null;
         TlsContextOptions tlsContextOptions = null;
         try {
-            Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder
-                    = new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
+            Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
+                    new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
                     .withLifecycleEvents(connectionEventCallback)
                     .withPublishEvents(publishEventsCallback)
                     .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
-                    .withOfflineQueueBehavior(
-                            Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                    .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior
+                            .FAIL_ALL_ON_DISCONNECT)
                     .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
                             .withRequestProblemInformation(true)
-                            .withClientId(clientId).build())
-                    // TODO configurable?
+                            .withClientId(clientId)
+                            .withSessionExpiryIntervalSeconds(sessionExpiryInterval)
+                            .withMaximumPacketSizeBytes(maximumPacketSize != null ? maximumPacketSize :
+                                    BridgeConfig.MAX_MAXIMUM_PACKET_SIZE).build())
+                    // TODO make configurable
                     .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
                     .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
-
             if (isSSL) {
                 // aws-c-io requires PKCS#1 key encoding for non-linux
                 // https://github.com/awslabs/aws-c-io/issues/260
