@@ -53,6 +53,11 @@ public class LocalMqttClientFactory {
                 return new LocalMqtt5Client(
                         config.getBrokerUri(),
                         config.getClientId(),
+                        config.getAckTimeoutSeconds(),
+                        config.getConnAckTimeoutMs(),
+                        config.getPingTimeoutMs(),
+                        config.getMaxReconnectDelayMs(),
+                        config.getMinReconnectDelayMs(),
                         config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
                         mqttClientKeyStore,
                         executorService
