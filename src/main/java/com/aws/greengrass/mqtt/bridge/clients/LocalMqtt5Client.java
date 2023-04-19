@@ -30,7 +30,6 @@ import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
 import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
-import software.amazon.awssdk.crt.mqtt5.PublishResult;
 import software.amazon.awssdk.crt.mqtt5.QOS;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnectPacket;
@@ -306,24 +305,19 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, message.getTopic()).kv(LOG_KEY_MESSAGE, message)
                 .log("Publishing message to MQTT topic");
 
-        try {
-            PublishResult publishResult = client.publish(publishPacket)
-                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            PubAckPacket pubAckPacket = publishResult.getResultPubAck();
-            if (pubAckPacket.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS)) {
+        client.publish(publishPacket).whenComplete((result, e) -> {
+            PubAckPacket pubAck = result.getResultPubAck();
+            if (e == null && (pubAck == null || pubAck.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS))) {
                 LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
             } else {
-                LOGGER.atError().kv(LOG_KEY_MESSAGE, message)
-                        .kv(LOG_KEY_REASON_STRING, pubAckPacket.getReasonString())
-                        .kv(LOG_KEY_REASON_CODE, pubAckPacket.getReasonCode())
+                LOGGER.atError()
+                        .cause(e)
+                        .kv(LOG_KEY_MESSAGE, message)
+                        .kv(LOG_KEY_REASON_STRING, pubAck == null ? null : pubAck.getReasonString())
+                        .kv(LOG_KEY_REASON_CODE, pubAck == null ? null : pubAck.getReasonCode())
                         .log("Message failed to publish");
             }
-        } catch (TimeoutException | ExecutionException e) {
-            LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
-                    .log("failed to publish");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        });
     }
 
     private List<UserProperty> convertUserProperty(List<com.aws.greengrass.mqttclient.v5.UserProperty> userProperties) {
