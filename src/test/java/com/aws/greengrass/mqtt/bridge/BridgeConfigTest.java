@@ -39,6 +39,11 @@ class BridgeConfigTest {
     private static final int DEFAULT_RECEIVE_MAXIMUM = 65535;
     private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
+    private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
+    private static final long DEFAULT_CONNACK_TIMEOUT_MS = 20000L;
+    private static final long DEFAULT_PING_TIMEOUT_MS = 30000L;
+    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = 30000L;
+    private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = 1000L;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
     private static final String MALFORMED_BROKER_URI = "tcp://ma]formed.uri:8883";
@@ -52,6 +57,11 @@ class BridgeConfigTest {
             .receiveMaximum(DEFAULT_RECEIVE_MAXIMUM)
             .maximumPacketSize(DEFAULT_MAXIMUM_PACKET_SIZE)
             .sessionExpiryInterval(DEFAULT_SESSION_EXPIRY_INTERVAL)
+            .ackTimeoutSeconds(DEFAULT_ACK_TIMEOUT_SECONDS)
+            .connAckTimeoutMs(DEFAULT_CONNACK_TIMEOUT_MS)
+            .pingTimeoutMs(DEFAULT_PING_TIMEOUT_MS)
+            .maxReconnectDelayMs(DEFAULT_MAX_RECONNECT_DELAY_MS)
+            .minReconnectDelayMs(DEFAULT_MIN_RECONNECT_DELAY_MS)
             .build();
 
     Topics topics;
@@ -130,6 +140,83 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(CLIENT_ID)
                 .build();
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_ackTimeoutSeconds_provided_WHEN_bridge_config_created_THEN_min_ackTimeoutSeconds_used(long invalidAckTimeout) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_ACK_TIMEOUT_SECONDS).dflt(invalidAckTimeout);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .ackTimeoutSeconds(DEFAULT_ACK_TIMEOUT_SECONDS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_connAckTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_connAckTimeoutMs_used(long invalidConnAckTimeout) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_CONNACK_TIMEOUT_MS).dflt(invalidConnAckTimeout);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .connAckTimeoutMs(DEFAULT_CONNACK_TIMEOUT_MS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_pingTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_pingTimeoutMs_used(long invalidPingTimeout) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(invalidPingTimeout);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .pingTimeoutMs(DEFAULT_PING_TIMEOUT_MS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_maxReconnectDelay_less_than_minReconnectDelay_WHEN_bridge_config_created_THEN_exception_thrown() {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(10);
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(20);
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_maxReconnectDelayMs_provided_WHEN_bridge_config_created_THEN_min_maxReconnectDelayMs_used(long invalidMaxReconnectDelay) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(invalidMaxReconnectDelay);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .maxReconnectDelayMs(DEFAULT_MAX_RECONNECT_DELAY_MS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_minReconnectDelayMs_provided_WHEN_bridge_config_created_THEN_min_minReconnectDelayMs_used(long invalidMinReconnectDelay) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(invalidMinReconnectDelay);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .minReconnectDelayMs(DEFAULT_MIN_RECONNECT_DELAY_MS)
+                .build();
+        assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
     }
 

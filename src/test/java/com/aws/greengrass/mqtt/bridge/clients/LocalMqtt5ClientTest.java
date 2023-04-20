@@ -107,6 +107,11 @@ class LocalMqtt5ClientTest {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
                 Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
                 executorService);
@@ -444,6 +449,11 @@ class LocalMqtt5ClientTest {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
                 opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
