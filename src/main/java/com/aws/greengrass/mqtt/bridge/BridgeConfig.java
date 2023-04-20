@@ -77,7 +77,7 @@ public final class BridgeConfig {
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = Duration.ofSeconds(20).toMillis();
     private static final long DEFAULT_PING_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
-    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = Duration.ofSeconds(120).toMillis();
+    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = Duration.ofSeconds(30).toMillis();
     private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = Duration.ofSeconds(1).toMillis();
 
     private final URI brokerUri;
