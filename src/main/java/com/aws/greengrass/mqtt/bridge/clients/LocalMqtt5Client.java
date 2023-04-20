@@ -450,8 +450,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
-            SubAckPacket subAckPacket = client.subscribe(subscribePacket)
-                    .get(ackTimeoutSeconds, TimeUnit.SECONDS);
+            SubAckPacket subAckPacket = client.subscribe(subscribePacket).get();
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
                 // subscription succeeded
                 synchronized (subscriptionsLock) {
@@ -475,7 +474,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic with a non-retryable reason code, not retrying");
             }
-        } catch (TimeoutException | ExecutionException e) {
+        } catch (ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("Failed to subscribe to topic");
         } catch (InterruptedException e) {
@@ -509,8 +508,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
         try {
-            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
-                    .get(ackTimeoutSeconds, TimeUnit.SECONDS);
+            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket).get();
             if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
                 // successfully unsubscribed
                 LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
@@ -531,7 +529,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
-        } catch (TimeoutException | ExecutionException e) {
+        } catch (ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to unsubscribe");
         } catch (InterruptedException e) {
