@@ -42,7 +42,7 @@ class BridgeConfigTest {
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = 20000L;
     private static final long DEFAULT_PING_TIMEOUT_MS = 30000L;
-    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = 120000L;
+    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = 30000L;
     private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = 1000L;
     private static final String BROKER_URI = "tcp://localhost:8883";
     private static final String BROKER_SERVER_URI = "tcp://localhost:8884";
