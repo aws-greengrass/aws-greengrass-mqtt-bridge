@@ -451,7 +451,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
             SubAckPacket subAckPacket = client.subscribe(subscribePacket)
-                    .get(ackTimeoutSeconds, TimeUnit.MILLISECONDS);
+                    .get(ackTimeoutSeconds, TimeUnit.SECONDS);
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
                 // subscription succeeded
                 synchronized (subscriptionsLock) {
@@ -510,7 +510,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
         try {
             UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
-                    .get(ackTimeoutSeconds, TimeUnit.MILLISECONDS);
+                    .get(ackTimeoutSeconds, TimeUnit.SECONDS);
             if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
                 // successfully unsubscribed
                 LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
