@@ -56,6 +56,11 @@ public class LocalMqttClientFactory {
                         config.getSessionExpiryInterval(),
                         config.getMaximumPacketSize(),
                         config.getReceiveMaximum(),
+                        config.getAckTimeoutSeconds(),
+                        config.getConnAckTimeoutMs(),
+                        config.getPingTimeoutMs(),
+                        config.getMaxReconnectDelayMs(),
+                        config.getMinReconnectDelayMs(),
                         config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
                         mqttClientKeyStore,
                         executorService

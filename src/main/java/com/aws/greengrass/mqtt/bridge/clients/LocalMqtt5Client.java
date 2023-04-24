@@ -30,7 +30,6 @@ import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
 import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
-import software.amazon.awssdk.crt.mqtt5.PublishResult;
 import software.amazon.awssdk.crt.mqtt5.QOS;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.ConnectPacket;
@@ -61,8 +60,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -80,9 +77,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Collections.singletonList(RetryableMqttOperationException.class)).build();
 
-    // TODO configurable?
-    private static final long MQTT_OPERATION_TIMEOUT_MS = Duration.ofMinutes(1).toMillis();
-
     private static final String LOG_KEY_TOPIC = "topic";
     private static final String LOG_KEY_TOPICS = "topics";
     private static final String LOG_KEY_REASON_CODE = "reasonCode";
@@ -93,9 +87,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final String LOG_KEY_ERROR = "error";
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
-
-    private static final int MIN_RECONNECT_DELAY_SECONDS = 1;
-    private static final int MAX_RECONNECT_DELAY_SECONDS = 120;
 
     private boolean clientStarted = false; // crt close is not idempotent
     private final Object clientLock = new Object();
@@ -114,6 +105,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Long maximumPacketSize;
     @Getter // for testing
     private final int receiveMaximum;
+    private final long ackTimeoutSeconds;
+    private final long connAckTimeoutMs;
+    private final long pingTimeoutMs;
+    private final long maxReconnectDelayMs;
+    private final long minReconnectDelayMs;
+
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -247,21 +244,37 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param sessionExpiryInterval session expiry interval
      * @param maximumPacketSize     maximum packet size
      * @param receiveMaximum        receive maximum
-     * @param optionsByTopic        mqtt5 route options
-     * @param mqttClientKeyStore    KeyStore for MQTT Client
-     * @param executorService       Executor service
+     * @param ackTimeoutSeconds   ack timeout seconds
+     * @param connAckTimeoutMs    connack timeout ms
+     * @param pingTimeoutMs       ping timeout ms
+     * @param maxReconnectDelayMs max reconnect delay ms
+     * @param minReconnectDelayMs min reconnect delay ms
+     * @param optionsByTopic      mqtt5 route options
+     * @param mqttClientKeyStore  KeyStore for MQTT Client
+     * @param executorService     Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
                             long sessionExpiryInterval,
                             Long maximumPacketSize,
                             int receiveMaximum,
+                            long ackTimeoutSeconds,
+                            long connAckTimeoutMs,
+                            long pingTimeoutMs,
+                            long maxReconnectDelayMs,
+                            long minReconnectDelayMs,
                             @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
+        this.ackTimeoutSeconds = ackTimeoutSeconds;
+        this.connAckTimeoutMs = connAckTimeoutMs;
+        this.pingTimeoutMs = pingTimeoutMs;
+        this.maxReconnectDelayMs = maxReconnectDelayMs;
+        this.minReconnectDelayMs = minReconnectDelayMs;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
@@ -279,22 +292,38 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param sessionExpiryInterval session expiry interval
      * @param maximumPacketSize     maximum packet size
      * @param receiveMaximum        receive maximum
-     * @param optionsByTopic        mqtt5 route options
-     * @param mqttClientKeyStore    mqttClientKeyStore
-     * @param executorService       Executor service
-     * @param client                mqtt client;
+     * @param ackTimeoutSeconds   ack timeout seconds
+     * @param connAckTimeoutMs    connack timeout ms
+     * @param pingTimeoutMs       ping timeout ms
+     * @param maxReconnectDelayMs max reconnect delay ms
+     * @param minReconnectDelayMs min reconnect delay ms
+     * @param optionsByTopic      mqtt5 route options
+     * @param mqttClientKeyStore  mqttClientKeyStore
+     * @param executorService     Executor service
+     * @param client              mqtt client;
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
                      long sessionExpiryInterval,
                      Long maximumPacketSize,
                      int receiveMaximum,
+                     long ackTimeoutSeconds,
+                     long connAckTimeoutMs,
+                     long pingTimeoutMs,
+                     long maxReconnectDelayMs,
+                     long minReconnectDelayMs,
                      @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      Mqtt5Client client) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
+        this.ackTimeoutSeconds = ackTimeoutSeconds;
+        this.connAckTimeoutMs = connAckTimeoutMs;
+        this.pingTimeoutMs = pingTimeoutMs;
+        this.maxReconnectDelayMs = maxReconnectDelayMs;
+        this.minReconnectDelayMs = minReconnectDelayMs;
         this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
@@ -323,30 +352,26 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .withContentType(message.getContentType())
                 .withCorrelationData(message.getCorrelationData())
                 .withResponseTopic(message.getResponseTopic())
-                .withUserProperties(convertUserProperty(message.getUserProperties()))
+                .withUserProperties(message.getUserProperties() == null
+                        ? null : convertUserProperty(message.getUserProperties()))
                 .withMessageExpiryIntervalSeconds(message.getMessageExpiryIntervalSeconds())
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, message.getTopic()).kv(LOG_KEY_MESSAGE, message)
                 .log("Publishing message to MQTT topic");
 
-        try {
-            PublishResult publishResult = client.publish(publishPacket)
-                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            PubAckPacket pubAckPacket = publishResult.getResultPubAck();
-            if (pubAckPacket.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS)) {
+        client.publish(publishPacket).whenComplete((result, e) -> {
+            PubAckPacket pubAck = result.getResultPubAck();
+            if (e == null && (pubAck == null || pubAck.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS))) {
                 LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
             } else {
-                LOGGER.atError().kv(LOG_KEY_MESSAGE, message)
-                        .kv(LOG_KEY_REASON_STRING, pubAckPacket.getReasonString())
-                        .kv(LOG_KEY_REASON_CODE, pubAckPacket.getReasonCode())
+                LOGGER.atError()
+                        .cause(e)
+                        .kv(LOG_KEY_MESSAGE, message)
+                        .kv(LOG_KEY_REASON_STRING, pubAck == null ? null : pubAck.getReasonString())
+                        .kv(LOG_KEY_REASON_CODE, pubAck == null ? null : pubAck.getReasonCode())
                         .log("Message failed to publish");
             }
-        } catch (TimeoutException | ExecutionException e) {
-            LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_MESSAGE, message)
-                    .log("failed to publish");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        });
     }
 
     private List<UserProperty> convertUserProperty(List<com.aws.greengrass.mqttclient.v5.UserProperty> userProperties) {
@@ -447,8 +472,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 .build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Subscribing to MQTT topic");
         try {
-            SubAckPacket subAckPacket = client.subscribe(subscribePacket)
-                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            SubAckPacket subAckPacket = client.subscribe(subscribePacket).get();
             if (subAckPacket.getReasonCodes().stream().allMatch(this::subscriptionIsSuccessful)) {
                 // subscription succeeded
                 synchronized (subscriptionsLock) {
@@ -472,7 +496,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         .kv(LOG_KEY_TOPIC, topic)
                         .log("Failed to subscribe to topic with a non-retryable reason code, not retrying");
             }
-        } catch (TimeoutException | ExecutionException e) {
+        } catch (ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("Failed to subscribe to topic");
         } catch (InterruptedException e) {
@@ -506,8 +530,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
         try {
-            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket)
-                    .get(MQTT_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            UnsubAckPacket unsubAckPacket = client.unsubscribe(unsubscribePacket).get();
             if (unsubAckPacket.getReasonCodes().stream().allMatch(this::unsubscribeIsSuccessful)) {
                 // successfully unsubscribed
                 LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribed from topic");
@@ -528,7 +551,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             synchronized (subscriptionsLock) {
                 subscribedLocalMqttTopics.remove(topic);
             }
-        } catch (TimeoutException | ExecutionException e) {
+        } catch (ExecutionException e) {
             LOGGER.atError().setCause(Utils.getUltimateCause(e)).kv(LOG_KEY_TOPIC, topic)
                     .log("failed to unsubscribe");
         } catch (InterruptedException e) {
@@ -615,9 +638,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             .withMaximumPacketSizeBytes(maximumPacketSize)
                             .withReceiveMaximum((long) receiveMaximum)
                             .build())
-                    // TODO make configurable
-                    .withMaxReconnectDelayMs(Duration.ofSeconds(MAX_RECONNECT_DELAY_SECONDS).toMillis())
-                    .withMinReconnectDelayMs(Duration.ofSeconds(MIN_RECONNECT_DELAY_SECONDS).toMillis());
+                    .withAckTimeoutSeconds(ackTimeoutSeconds)
+                    .withConnackTimeoutMs(connAckTimeoutMs)
+                    .withPingTimeoutMs(pingTimeoutMs)
+                    .withMaxReconnectDelayMs(maxReconnectDelayMs)
+                    .withMinReconnectDelayMs(minReconnectDelayMs);
+
             if (isSSL) {
                 // aws-c-io requires PKCS#1 key encoding for non-linux
                 // https://github.com/awslabs/aws-c-io/issues/260

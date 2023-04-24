@@ -24,6 +24,7 @@ import lombok.ToString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +46,11 @@ public final class BridgeConfig {
     static final String KEY_BROKER_SERVER_URI = "brokerServerUri"; // for backwards compatibility only
     public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
+    static final String KEY_ACK_TIMEOUT_SECONDS = "ackTimeoutSeconds";
+    static final String KEY_CONNACK_TIMEOUT_MS = "connAckTimeoutMs";
+    static final String KEY_PING_TIMEOUT_MS = "pingTimeoutMs";
+    static final String KEY_MAX_RECONNECT_DELAY_MS = "maxReconnectDelayMs";
+    static final String KEY_MIN_RECONNECT_DELAY_MS = "minReconnectDelayMs";
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
     public static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
     public static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
@@ -53,23 +59,34 @@ public final class BridgeConfig {
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
 
+
+    private static final long MIN_TIMEOUT = 0L;
     private static final int MIN_RECEIVE_MAXIMUM = 1;
     private static final int MAX_RECEIVE_MAXIMUM = 65_535;
-    private static final long MIN_MAXIMUM_PACKET_SIZE = 1;
+    private static final long MIN_MAXIMUM_PACKET_SIZE = 1L;
     private static final long MAX_MAXIMUM_PACKET_SIZE = 4_294_967_295L;
-    private static final long MIN_SESSION_EXPIRY_INTERVAL = 0;
+    private static final long MIN_SESSION_EXPIRY_INTERVAL = 0L;
     private static final long MAX_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    public static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
-    public static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
-    public static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
-
+    private static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
+    private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
+    private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
+    private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
+    private static final long DEFAULT_CONNACK_TIMEOUT_MS = Duration.ofSeconds(20).toMillis();
+    private static final long DEFAULT_PING_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
+    private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = Duration.ofSeconds(30).toMillis();
+    private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = Duration.ofSeconds(1).toMillis();
 
     private final URI brokerUri;
     private final String clientId;
+    private final long ackTimeoutSeconds;
+    private final long connAckTimeoutMs;
+    private final long pingTimeoutMs;
+    private final long maxReconnectDelayMs;
+    private final long minReconnectDelayMs;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
     private final Map<String, Mqtt5RouteOptions> mqtt5RouteOptions;
     private final MqttVersion mqttVersion;
@@ -87,9 +104,21 @@ public final class BridgeConfig {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public static BridgeConfig fromTopics(Topics configurationTopics) throws InvalidConfigurationException {
+        long maxReconnectDelayMs = getMaxReconnectDelayMs(configurationTopics);
+        long minReconnectDelayMs = getMinReconnectDelayMs(configurationTopics);
+        if (maxReconnectDelayMs < minReconnectDelayMs) {
+            throw new InvalidConfigurationException(
+                    "maxReconnectDelayMs must be greater than or equal to minReconnectDelayMs");
+        }
+
         return BridgeConfig.builder()
                 .brokerUri(getBrokerUri(configurationTopics))
                 .clientId(getClientId(configurationTopics))
+                .ackTimeoutSeconds(getAckTimeoutSeconds(configurationTopics))
+                .connAckTimeoutMs(getConnAckTimeoutMs(configurationTopics))
+                .pingTimeoutMs(getPingTimeoutMs(configurationTopics))
+                .maxReconnectDelayMs(maxReconnectDelayMs)
+                .minReconnectDelayMs(minReconnectDelayMs)
                 .topicMapping(getTopicMapping(configurationTopics))
                 .mqtt5RouteOptions(getMqtt5RouteOptions(configurationTopics))
                 .mqttVersion(getMqttVersion(configurationTopics))
@@ -114,6 +143,61 @@ public final class BridgeConfig {
 
     private static String getClientId(Topics configurationTopics) {
         return Coerce.toString(configurationTopics.findOrDefault(DEFAULT_CLIENT_ID, KEY_CLIENT_ID));
+    }
+
+    private static long getAckTimeoutSeconds(Topics configurationTopics) {
+        long ackTimeoutSeconds = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_ACK_TIMEOUT_SECONDS,
+                KEY_BROKER_CLIENT, KEY_ACK_TIMEOUT_SECONDS));
+        if (ackTimeoutSeconds < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_ACK_TIMEOUT_SECONDS, ackTimeoutSeconds)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_ACK_TIMEOUT_SECONDS, DEFAULT_ACK_TIMEOUT_SECONDS);
+            return DEFAULT_ACK_TIMEOUT_SECONDS;
+        }
+        return ackTimeoutSeconds;
+    }
+
+    private static long getConnAckTimeoutMs(Topics configurationTopics) {
+        long connackTimeoutSeconds = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_CONNACK_TIMEOUT_MS,
+                KEY_BROKER_CLIENT, KEY_CONNACK_TIMEOUT_MS));
+        if (connackTimeoutSeconds < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_CONNACK_TIMEOUT_MS, connackTimeoutSeconds)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_CONNACK_TIMEOUT_MS, DEFAULT_CONNACK_TIMEOUT_MS);
+            return DEFAULT_CONNACK_TIMEOUT_MS;
+        }
+        return connackTimeoutSeconds;
+    }
+
+    private static long getPingTimeoutMs(Topics configurationTopics) {
+        long pingTimeoutMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_PING_TIMEOUT_MS,
+                KEY_BROKER_CLIENT, KEY_PING_TIMEOUT_MS));
+        if (pingTimeoutMs < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_PING_TIMEOUT_MS, pingTimeoutMs)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_PING_TIMEOUT_MS, DEFAULT_PING_TIMEOUT_MS);
+            return DEFAULT_PING_TIMEOUT_MS;
+        }
+        return pingTimeoutMs;
+    }
+
+    private static long getMaxReconnectDelayMs(Topics configurationTopics) {
+        long maxReconnectDelayMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_MAX_RECONNECT_DELAY_MS,
+                KEY_BROKER_CLIENT, KEY_MAX_RECONNECT_DELAY_MS));
+        if (maxReconnectDelayMs < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_MAX_RECONNECT_DELAY_MS, maxReconnectDelayMs)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MAX_RECONNECT_DELAY_MS, DEFAULT_MAX_RECONNECT_DELAY_MS);
+            return DEFAULT_MAX_RECONNECT_DELAY_MS;
+        }
+        return maxReconnectDelayMs;
+    }
+
+    private static long getMinReconnectDelayMs(Topics configurationTopics) {
+        long minReconnectDelayMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_MIN_RECONNECT_DELAY_MS,
+                KEY_BROKER_CLIENT, KEY_MIN_RECONNECT_DELAY_MS));
+        if (minReconnectDelayMs < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_MIN_RECONNECT_DELAY_MS, minReconnectDelayMs)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MIN_RECONNECT_DELAY_MS, DEFAULT_MIN_RECONNECT_DELAY_MS);
+            return DEFAULT_MIN_RECONNECT_DELAY_MS;
+        }
+        return minReconnectDelayMs;
     }
 
     private static Map<String, TopicMapping.MappingEntry> getTopicMapping(Topics configurationTopics)
