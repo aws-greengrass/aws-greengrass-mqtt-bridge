@@ -108,9 +108,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
-    public final long sessionExpiryInterval;
-    public final Long maximumPacketSize;
-    public final int receiveMaximum;
+    @Getter // for testing
+    private final long sessionExpiryInterval;
+    @Getter // for testing
+    private final Long maximumPacketSize;
+    @Getter // for testing
+    private final int receiveMaximum;
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;

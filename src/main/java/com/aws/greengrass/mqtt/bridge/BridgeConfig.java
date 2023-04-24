@@ -46,12 +46,12 @@ public final class BridgeConfig {
     public static final String KEY_BROKER_URI = "brokerUri";
     public static final String KEY_CLIENT_ID = "clientId";
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    public static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
+    public static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
+    public static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
     static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
-    static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
-    static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
-    static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
 
     private static final int MIN_RECEIVE_MAXIMUM = 1;
     private static final int MAX_RECEIVE_MAXIMUM = 65_535;
@@ -236,6 +236,9 @@ public final class BridgeConfig {
     public boolean reinstallRequired(BridgeConfig newConfig) {
         return !Objects.equals(getBrokerUri(), newConfig.getBrokerUri())
                 || !Objects.equals(getClientId(), newConfig.getClientId())
-                || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion());
+                || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion())
+                || !Objects.equals(getSessionExpiryInterval(), newConfig.getSessionExpiryInterval())
+                || !Objects.equals(getMaximumPacketSize(), newConfig.getMaximumPacketSize())
+                || !Objects.equals(getReceiveMaximum(), newConfig.getReceiveMaximum());
     }
 }
