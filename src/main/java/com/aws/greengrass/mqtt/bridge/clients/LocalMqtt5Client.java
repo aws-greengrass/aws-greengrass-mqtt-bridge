@@ -235,7 +235,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Getter(AccessLevel.PACKAGE) // for testing
     private final Mqtt5ClientOptions.PublishEvents publishEventsCallback = (client, publishReturn) -> {
-        this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(Publish.fromCrtPublishPacket(publishReturn.getPublishPacket())));
+        this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(Publish.fromCrtPublishPacket(
+                publishReturn.getPublishPacket())));
         lastPublish = publishReturn.getPublishPacket();
     };
 
