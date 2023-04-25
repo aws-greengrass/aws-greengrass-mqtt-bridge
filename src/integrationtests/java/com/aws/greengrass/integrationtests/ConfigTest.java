@@ -159,9 +159,8 @@ public class ConfigTest {
         assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getReceiveMaximum(),
                 eventuallyEval(is(1)));
 
-        // Publish a large message to IoT Core and verify that it is not received due to the local client's config
-        // We expect a timeout since the previous message was too large to successfully publish, given the local
-        // client's config
+        // Publish a large message to the local broker and verify that it is not received due to the local client's
+        // config
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> largeMessageHandler =
                 asyncAssertOnConsumer(Assertions::assertNull);
         testContext.getLocalV5Client().updateSubscriptions(topics, largeMessageHandler.getRight());
