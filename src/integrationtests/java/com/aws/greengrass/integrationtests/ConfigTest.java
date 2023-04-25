@@ -247,7 +247,7 @@ public class ConfigTest {
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
+        assertThat(() -> topicMapping.getMapping().size(), eventuallyEval(is(5)));
         Map<String, TopicMapping.MappingEntry> expectedMapping = new HashMap<>();
         expectedMapping.put("mapping1",
                 new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud", TopicMapping.TopicType.LocalMqtt,
@@ -300,7 +300,7 @@ public class ConfigTest {
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
+        assertThat(() -> topicMapping.getMapping().size(), eventuallyEval(is(5)));
         testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_TOPIC_MAPPING)
                 .replaceAndWait(Collections.emptyMap());
