@@ -23,37 +23,34 @@ import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
-import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.UserProperty;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt5.QOS;
+import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
-import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
@@ -110,35 +107,10 @@ public class ConfigTest {
         Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("brokerClient");
 
-        // change config values
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-
-        testContext.getKernel().getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
-
-        config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
-        config.lookup(BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).withValue(1);
-        config.lookup(BridgeConfig.KEY_RECEIVE_MAXIMUM).withValue(1);
-
-        // verify that config changes take effect
-        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        TimeUnit.MILLISECONDS.sleep(500);
-
-        assertEquals(1, testContext.getLocalV5Client().getSessionExpiryInterval());
-        assertEquals(1, testContext.getLocalV5Client().getMaximumPacketSize());
-        assertEquals(1, testContext.getLocalV5Client().getReceiveMaximum());
-
-        // publish large message to IoT Core and verify that it is not received due to the local client's config
-        byte[] payload = new byte[1000000];
-        Random random = new Random();
-        random.nextBytes(payload);
-
+        // publish a small message and verify that it is received
         MqttMessage expectedMessage = MqttMessage.builder()
-                .topic("topic/toIotCore")
-                .payload(payload)
+                .topic("topic/toLocal")
+                .payload("abc".getBytes(StandardCharsets.UTF_8))
                 .userProperties(Collections.singletonList(new UserProperty("key", "val")))
                 .responseTopic("response topic")
                 .messageExpiryIntervalSeconds(1234L)
@@ -146,18 +118,13 @@ public class ConfigTest {
                 .contentType("contentType")
                 .build();
 
-        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeCallback
-                = asyncAssertOnConsumer(p -> assertEquals(expectedMessage, MqttMessage.fromSpoolerV5Model(p)));
-
-        testContext.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-                .topic("topic/toIotCore")
-                .callback(subscribeCallback.getRight())
-                .build());
+        testContext.getLocalV5Client().getClient().subscribe(new SubscribePacket.SubscribePacketBuilder()
+                .withSubscription("topic/toLocal", QOS.AT_LEAST_ONCE).build());
 
         testContext.getLocalV5Client().publish(
                 MqttMessage.builder()
-                        .topic("topic/toIotCore")
-                        .payload(payload)
+                        .topic("topic/toLocal")
+                        .payload("abc".getBytes(StandardCharsets.UTF_8))
                         .userProperties(Collections.singletonList(new UserProperty("key", "val")))
                         .responseTopic("response topic")
                         .messageExpiryIntervalSeconds(1234L)
@@ -165,10 +132,39 @@ public class ConfigTest {
                         .contentType("contentType")
                         .build());
 
-        // We expect this to timeout since the local client should not have been able to publish the message due to
-        // its size, so the IoT core client will have no message to retrieve
-        assertThrows(TimeoutException.class,
-                () -> subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertThat("message successfully received",
+                () -> Arrays.toString(testContext.getLocalV5Client().getLastPublish().getPayload()),
+                eventuallyEval(is(Arrays.toString(expectedMessage.getPayload()))));
+
+        // change config values
+        config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
+        config.lookup(BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).withValue(1);
+        config.lookup(BridgeConfig.KEY_RECEIVE_MAXIMUM).withValue(1);
+
+        // verify that config changes take effect
+        assertThat("session expiry interval config update",
+                () -> testContext.getLocalV5Client().getSessionExpiryInterval(), eventuallyEval(is(1L)));
+        assertThat("maximum packet size config update", () -> testContext.getLocalV5Client().getMaximumPacketSize(),
+                eventuallyEval(is(1L)));
+        assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getReceiveMaximum(),
+                eventuallyEval(is(1)));
+
+        // publish large message to IoT Core and verify that it is not received due to the local client's config
+        testContext.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic("topic/toLocal")
+                        .payload("this message is too large to be published".getBytes(StandardCharsets.UTF_8))
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+
+        // We expect the response to be null since the previous message was too large to successfully publish, given
+        // the local client's config
+        assertThat("oversized message did not publish", () -> testContext.getLocalV5Client().getLastPublish() == null,
+                eventuallyEval(is(true)));
     }
 
     @TestWithMqtt3Broker

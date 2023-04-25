@@ -3,10 +3,10 @@ services:
     configuration:
       brokerUri: 'tcp://localhost:8883'
       mqttTopicMapping:
-        toIotCore:
-          topic: topic/toIotCore
+        toLocal:
+          topic: topic/toLocal
           source: LocalMqtt
-          target: IotCore
+          target: LocalMqtt
       brokerClient:
         version: "mqtt5"
         receiveMaximum: 1000
