@@ -26,7 +26,6 @@ import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.UserProperty;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.crt.mqtt5.QOS;
