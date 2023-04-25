@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -107,6 +108,9 @@ class LocalMqtt5ClientTest {
         client.stop();
         client = new LocalMqtt5Client(URI.create("tcp://localhost"),
                 "test-client",
+                BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL,
+                BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE,
+                BridgeConfig.DEFAULT_RECEIVE_MAXIMUM,
                 1L,
                 1L,
                 1L,
@@ -449,6 +453,9 @@ class LocalMqtt5ClientTest {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
+                BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL,
+                BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE,
+                BridgeConfig.DEFAULT_RECEIVE_MAXIMUM,
                 1L,
                 1L,
                 1L,

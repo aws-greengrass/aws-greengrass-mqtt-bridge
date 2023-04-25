@@ -99,6 +99,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private final URI brokerUri;
     private final String clientId;
+    @Getter // for testing
+    private final long sessionExpiryInterval;
+    @Getter // for testing
+    private final Long maximumPacketSize;
+    @Getter // for testing
+    private final int receiveMaximum;
     private final long ackTimeoutSeconds;
     private final long connAckTimeoutMs;
     private final long pingTimeoutMs;
@@ -226,15 +232,19 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     };
 
     @Getter(AccessLevel.PACKAGE) // for testing
-    private final Mqtt5ClientOptions.PublishEvents publishEventsCallback = (client, publishReturn) ->
-            this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(
-                    Publish.fromCrtPublishPacket(publishReturn.getPublishPacket())));
+    private final Mqtt5ClientOptions.PublishEvents publishEventsCallback = (client, publishReturn) -> {
+        this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(Publish.fromCrtPublishPacket(
+                publishReturn.getPublishPacket())));
+    };
 
     /**
      * Construct a LocalMqtt5Client.
      *
-     * @param brokerUri           broker uri
-     * @param clientId            client id
+     * @param brokerUri             broker uri
+     * @param clientId              client id
+     * @param sessionExpiryInterval session expiry interval
+     * @param maximumPacketSize     maximum packet size
+     * @param receiveMaximum        receive maximum
      * @param ackTimeoutSeconds   ack timeout seconds
      * @param connAckTimeoutMs    connack timeout ms
      * @param pingTimeoutMs       ping timeout ms
@@ -248,6 +258,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public LocalMqtt5Client(@NonNull URI brokerUri,
                             @NonNull String clientId,
+                            long sessionExpiryInterval,
+                            Long maximumPacketSize,
+                            int receiveMaximum,
                             long ackTimeoutSeconds,
                             long connAckTimeoutMs,
                             long pingTimeoutMs,
@@ -266,14 +279,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
+        this.sessionExpiryInterval = sessionExpiryInterval;
+        this.maximumPacketSize = maximumPacketSize;
+        this.receiveMaximum = receiveMaximum;
         setClient(createCrtClient());
     }
 
     /**
      * Construct a LocalMqtt5Client for testing.
      *
-     * @param brokerUri           broker uri
-     * @param clientId            client id
+     * @param brokerUri             broker uri
+     * @param clientId              client id
+     * @param sessionExpiryInterval session expiry interval
+     * @param maximumPacketSize     maximum packet size
+     * @param receiveMaximum        receive maximum
      * @param ackTimeoutSeconds   ack timeout seconds
      * @param connAckTimeoutMs    connack timeout ms
      * @param pingTimeoutMs       ping timeout ms
@@ -287,6 +306,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
+                     long sessionExpiryInterval,
+                     Long maximumPacketSize,
+                     int receiveMaximum,
                      long ackTimeoutSeconds,
                      long connAckTimeoutMs,
                      long pingTimeoutMs,
@@ -306,6 +328,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
+        this.sessionExpiryInterval = sessionExpiryInterval;
+        this.maximumPacketSize = maximumPacketSize;
+        this.receiveMaximum = receiveMaximum;
         synchronized (clientLock) {
             this.client = client;
         }
@@ -600,16 +625,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         TlsContext tlsContext = null;
         TlsContextOptions tlsContextOptions = null;
         try {
-            Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder
-                    = new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
+            Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
+                    new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
                     .withLifecycleEvents(connectionEventCallback)
                     .withPublishEvents(publishEventsCallback)
                     .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
-                    .withOfflineQueueBehavior(
-                            Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                    .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior
+                            .FAIL_ALL_ON_DISCONNECT)
                     .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
                             .withRequestProblemInformation(true)
-                            .withClientId(clientId).build())
+                            .withClientId(clientId)
+                            .withSessionExpiryIntervalSeconds(sessionExpiryInterval)
+                            .withMaximumPacketSizeBytes(maximumPacketSize)
+                            .withReceiveMaximum((long) receiveMaximum)
+                            .build())
                     .withAckTimeoutSeconds(ackTimeoutSeconds)
                     .withConnackTimeoutMs(connAckTimeoutMs)
                     .withPingTimeoutMs(pingTimeoutMs)

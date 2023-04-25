@@ -52,12 +52,12 @@ public final class BridgeConfig {
     static final String KEY_MAX_RECONNECT_DELAY_MS = "maxReconnectDelayMs";
     static final String KEY_MIN_RECONNECT_DELAY_MS = "minReconnectDelayMs";
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
+    public static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
+    public static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
+    public static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
     static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
     static final String KEY_BROKER_CLIENT = "brokerClient";
     static final String KEY_VERSION = "version";
-    static final String KEY_RECEIVE_MAXIMUM = "receiveMaximum";
-    static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
-    static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
 
 
     private static final long MIN_TIMEOUT = 0L;
@@ -71,9 +71,9 @@ public final class BridgeConfig {
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    private static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
-    private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
-    private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
+    public static final int DEFAULT_RECEIVE_MAXIMUM = MAX_RECEIVE_MAXIMUM;
+    public static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
+    public static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = Duration.ofSeconds(20).toMillis();
     private static final long DEFAULT_PING_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
@@ -320,6 +320,9 @@ public final class BridgeConfig {
     public boolean reinstallRequired(BridgeConfig newConfig) {
         return !Objects.equals(getBrokerUri(), newConfig.getBrokerUri())
                 || !Objects.equals(getClientId(), newConfig.getClientId())
-                || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion());
+                || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion())
+                || !Objects.equals(getSessionExpiryInterval(), newConfig.getSessionExpiryInterval())
+                || !Objects.equals(getMaximumPacketSize(), newConfig.getMaximumPacketSize())
+                || !Objects.equals(getReceiveMaximum(), newConfig.getReceiveMaximum());
     }
 }

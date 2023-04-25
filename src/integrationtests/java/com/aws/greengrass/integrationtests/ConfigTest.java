@@ -21,33 +21,48 @@ import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.UserProperty;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.github.grantwest.eventually.EventuallyLambdaMatcher;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
 public class ConfigTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
+    private static final long RECEIVE_PUBLISH_SECONDS = 2L;
     private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
             () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
@@ -76,6 +91,91 @@ public class ConfigTest {
 
         assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals(1, numRestarts.get());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_connect_options.yaml")
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_connect_options_set_in_config_THEN_local_client_uses_configured_values(Broker broker, ExtensionContext context)
+            throws Exception {
+        long expectedSessionExpiryInterval = 10;
+        long expectedMaximumPacketSize = 100;
+        int expectedReceiveMaximum = 1000;
+
+        // verify that the config is correctly read
+        assertEquals(expectedSessionExpiryInterval, testContext.getConfig().getSessionExpiryInterval());
+        assertEquals(expectedMaximumPacketSize, testContext.getConfig().getMaximumPacketSize());
+        assertEquals(expectedReceiveMaximum, testContext.getConfig().getReceiveMaximum());
+
+        // verify that the brokerClient config values are correctly set in the local client
+        assertEquals(expectedSessionExpiryInterval, testContext.getLocalV5Client().getSessionExpiryInterval());
+        assertEquals(expectedMaximumPacketSize, testContext.getLocalV5Client().getMaximumPacketSize());
+        assertEquals(expectedReceiveMaximum, testContext.getLocalV5Client().getReceiveMaximum());
+
+        Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
+                .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("brokerClient");
+
+        // publish a small message and verify that it is received
+        String topic = "topic/toLocal";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic(topic)
+                .payload("abc".getBytes(StandardCharsets.UTF_8))
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
+                .build();
+
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> messageHandler =
+                asyncAssertOnConsumer(message -> assertEquals(Arrays.toString(expectedMessage.getPayload()),
+                        Arrays.toString(message.getPayload())));
+
+        testContext.getLocalV5Client().updateSubscriptions(topics, messageHandler.getRight());
+        testContext.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic(topic)
+                        .payload("abc".getBytes(StandardCharsets.UTF_8))
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+        messageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS);
+
+        // change config values
+        config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
+        config.lookup(BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).withValue(1);
+        config.lookup(BridgeConfig.KEY_RECEIVE_MAXIMUM).withValue(1);
+
+        // verify that config changes take effect
+        assertThat("session expiry interval config update",
+                () -> testContext.getLocalV5Client().getSessionExpiryInterval(), eventuallyEval(is(1L)));
+        assertThat("maximum packet size config update", () -> testContext.getLocalV5Client().getMaximumPacketSize(),
+                eventuallyEval(is(1L)));
+        assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getReceiveMaximum(),
+                eventuallyEval(is(1)));
+
+        // Publish a large message to the local broker and verify that it is not received due to the local client's
+        // config
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> largeMessageHandler =
+                asyncAssertOnConsumer(Assertions::assertNull);
+        testContext.getLocalV5Client().updateSubscriptions(topics, largeMessageHandler.getRight());
+        testContext.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic(topic)
+                        .payload("this message is too large to be published".getBytes(StandardCharsets.UTF_8))
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+        assertThrows(TimeoutException.class,
+                () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker
@@ -158,7 +258,7 @@ public class ConfigTest {
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
+        assertThat(() -> topicMapping.getMapping().size(), eventuallyEval(is(5)));
         Map<String, TopicMapping.MappingEntry> expectedMapping = new HashMap<>();
         expectedMapping.put("mapping1",
                 new TopicMapping.MappingEntry("topic/to/map/from/local/to/cloud", TopicMapping.TopicType.LocalMqtt,
@@ -211,7 +311,7 @@ public class ConfigTest {
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
 
-        assertThat(() -> topicMapping.getMapping().size(), EventuallyLambdaMatcher.eventuallyEval(is(5)));
+        assertThat(() -> topicMapping.getMapping().size(), eventuallyEval(is(5)));
         testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_TOPIC_MAPPING)
                 .replaceAndWait(Collections.emptyMap());
