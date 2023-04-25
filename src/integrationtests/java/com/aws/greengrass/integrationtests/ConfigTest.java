@@ -29,8 +29,6 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import software.amazon.awssdk.crt.mqtt5.QOS;
-import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -54,7 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
@@ -141,6 +138,7 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
+        TimeUnit.MILLISECONDS.sleep(100);
 
         // change config values
         config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
@@ -170,6 +168,7 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
+        TimeUnit.MILLISECONDS.sleep(100);
     }
 
     @TestWithMqtt3Broker
