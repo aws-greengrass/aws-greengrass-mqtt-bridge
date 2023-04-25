@@ -24,6 +24,7 @@ import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.UserProperty;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -37,9 +38,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -47,16 +50,19 @@ import java.util.function.Supplier;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
 public class ConfigTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
+    private static final long RECEIVE_PUBLISH_SECONDS = 2L;
     private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
             () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
@@ -123,11 +129,11 @@ public class ConfigTest {
                 .contentType("contentType")
                 .build();
 
-        Consumer<MqttMessage> messageHandler = (message) -> {
-          assertEquals(Arrays.toString(expectedMessage.getPayload()), Arrays.toString(message.getPayload()));
-        };
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> messageHandler =
+                asyncAssertOnConsumer(message -> assertEquals(Arrays.toString(expectedMessage.getPayload()),
+                        Arrays.toString(message.getPayload())));
 
-        testContext.getLocalV5Client().updateSubscriptions(topics, messageHandler);
+        testContext.getLocalV5Client().updateSubscriptions(topics, messageHandler.getRight());
         testContext.getLocalV5Client().publish(
                 MqttMessage.builder()
                         .topic(topic)
@@ -138,7 +144,7 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
-        TimeUnit.MILLISECONDS.sleep(100);
+        messageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS);
 
         // change config values
         config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
@@ -154,10 +160,11 @@ public class ConfigTest {
                 eventuallyEval(is(1)));
 
         // Publish a large message to IoT Core and verify that it is not received due to the local client's config
-        // We expect the response to be null since the previous message was too large to successfully publish, given
-        // the local client's config
-        Consumer<MqttMessage> largeMessageHandler = Assertions::assertNull;
-        testContext.getLocalV5Client().updateSubscriptions(topics, largeMessageHandler);
+        // We expect a timeout since the previous message was too large to successfully publish, given the local
+        // client's config
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> largeMessageHandler =
+                asyncAssertOnConsumer(Assertions::assertNull);
+        testContext.getLocalV5Client().updateSubscriptions(topics, largeMessageHandler.getRight());
         testContext.getLocalV5Client().publish(
                 MqttMessage.builder()
                         .topic(topic)
@@ -168,7 +175,8 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
-        TimeUnit.MILLISECONDS.sleep(100);
+        assertThrows(TimeoutException.class,
+                () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker
