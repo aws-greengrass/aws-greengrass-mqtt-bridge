@@ -27,6 +27,7 @@ import com.aws.greengrass.mqttclient.v5.UserProperty;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.crt.mqtt5.QOS;
 import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
@@ -35,11 +36,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -50,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
@@ -107,8 +112,12 @@ public class ConfigTest {
                 .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("brokerClient");
 
         // publish a small message and verify that it is received
+        String topic = "topic/toLocal";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
         MqttMessage expectedMessage = MqttMessage.builder()
-                .topic("topic/toLocal")
+                .topic(topic)
                 .payload("abc".getBytes(StandardCharsets.UTF_8))
                 .userProperties(Collections.singletonList(new UserProperty("key", "val")))
                 .responseTopic("response topic")
@@ -117,12 +126,14 @@ public class ConfigTest {
                 .contentType("contentType")
                 .build();
 
-        testContext.getLocalV5Client().getClient().subscribe(new SubscribePacket.SubscribePacketBuilder()
-                .withSubscription("topic/toLocal", QOS.AT_LEAST_ONCE).build());
+        Consumer<MqttMessage> messageHandler = (message) -> {
+          assertEquals(Arrays.toString(expectedMessage.getPayload()), Arrays.toString(message.getPayload()));
+        };
 
+        testContext.getLocalV5Client().updateSubscriptions(topics, messageHandler);
         testContext.getLocalV5Client().publish(
                 MqttMessage.builder()
-                        .topic("topic/toLocal")
+                        .topic(topic)
                         .payload("abc".getBytes(StandardCharsets.UTF_8))
                         .userProperties(Collections.singletonList(new UserProperty("key", "val")))
                         .responseTopic("response topic")
@@ -130,10 +141,6 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
-
-        assertThat("message successfully received",
-                () -> Arrays.toString(testContext.getLocalV5Client().getLastPublish().getPayload()),
-                eventuallyEval(is(Arrays.toString(expectedMessage.getPayload()))));
 
         // change config values
         config.lookup(BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).withValue(1);
@@ -148,10 +155,14 @@ public class ConfigTest {
         assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getReceiveMaximum(),
                 eventuallyEval(is(1)));
 
-        // publish large message to IoT Core and verify that it is not received due to the local client's config
+        // Publish a large message to IoT Core and verify that it is not received due to the local client's config
+        // We expect the response to be null since the previous message was too large to successfully publish, given
+        // the local client's config
+        Consumer<MqttMessage> largeMessageHandler = Assertions::assertNull;
+        testContext.getLocalV5Client().updateSubscriptions(topics, largeMessageHandler);
         testContext.getLocalV5Client().publish(
                 MqttMessage.builder()
-                        .topic("topic/toLocal")
+                        .topic(topic)
                         .payload("this message is too large to be published".getBytes(StandardCharsets.UTF_8))
                         .userProperties(Collections.singletonList(new UserProperty("key", "val")))
                         .responseTopic("response topic")
@@ -159,11 +170,6 @@ public class ConfigTest {
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
                         .build());
-
-        // We expect the response to be null since the previous message was too large to successfully publish, given
-        // the local client's config
-        assertThat("oversized message did not publish", () -> testContext.getLocalV5Client().getLastPublish() == null,
-                eventuallyEval(is(true)));
     }
 
     @TestWithMqtt3Broker

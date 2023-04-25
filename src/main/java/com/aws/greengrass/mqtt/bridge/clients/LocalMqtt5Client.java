@@ -157,8 +157,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.add(SubAckPacket.SubAckReasonCode.WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
     }};
     private Future<?> updateSubscriptionsTask;
-    @Getter
-    private PublishPacket lastPublish;
 
     @Getter(AccessLevel.PACKAGE)
     private final Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
@@ -237,7 +235,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final Mqtt5ClientOptions.PublishEvents publishEventsCallback = (client, publishReturn) -> {
         this.messageHandler.accept(MqttMessage.fromSpoolerV5Model(Publish.fromCrtPublishPacket(
                 publishReturn.getPublishPacket())));
-        lastPublish = publishReturn.getPublishPacket();
     };
 
     /**
