@@ -77,8 +77,9 @@ public class MQTTBridge extends PluginService {
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
+        this(topics, topicMapping, new MessageBridge(topicMapping, bridgeConfig.get().getMqtt5RouteOptions()),
+                pubSubIPCAgent, iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService,
+                bridgeConfig);
     }
 
     @SuppressWarnings("PMD.ExcessiveParameterList")

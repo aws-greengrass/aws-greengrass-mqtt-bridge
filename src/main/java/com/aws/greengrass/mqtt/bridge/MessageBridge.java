@@ -10,6 +10,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.model.Message;
+import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
+import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
@@ -18,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -35,6 +38,7 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
+    private final Map<String, Mqtt5RouteOptions> optionsByTopic;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
     private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
             = new ConcurrentHashMap<>();
@@ -48,11 +52,13 @@ public class MessageBridge {
     /**
      * Ctr for Message Bridge.
      *
-     * @param topicMapping topics mapping
+     * @param topicMapping   topics mapping
+     * @param optionsByTopic mqtt5 route options
      */
-    public MessageBridge(TopicMapping topicMapping) {
+    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> optionsByTopic) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        this.optionsByTopic = optionsByTopic;
         processMappingAndSubscribe();
     }
 
@@ -111,6 +117,7 @@ public class MessageBridge {
                             .log("Message client not found for target type");
                 } else {
                     try {
+                        //TODO update retain as published flag before publish message call
                         publishMessage(client, targetTopic, message);
                         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
@@ -146,8 +153,20 @@ public class MessageBridge {
     private <T extends Message> void publishMessage(MessageClient<T> client, String topic, Message message)
             throws MessageClientException {
         T msg = client.convertMessage(message);
-        msg = (T) msg.newFromMessageWithTopic(topic);
+
+        if (isRetainAsPublished(topic)) {
+            // can only be true for MQTT messages
+            msg = (T) MqttMessage.builder().topic(topic).retain(true).build();
+        } else {
+            msg = (T) msg.newFromMessageWithTopic(topic);
+        }
         client.publish(msg);
+    }
+
+    private boolean isRetainAsPublished(String topic) {
+        return Optional.ofNullable(optionsByTopic.get(topic))
+                .map(Mqtt5RouteOptions::isRetainAsPublished)
+                .orElse(false);
     }
 
     private void processMappingAndSubscribe() {
