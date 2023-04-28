@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 public class Mqtt5RouteOptions {
 
     public static final boolean DEFAULT_NO_LOCAL = false;
-    public static final boolean DEFAULT_RETAIN_AS_PUBLISHED = true;
+    public static final boolean DEFAULT_RETAIN_AS_PUBLISHED = false;
 
     @Builder.Default
     boolean noLocal = DEFAULT_NO_LOCAL;

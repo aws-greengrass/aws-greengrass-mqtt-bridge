@@ -27,6 +27,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
+
+
 /**
  * Bridges/Routes the messages flowing between clients to various brokers. This class process the topics mappings. It
  * tells the clients to subscribe to the relevant topics and routes the messages to other clients when received.
@@ -60,12 +63,8 @@ public class MessageBridge {
     public MessageBridge(TopicMapping topicMapping, BridgeConfigReference bridgeConfig) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        this.optionsByTopic = bridgeConfig.get().getMqtt5RouteOptions();
 
-        if (bridgeConfig == null || bridgeConfig.get().getMqtt5RouteOptions() == null) {
-            this.optionsByTopic = Collections.emptyMap();
-        } else {
-            this.optionsByTopic = bridgeConfig.get().getMqtt5RouteOptions();
-        }
         processMappingAndSubscribe();
     }
 
@@ -174,7 +173,8 @@ public class MessageBridge {
 
         if (isRetainAsPublished(topic)) {
             // can only be true for MQTT messages
-            msg = (T) MqttMessage.builder().topic(topic).retain(true).build();
+            MqttMessage mqttMsg = (MqttMessage) msg;
+            mqttMsg.toBuilder().topic(topic).retain(true);
         } else {
             msg = (T) msg.newFromMessageWithTopic(topic);
         }
@@ -184,7 +184,7 @@ public class MessageBridge {
     private boolean isRetainAsPublished(String topic) {
         return Optional.ofNullable(optionsByTopic.get(topic))
                 .map(Mqtt5RouteOptions::isRetainAsPublished)
-                .orElse(false);
+                .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
 
     private void processMappingAndSubscribe() {

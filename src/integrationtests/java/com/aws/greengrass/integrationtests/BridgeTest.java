@@ -12,7 +12,6 @@ import com.aws.greengrass.integrationtests.extensions.TestWithAllBrokers;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
-import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.UserProperty;
@@ -202,7 +201,45 @@ public class BridgeTest {
                         .messageExpiryIntervalSeconds(1234L)
                         .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
                         .contentType("contentType")
-                        .retain(true)
+                        .build());
+
+        subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_and_iotcore.yaml")
+    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_without_retainAsPublished_WHEN_message_published_THEN_message_bridged_without_retain_flag(Broker broker)
+            throws Exception {
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic("topic/toIotCore")
+                .payload("message".getBytes(StandardCharsets.UTF_8))
+                // mqtt5-specific fields below.
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
+                .retain(false)
+                .build();
+
+        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeCallback
+                = asyncAssertOnConsumer(p -> assertEquals(expectedMessage, MqttMessage.fromSpoolerV5Model(p)));
+
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic("topic/toIotCore")
+                .callback(subscribeCallback.getRight())
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic("topic/toIotCore")
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
                         .build());
 
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);

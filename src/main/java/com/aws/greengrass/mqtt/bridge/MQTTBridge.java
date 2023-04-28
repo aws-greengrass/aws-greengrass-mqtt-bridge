@@ -44,7 +44,7 @@ public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
     private final TopicMapping topicMapping;
-    private final MessageBridge messageBridge;
+    private MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final LocalMqttClientFactory localMqttClientFactory;
@@ -77,10 +77,19 @@ public class MQTTBridge extends PluginService {
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping, bridgeConfig), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
+        super(topics);
+        this.topicMapping = topicMapping;
+        this.kernel = kernel;
+        this.mqttClientKeyStore = mqttClientKeyStore;
+        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
+        this.localMqttClientFactory = localMqttClientFactory;
+        this.configurationChangeHandler = new ConfigurationChangeHandler();
+        this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
+        this.bridgeConfig = bridgeConfig;
     }
 
+    // for testing
     @SuppressWarnings("PMD.ExcessiveParameterList")
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
@@ -120,6 +129,7 @@ public class MQTTBridge extends PluginService {
         try {
             localMqttClient = localMqttClientFactory.createLocalMqttClient();
             localMqttClient.start();
+            this.messageBridge = new MessageBridge(this.topicMapping, this.bridgeConfig);
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
                     TopicMapping.TopicType.LocalMqtt, localMqttClient);
 

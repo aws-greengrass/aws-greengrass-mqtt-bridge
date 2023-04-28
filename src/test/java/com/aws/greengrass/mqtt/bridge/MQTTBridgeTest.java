@@ -68,7 +68,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
-        MessageBridge mockMessageBridge = mock(MessageBridge.class);
         PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
@@ -84,7 +83,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
             try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
                 mqttBridge =
-                        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
+                        new MQTTBridge(config, mockTopicMapping, mockPubSubIPCAgent, mockIotMqttClient,
                                 mockKernel, mockMqttClientKeyStore, localMqttClientFactory, executor, new BridgeConfigReference());
             }
 
@@ -158,7 +157,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         serviceFullName = MQTTBridge.SERVICE_NAME;
         initializeMockedConfig();
         TopicMapping mockTopicMapping = mock(TopicMapping.class);
-        MessageBridge mockMessageBridge = mock(MessageBridge.class);
         PubSubIPCEventStreamAgent mockPubSubIPCAgent = mock(PubSubIPCEventStreamAgent.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
@@ -174,7 +172,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
             try (MqttClient mockIotMqttClient = mock(MqttClient.class)) {
                 mqttBridge =
-                        new MQTTBridge(config, mockTopicMapping, mockMessageBridge, mockPubSubIPCAgent, mockIotMqttClient,
+                        new MQTTBridge(config, mockTopicMapping, mockPubSubIPCAgent, mockIotMqttClient,
                                 mockKernel, mockMqttClientKeyStore, localMqttClientFactory, executor, new BridgeConfigReference());
             }
 
