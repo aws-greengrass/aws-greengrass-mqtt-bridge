@@ -9,6 +9,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -16,6 +17,7 @@ import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,12 +55,29 @@ public class MessageBridge {
      * Ctr for Message Bridge.
      *
      * @param topicMapping   topics mapping
-     * @param optionsByTopic mqtt5 route options
+     * @param bridgeConfig   bridge configuration
      */
-    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> optionsByTopic) {
+    public MessageBridge(TopicMapping topicMapping, BridgeConfigReference bridgeConfig) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.optionsByTopic = optionsByTopic;
+
+        if (bridgeConfig == null || bridgeConfig.get().getMqtt5RouteOptions() == null) {
+            this.optionsByTopic = Collections.emptyMap();
+        } else {
+            this.optionsByTopic = bridgeConfig.get().getMqtt5RouteOptions();
+        }
+        processMappingAndSubscribe();
+    }
+
+    /**
+     * Ctr for Message Bridge testing.
+     *
+     * @param topicMapping topics mapping
+     */
+    public MessageBridge(TopicMapping topicMapping) {
+        this.topicMapping = topicMapping;
+        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        this.optionsByTopic = Collections.emptyMap();
         processMappingAndSubscribe();
     }
 
@@ -117,7 +136,6 @@ public class MessageBridge {
                             .log("Message client not found for target type");
                 } else {
                     try {
-                        //TODO update retain as published flag before publish message call
                         publishMessage(client, targetTopic, message);
                         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
