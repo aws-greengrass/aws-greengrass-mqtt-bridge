@@ -9,7 +9,9 @@ import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.UserProperty;
 import lombok.Builder;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +21,8 @@ import java.util.List;
 public class MqttMessage implements Message {
     String topic;
     byte[] payload;
+    @NonFinal
+    @Setter
     boolean retain;
     Publish.PayloadFormatIndicator payloadFormat;
     String contentType;

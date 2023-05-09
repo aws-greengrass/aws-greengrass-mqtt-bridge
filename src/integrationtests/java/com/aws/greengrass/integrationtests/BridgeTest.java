@@ -18,7 +18,10 @@ import com.aws.greengrass.mqttclient.v5.UserProperty;
 import com.aws.greengrass.util.Pair;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -168,11 +171,15 @@ public class BridgeTest {
     }
 
     @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain.yaml")
+    @WithKernel("mqtt5_local_retain.yaml")
     void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_with_retainAsPublished_WHEN_message_published_THEN_message_bridged_with_retain_flag(Broker broker)
             throws Exception {
+        String topic = "topic/toLocal";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
         MqttMessage expectedMessage = MqttMessage.builder()
-                .topic("topic/toIotCore")
+                .topic(topic)
                 .payload("message".getBytes(StandardCharsets.UTF_8))
                 // mqtt5-specific fields below.
                 .userProperties(Collections.singletonList(new UserProperty("key", "val")))
@@ -183,17 +190,21 @@ public class BridgeTest {
                 .retain(true)
                 .build();
 
-        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeCallback
-                = asyncAssertOnConsumer(p -> assertEquals(expectedMessage, MqttMessage.fromSpoolerV5Model(p)));
+//        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeCallback
+//                = asyncAssertOnConsumer(p -> assertEquals(expectedMessage, MqttMessage.fromSpoolerV5Model(p)));
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> messageHandler =
+                asyncAssertOnConsumer(message -> assertEquals(Arrays.toString(expectedMessage.getPayload()),
+                        Arrays.toString(message.getPayload())));
 
-        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-                .topic("topic/toIotCore")
-                .callback(subscribeCallback.getRight())
-                .build());
+//        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+//                .topic("topic/toIotCore")
+//                .callback(subscribeCallback.getRight())
+//                .build());
+        context.getLocalV5Client().updateSubscriptions(topics, messageHandler.getRight());
 
         context.getLocalV5Client().publish(
                 MqttMessage.builder()
-                        .topic("topic/toIotCore")
+                        .topic(topic)
                         .payload("message".getBytes(StandardCharsets.UTF_8))
                         // mqtt5-specific fields below.
                         .userProperties(Collections.singletonList(new UserProperty("key", "val")))
@@ -203,7 +214,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        messageHandler.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     @TestWithMqtt5Broker

@@ -32,6 +32,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -52,8 +53,8 @@ public class MQTTBridge extends PluginService {
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
     @Getter // for tests
     private MessageClient<MqttMessage> localMqttClient;
-    private PubSubClient pubSubClient;
-    private IoTCoreClient ioTCoreClient;
+    private final PubSubClient pubSubClient;
+    private final IoTCoreClient ioTCoreClient;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
 
@@ -77,16 +78,8 @@ public class MQTTBridge extends PluginService {
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        super(topics);
-        this.topicMapping = topicMapping;
-        this.kernel = kernel;
-        this.mqttClientKeyStore = mqttClientKeyStore;
-        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
-        this.localMqttClientFactory = localMqttClientFactory;
-        this.configurationChangeHandler = new ConfigurationChangeHandler();
-        this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
-        this.bridgeConfig = bridgeConfig;
+        this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent, iotMqttClient,
+                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
     }
 
     // for testing
@@ -127,9 +120,9 @@ public class MQTTBridge extends PluginService {
         certificateAuthorityChangeHandler.start();
 
         try {
+            this.messageBridge = new MessageBridge(this.topicMapping, this.bridgeConfig.get().getMqtt5RouteOptions());
             localMqttClient = localMqttClientFactory.createLocalMqttClient();
             localMqttClient.start();
-            this.messageBridge = new MessageBridge(this.topicMapping, this.bridgeConfig);
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
                     TopicMapping.TopicType.LocalMqtt, localMqttClient);
 

@@ -9,7 +9,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
-import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -57,13 +56,13 @@ public class MessageBridge {
     /**
      * Ctr for Message Bridge.
      *
-     * @param topicMapping   topics mapping
-     * @param bridgeConfig   bridge configuration
+     * @param topicMapping     topics mapping
+     * @param optionsByTopic   mqtt5 route options
      */
-    public MessageBridge(TopicMapping topicMapping, BridgeConfigReference bridgeConfig) {
+    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> optionsByTopic) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.optionsByTopic = bridgeConfig.get().getMqtt5RouteOptions();
+        this.optionsByTopic = optionsByTopic;
 
         processMappingAndSubscribe();
     }
@@ -171,14 +170,14 @@ public class MessageBridge {
             throws MessageClientException {
         T msg = client.convertMessage(message);
 
-        if (isRetainAsPublished(topic)) {
-            // can only be true for MQTT messages
+        if (isRetainAsPublished(topic) && msg instanceof MqttMessage) {
             MqttMessage mqttMsg = (MqttMessage) msg;
-            mqttMsg.toBuilder().topic(topic).retain(true);
+            mqttMsg.setRetain(true);
+            client.publish((T) mqttMsg);
         } else {
             msg = (T) msg.newFromMessageWithTopic(topic);
+            client.publish(msg);
         }
-        client.publish(msg);
     }
 
     private boolean isRetainAsPublished(String topic) {
