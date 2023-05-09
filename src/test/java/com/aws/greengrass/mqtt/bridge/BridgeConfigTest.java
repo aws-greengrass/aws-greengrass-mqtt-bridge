@@ -415,13 +415,13 @@ class BridgeConfigTest {
     void GIVEN_mqtt5_route_options_WHEN_bridge_config_created_THEN_mqtt5_route_options_used() throws InvalidConfigurationException {
         topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
                 Utils.immutableMap(
-                        "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "false"),
+                        "m1", Utils.immutableMap("noLocal", "true", "retainAsPublished",  "true"),
                         "m2", null,
                         "m3", Utils.immutableMap("noLocal", "true")));
 
         Map<String, Mqtt5RouteOptions> expectedEntries = new HashMap<>();
-        expectedEntries.put("m1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
-        expectedEntries.put("m3", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedEntries.put("m1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedEntries.put("m3", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
