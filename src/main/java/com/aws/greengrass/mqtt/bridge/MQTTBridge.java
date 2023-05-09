@@ -78,8 +78,8 @@ public class MQTTBridge extends PluginService {
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
+        this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent,
+                iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
     }
 
     // for testing

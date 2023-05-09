@@ -190,16 +190,10 @@ public class BridgeTest {
                 .retain(true)
                 .build();
 
-//        Pair<CompletableFuture<Void>, Consumer<Publish>> subscribeCallback
-//                = asyncAssertOnConsumer(p -> assertEquals(expectedMessage, MqttMessage.fromSpoolerV5Model(p)));
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> messageHandler =
                 asyncAssertOnConsumer(message -> assertEquals(Arrays.toString(expectedMessage.getPayload()),
                         Arrays.toString(message.getPayload())));
 
-//        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
-//                .topic("topic/toIotCore")
-//                .callback(subscribeCallback.getRight())
-//                .build());
         context.getLocalV5Client().updateSubscriptions(topics, messageHandler.getRight());
 
         context.getLocalV5Client().publish(
