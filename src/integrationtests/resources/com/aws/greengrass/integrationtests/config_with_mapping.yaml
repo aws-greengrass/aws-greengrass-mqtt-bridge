@@ -5,7 +5,7 @@ services:
       mqtt5RouteOptions:
         mapping1:
           noLocal: true
-          retainAsPublished: false
+          retainAsPublished: true
         mapping2:
         mappingNotInMqttTopicMapping:
           noLocal: true

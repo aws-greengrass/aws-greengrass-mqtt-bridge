@@ -279,8 +279,9 @@ public class ConfigTest {
         assertEquals(expectedMapping, topicMapping.getMapping());
 
         Map<String, Mqtt5RouteOptions> expectedRouteOptions = new HashMap<>();
-        expectedRouteOptions.put("mapping1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
-        expectedRouteOptions.put("mappingNotInMqttTopicMapping", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedRouteOptions.put("mapping1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedRouteOptions.put("mappingNotInMqttTopicMapping",
+                Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
 
         Map<String, Mqtt5RouteOptions> actualRouteOptions =
                 testContext.getKernel().getContext().get(BridgeConfigReference.class).get().getMqtt5RouteOptions();
