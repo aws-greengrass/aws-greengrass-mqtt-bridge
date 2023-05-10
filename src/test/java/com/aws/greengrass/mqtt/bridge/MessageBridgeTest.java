@@ -570,7 +570,7 @@ public class MessageBridgeTest {
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
         messageHandlerLocalMqttCaptor.getValue()
-                .accept(MqttMessage.builder().topic("topics/toLocal").payload(payload).build());
+                .accept(MqttMessage.builder().topic("topics/toLocal").payload(payload).retain(true).build());
 
         ArgumentCaptor<MqttMessage> messageLocalMqttCaptor = ArgumentCaptor.forClass(MqttMessage.class);
         verify(mockLocalClient, times(1)).publish(messageLocalMqttCaptor.capture());

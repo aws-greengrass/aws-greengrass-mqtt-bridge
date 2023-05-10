@@ -3,12 +3,12 @@ services:
     configuration:
       brokerUri: 'tcp://localhost:8883'
       mqtt5RouteOptions:
-        toIotCore:
+        toLocal:
           retainAsPublished: true
       mqttTopicMapping:
         toLocal:
           topic: topic/toLocal
-          source: IotCore
+          source: LocalMqtt
           target: LocalMqtt
       brokerClient:
         version: "mqtt5"
