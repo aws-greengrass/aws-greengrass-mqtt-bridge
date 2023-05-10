@@ -34,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -231,6 +232,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
 
         mqttBridge.install();
+        mqttBridge.setMessageBridge(mockMessageBridge);
         mqttBridge.startup();
         mqttBridge.shutdown();
 

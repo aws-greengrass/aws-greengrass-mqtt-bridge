@@ -28,6 +28,7 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
@@ -45,6 +46,7 @@ public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
     private final TopicMapping topicMapping;
+    @Setter // for tests
     private MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
@@ -106,6 +108,7 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         configurationChangeHandler.listen();
+        this.messageBridge = new MessageBridge(this.topicMapping, this.bridgeConfig.get().getMqtt5RouteOptions());
     }
 
     @Override
@@ -120,7 +123,6 @@ public class MQTTBridge extends PluginService {
         certificateAuthorityChangeHandler.start();
 
         try {
-            this.messageBridge = new MessageBridge(this.topicMapping, this.bridgeConfig.get().getMqtt5RouteOptions());
             localMqttClient = localMqttClientFactory.createLocalMqttClient();
             localMqttClient.start();
             messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(

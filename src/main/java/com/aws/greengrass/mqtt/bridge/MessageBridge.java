@@ -16,7 +16,6 @@ import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,18 +63,6 @@ public class MessageBridge {
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
         this.optionsByTopic = optionsByTopic;
 
-        processMappingAndSubscribe();
-    }
-
-    /**
-     * Ctr for Message Bridge testing.
-     *
-     * @param topicMapping topics mapping
-     */
-    public MessageBridge(TopicMapping topicMapping) {
-        this.topicMapping = topicMapping;
-        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.optionsByTopic = Collections.emptyMap();
         processMappingAndSubscribe();
     }
 
