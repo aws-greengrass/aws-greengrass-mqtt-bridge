@@ -323,6 +323,7 @@ public final class BridgeConfig {
                 || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion())
                 || !Objects.equals(getSessionExpiryInterval(), newConfig.getSessionExpiryInterval())
                 || !Objects.equals(getMaximumPacketSize(), newConfig.getMaximumPacketSize())
-                || !Objects.equals(getReceiveMaximum(), newConfig.getReceiveMaximum());
+                || !Objects.equals(getReceiveMaximum(), newConfig.getReceiveMaximum())
+                || !Objects.equals(getMqtt5RouteOptions(), newConfig.getMqtt5RouteOptions());
     }
 }
