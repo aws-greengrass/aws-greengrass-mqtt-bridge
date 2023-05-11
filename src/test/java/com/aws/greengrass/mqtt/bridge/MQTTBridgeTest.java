@@ -231,6 +231,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                         ClientDevicesAuthService.AUTHORITIES_TOPIC)).thenReturn(caTopic);
 
         mqttBridge.install();
+        // we need to set the messageBridge to the mock since a new messageBridge is created during install()
         mqttBridge.setMessageBridge(mockMessageBridge);
         mqttBridge.startup();
         mqttBridge.shutdown();
