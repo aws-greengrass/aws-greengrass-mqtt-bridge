@@ -24,7 +24,6 @@ import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
-import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
@@ -35,9 +34,7 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -111,7 +108,8 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         configurationChangeHandler.listen();
-        this.messageBridge = new MessageBridge(this.topicMapping, createOptionsByTopicMapping());
+        messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
+                TopicMapping.TopicType.LocalMqtt));
     }
 
     @Override
@@ -164,22 +162,6 @@ public class MQTTBridge extends PluginService {
         if (ioTCoreClient != null) {
             ioTCoreClient.stop();
         }
-    }
-
-    private Map<String, Mqtt5RouteOptions> createOptionsByTopicMapping() {
-        Map<String, Mqtt5RouteOptions> mqtt5RouteOptions = bridgeConfig.get().getMqtt5RouteOptions();
-        if (mqtt5RouteOptions.equals(Collections.emptyMap())) {
-            return Collections.emptyMap();
-        }
-        Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
-        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.getMapping().entrySet()) {
-            String route = entry.getKey();
-            if (!mqtt5RouteOptions.containsKey(route)) {
-                continue;
-            }
-            opts.put(entry.getValue().getTopic(), mqtt5RouteOptions.get(route));
-        }
-        return opts;
     }
 
     public class CertificateAuthorityChangeHandler {

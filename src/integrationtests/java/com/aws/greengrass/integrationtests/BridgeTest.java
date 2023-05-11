@@ -171,7 +171,7 @@ public class BridgeTest {
     }
 
     @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain.yaml")
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
     void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_with_retain_flag(Broker broker)
             throws Exception {
         String topic = "topic/toIotCore";
@@ -220,7 +220,7 @@ public class BridgeTest {
     }
 
     @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain.yaml")
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
     void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_without_retain_THEN_message_bridged_without_retain_flag(Broker broker)
             throws Exception {
         String topic = "topic/toIotCore";

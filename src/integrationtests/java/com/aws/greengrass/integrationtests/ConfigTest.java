@@ -180,7 +180,7 @@ public class ConfigTest {
     }
 
     @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain.yaml")
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqtt5RouteOptions_updated_THEN_mapping_updated_and_bridge_restarts
             (Broker broker, ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, MqttException.class);

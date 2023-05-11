@@ -41,7 +41,7 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
-    private final Map<String, Mqtt5RouteOptions> optionsByTopic;
+    private final Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
     private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
             = new ConcurrentHashMap<>();
@@ -55,13 +55,13 @@ public class MessageBridge {
     /**
      * Ctr for Message Bridge.
      *
-     * @param topicMapping     topics mapping
-     * @param optionsByTopic   mqtt5 route options
+     * @param topicMapping              topics mapping
+     * @param localMqttOptionsByTopic   mqtt5 route options
      */
-    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> optionsByTopic) {
+    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.optionsByTopic = optionsByTopic;
+        this.localMqttOptionsByTopic = localMqttOptionsByTopic;
 
         processMappingAndSubscribe();
     }
@@ -168,7 +168,7 @@ public class MessageBridge {
     }
 
     private boolean isRetainAsPublished(String topic) {
-        return Optional.ofNullable(optionsByTopic.get(topic))
+        return Optional.ofNullable(localMqttOptionsByTopic.get(topic))
                 .map(Mqtt5RouteOptions::isRetainAsPublished)
                 .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
