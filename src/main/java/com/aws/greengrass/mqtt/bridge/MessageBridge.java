@@ -158,7 +158,7 @@ public class MessageBridge {
 
         if (!isRetainAsPublished(topic) && msg instanceof MqttMessage) {
             MqttMessage mqttMsg = (MqttMessage) msg;
-            mqttMsg = mqttMsg.toBuilder().retain(false).build();
+            mqttMsg = mqttMsg.toBuilder().topic(topic).retain(false).build();
             client.publish((T) mqttMsg);
         } else {
             msg = (T) msg.newFromMessageWithTopic(topic);
