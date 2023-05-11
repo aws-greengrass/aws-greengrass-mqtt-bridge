@@ -560,7 +560,7 @@ public class MessageBridgeTest {
         mapping.updateMapping(mappingToUpdate);
 
         Map<String, Mqtt5RouteOptions> options = new HashMap<>();
-        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("topics/toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
         byte[] payload = "message".getBytes();
 
         MessageBridge messageBridge = new MessageBridge(mapping, options);
@@ -591,7 +591,7 @@ public class MessageBridgeTest {
         mapping.updateMapping(mappingToUpdate);
 
         Map<String, Mqtt5RouteOptions> options = new HashMap<>();
-        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+        options.put("topics/toLocal", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
         byte[] payload = "message".getBytes();
 
         MessageBridge messageBridge = new MessageBridge(mapping, options);

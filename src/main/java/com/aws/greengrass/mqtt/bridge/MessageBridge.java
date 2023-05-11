@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -167,17 +168,20 @@ public class MessageBridge {
     }
 
     private boolean isRetainAsPublished(String topic) {
-        if (optionsByTopic.isEmpty()) {
-            return DEFAULT_RETAIN_AS_PUBLISHED;
-        }
-        Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
-        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.getMapping().entrySet()) {
-            if (topic.equals(entry.getValue().getTopic())) {
-                String route = entry.getKey();
-                opts.put(entry.getValue().getTopic(), optionsByTopic.get(route));
-            }
-        }
-        return opts.get(topic).isRetainAsPublished();
+//        if (optionsByTopic.isEmpty()) {
+//            return DEFAULT_RETAIN_AS_PUBLISHED;
+//        }
+//        Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
+//        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.getMapping().entrySet()) {
+//            if (topic.equals(entry.getValue().getTopic())) {
+//                String route = entry.getKey();
+//                opts.put(entry.getValue().getTopic(), optionsByTopic.get(route));
+//            }
+//        }
+//        return opts.get(topic).isRetainAsPublished();
+        return Optional.ofNullable(optionsByTopic.get(topic))
+                .map(Mqtt5RouteOptions::isRetainAsPublished)
+                .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
 
     private void processMappingAndSubscribe() {
