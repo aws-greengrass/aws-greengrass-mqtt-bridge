@@ -9,6 +9,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -157,9 +158,9 @@ public class MessageBridge {
             throws MessageClientException {
         T msg = client.convertMessage(message);
 
-        if (isRetainAsPublished(topic) && msg instanceof MqttMessage) {
+        if (!isRetainAsPublished(topic) && msg instanceof MqttMessage) {
             MqttMessage mqttMsg = (MqttMessage) msg;
-            mqttMsg = mqttMsg.toBuilder().retain(mqttMsg.isRetain()).build();
+            mqttMsg = mqttMsg.toBuilder().retain(false).build();
             client.publish((T) mqttMsg);
         } else {
             msg = (T) msg.newFromMessageWithTopic(topic);
@@ -168,9 +169,17 @@ public class MessageBridge {
     }
 
     private boolean isRetainAsPublished(String topic) {
-        return Optional.ofNullable(optionsByTopic.get(topic))
-                .map(Mqtt5RouteOptions::isRetainAsPublished)
-                .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
+        if (optionsByTopic.isEmpty()) {
+            return DEFAULT_RETAIN_AS_PUBLISHED;
+        }
+        Map<String, Mqtt5RouteOptions> opts = new HashMap<>();
+        for (Map.Entry<String, TopicMapping.MappingEntry> entry : topicMapping.getMapping().entrySet()) {
+            if (topic.equals(entry.getValue().getTopic())) {
+                String route = entry.getKey();
+                opts.put(entry.getValue().getTopic(), optionsByTopic.get(route));
+            }
+        }
+        return opts.get(topic).isRetainAsPublished();
     }
 
     private void processMappingAndSubscribe() {

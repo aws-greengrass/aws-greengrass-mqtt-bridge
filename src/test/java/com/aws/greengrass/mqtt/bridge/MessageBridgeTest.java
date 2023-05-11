@@ -554,13 +554,13 @@ public class MessageBridgeTest {
     void GIVEN_mqtt_bridge_and_mqtt5_route_options_WHEN_retain_as_published_THEN_message_bridged_with_retain_flag()
             throws MessageClientException {
         TopicMapping mapping = new TopicMapping();
-        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("m1",
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("toLocal",
                 new TopicMapping.MappingEntry("topics/toLocal", TopicMapping.TopicType.LocalMqtt,
                         TopicMapping.TopicType.LocalMqtt));
         mapping.updateMapping(mappingToUpdate);
 
         Map<String, Mqtt5RouteOptions> options = new HashMap<>();
-        options.put("topics/toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
         byte[] payload = "message".getBytes();
 
         MessageBridge messageBridge = new MessageBridge(mapping, options);
@@ -579,6 +579,37 @@ public class MessageBridgeTest {
                 Matchers.is(Matchers.equalTo("topics/toLocal")));
         Assertions.assertArrayEquals(payload, messageLocalMqttCaptor.getAllValues().get(0).getPayload());
         Assertions.assertEquals(true, messageLocalMqttCaptor.getAllValues().get(0).isRetain());
+    }
+
+    @Test
+    void GIVEN_mqtt_bridge_and_mqtt5_route_options_WHEN_retain_as_published_false_THEN_message_bridged_without_retain_flag()
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        Map<String, TopicMapping.MappingEntry> mappingToUpdate = Utils.immutableMap("toLocal",
+                new TopicMapping.MappingEntry("topics/toLocal", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.LocalMqtt));
+        mapping.updateMapping(mappingToUpdate);
+
+        Map<String, Mqtt5RouteOptions> options = new HashMap<>();
+        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+        byte[] payload = "message".getBytes();
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        doReturn(true).when(mockLocalClient).supportsTopicFilters();
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        messageHandlerLocalMqttCaptor.getValue()
+                .accept(MqttMessage.builder().topic("topics/toLocal").payload(payload).retain(true).build());
+
+        ArgumentCaptor<MqttMessage> messageLocalMqttCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockLocalClient, times(1)).publish(messageLocalMqttCaptor.capture());
+
+        assertThat(messageLocalMqttCaptor.getAllValues().get(0).getTopic(),
+                Matchers.is(Matchers.equalTo("topics/toLocal")));
+        Assertions.assertArrayEquals(payload, messageLocalMqttCaptor.getAllValues().get(0).getPayload());
+        Assertions.assertEquals(false, messageLocalMqttCaptor.getAllValues().get(0).isRetain());
     }
 
     static class FakeMqttMessageClient implements MessageClient<MqttMessage> {
