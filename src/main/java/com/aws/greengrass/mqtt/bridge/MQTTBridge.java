@@ -28,10 +28,12 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,7 +46,8 @@ public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
     private final TopicMapping topicMapping;
-    private final MessageBridge messageBridge;
+    @Setter // for tests
+    private MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final LocalMqttClientFactory localMqttClientFactory;
@@ -52,8 +55,8 @@ public class MQTTBridge extends PluginService {
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
     @Getter // for tests
     private MessageClient<MqttMessage> localMqttClient;
-    private PubSubClient pubSubClient;
-    private IoTCoreClient ioTCoreClient;
+    private final PubSubClient pubSubClient;
+    private final IoTCoreClient ioTCoreClient;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
 
@@ -77,10 +80,11 @@ public class MQTTBridge extends PluginService {
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping), pubSubIPCAgent, iotMqttClient,
-                kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
+        this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent,
+                iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
     }
 
+    // for testing
     @SuppressWarnings("PMD.ExcessiveParameterList")
     protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
                          PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
@@ -104,6 +108,8 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         configurationChangeHandler.listen();
+        messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
+                TopicMapping.TopicType.LocalMqtt));
     }
 
     @Override

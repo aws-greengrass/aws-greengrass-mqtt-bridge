@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests;
 
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
@@ -178,6 +179,36 @@ public class ConfigTest {
                 () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
     }
 
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqtt5RouteOptions_updated_THEN_mapping_updated_and_bridge_restarts
+            (Broker broker, ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, MqttException.class);
+
+        Topics routeOptions =
+                testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(
+                        CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS)
+                        .lookupTopics("toIotCore");
+        Topic retainAsPublished = routeOptions.lookup("retainAsPublished");
+        assertTrue((boolean) retainAsPublished.getOnce());
+
+        CountDownLatch bridgeRestarted = new CountDownLatch(1);
+        testContext.getKernel().getContext().addGlobalStateChangeListener((
+                GreengrassService service, State was, State newState) -> {
+            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
+                bridgeRestarted.countDown();
+            }
+        });
+
+        testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(CONFIGURATION_CONFIG_KEY,
+                BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).lookupTopics("toIotCore").lookup("retainAsPublished")
+                .withValue(false);
+        testContext.getKernel().getContext().waitForPublishQueueToClear();
+        retainAsPublished = routeOptions.lookup("retainAsPublished");
+        assertFalse((boolean) retainAsPublished.getOnce());
+        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
     @TestWithMqtt3Broker
     @WithKernel("config.yaml")
     void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(Broker broker, ExtensionContext context) throws Exception {
@@ -279,8 +310,9 @@ public class ConfigTest {
         assertEquals(expectedMapping, topicMapping.getMapping());
 
         Map<String, Mqtt5RouteOptions> expectedRouteOptions = new HashMap<>();
-        expectedRouteOptions.put("mapping1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
-        expectedRouteOptions.put("mappingNotInMqttTopicMapping", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedRouteOptions.put("mapping1", Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(true).build());
+        expectedRouteOptions.put("mappingNotInMqttTopicMapping",
+                Mqtt5RouteOptions.builder().noLocal(true).retainAsPublished(false).build());
 
         Map<String, Mqtt5RouteOptions> actualRouteOptions =
                 testContext.getKernel().getContext().get(BridgeConfigReference.class).get().getMqtt5RouteOptions();

@@ -18,7 +18,10 @@ import com.aws.greengrass.mqttclient.v5.UserProperty;
 import com.aws.greengrass.util.Pair;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -165,5 +168,151 @@ public class BridgeTest {
                         .build());
 
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
+    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_with_retain_flag(Broker broker)
+            throws Exception {
+        String topic = "topic/toIotCore";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic(topic)
+                .payload("message".getBytes(StandardCharsets.UTF_8))
+                // mqtt5-specific fields below.
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
+                .retain(true)
+                .build();
+
+        Pair<CompletableFuture<Void>, Consumer<Publish>> publishHandler = asyncAssertOnConsumer(p -> {
+           MqttMessage msg = MqttMessage.fromSpoolerV5Model(p);
+           assertEquals(Arrays.toString(expectedMessage.getPayload()), Arrays.toString(msg.getPayload()));
+           assertEquals(expectedMessage.isRetain(), msg.isRetain());
+        });
+
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic(topic)
+                .callback(publishHandler.getRight())
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic(topic)
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .retain(true)
+                        .build());
+
+        publishHandler.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        Publish msg = context.getMockMqttClient().getPublished().get(0);
+        assertEquals(expectedMessage.isRetain(), msg.isRetain());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
+    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_without_retain_THEN_message_bridged_without_retain_flag(Broker broker)
+            throws Exception {
+        String topic = "topic/toIotCore";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic(topic)
+                .payload("message".getBytes(StandardCharsets.UTF_8))
+                // mqtt5-specific fields below.
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
+                .retain(false)
+                .build();
+
+        Pair<CompletableFuture<Void>, Consumer<Publish>> publishHandler = asyncAssertOnConsumer(p -> {
+            MqttMessage msg = MqttMessage.fromSpoolerV5Model(p);
+            assertEquals(Arrays.toString(expectedMessage.getPayload()), Arrays.toString(msg.getPayload()));
+            assertEquals(expectedMessage.isRetain(), msg.isRetain());
+        });
+
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic(topic)
+                .callback(publishHandler.getRight())
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic(topic)
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .build());
+
+        publishHandler.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        Publish msg = context.getMockMqttClient().getPublished().get(0);
+        assertEquals(expectedMessage.isRetain(), msg.isRetain());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_local_and_iotcore.yaml")
+    void GIVEN_mqtt5_and_local_mapping_without_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_without_retain_flag(Broker broker)
+            throws Exception {
+        String topic = "topic/toIotCore";
+        Set<String> topics = new HashSet<>();
+        topics.add(topic);
+
+        MqttMessage expectedMessage = MqttMessage.builder()
+                .topic(topic)
+                .payload("message".getBytes(StandardCharsets.UTF_8))
+                // mqtt5-specific fields below.
+                .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                .responseTopic("response topic")
+                .messageExpiryIntervalSeconds(1234L)
+                .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                .contentType("contentType")
+                .retain(false)
+                .build();
+
+        Pair<CompletableFuture<Void>, Consumer<Publish>> publishHandler = asyncAssertOnConsumer(p -> {
+            MqttMessage msg = MqttMessage.fromSpoolerV5Model(p);
+            assertEquals(Arrays.toString(expectedMessage.getPayload()), Arrays.toString(msg.getPayload()));
+            assertEquals(expectedMessage.isRetain(), msg.isRetain());
+        });
+
+        context.getIotCoreClient().getIotMqttClient().subscribe(Subscribe.builder()
+                .topic(topic)
+                .callback(publishHandler.getRight())
+                .build());
+
+        context.getLocalV5Client().publish(
+                MqttMessage.builder()
+                        .topic(topic)
+                        .payload("message".getBytes(StandardCharsets.UTF_8))
+                        // mqtt5-specific fields below.
+                        .userProperties(Collections.singletonList(new UserProperty("key", "val")))
+                        .responseTopic("response topic")
+                        .messageExpiryIntervalSeconds(1234L)
+                        .payloadFormat(Publish.PayloadFormatIndicator.UTF8)
+                        .contentType("contentType")
+                        .retain(true)
+                        .build());
+
+        publishHandler.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        Publish msg = context.getMockMqttClient().getPublished().get(0);
+        assertEquals(expectedMessage.isRetain(), msg.isRetain());
     }
 }
