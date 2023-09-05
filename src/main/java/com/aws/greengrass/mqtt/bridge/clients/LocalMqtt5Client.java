@@ -89,7 +89,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
     private boolean clientStarted = false; // crt close is not idempotent
-    private final Object clientLock = new Object();
+
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = () -> {
         LOGGER.atInfo().log("Keystore update received, resetting client");
         reset();
@@ -111,6 +111,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
 
+    @Getter
     private Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
@@ -331,9 +332,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
-        synchronized (clientLock) {
-            this.client = client;
-        }
+        this.client = client;
     }
 
     @Override
@@ -570,13 +569,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start()  {
-        synchronized (clientLock) {
-            if (clientStarted) {
-                return;
-            }
-            client.start();
-            clientStarted = true;
+        if (clientStarted) {
+            return;
         }
+        client.start();
+        clientStarted = true;
     }
 
     @Override
@@ -586,30 +583,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         closeClient();
     }
 
-    /**
-     * Get the underlying mqtt client.
-     *
-     * @return mqtt client
-     */
-    public Mqtt5Client getClient() {
-        synchronized (clientLock) {
-            return client;
-        }
-    }
-
     private void closeClient() {
-        synchronized (clientLock) {
-            try {
-                if (clientStarted) {
-                    client.stop(null);
-                } else {
-                    client.close();
-                }
-            } catch (CrtRuntimeException e) {
-                LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
-            } finally {
-                clientStarted = false;
+        try {
+            if (clientStarted) {
+                client.stop(null);
+            } else {
+                client.close();
             }
+        } catch (CrtRuntimeException e) {
+            LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
+        } finally {
+            clientStarted = false;
         }
     }
 
@@ -682,12 +666,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     void setClient(Mqtt5Client client) {
-        synchronized (clientLock) {
-            if (isSSL()) {
-                mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
-            }
-            this.client = client;
+        if (isSSL()) {
+            mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
         }
+        this.client = client;
     }
 
     private boolean isSSL() {
