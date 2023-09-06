@@ -279,6 +279,11 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 public MqttMessage convertMessage(Message message) {
                     return (MqttMessage) message.toMqtt();
                 }
+
+                @Override
+                public Consumer<MqttMessage> getMessageHandler() {
+                    return null;
+                }
             };
         }
     }

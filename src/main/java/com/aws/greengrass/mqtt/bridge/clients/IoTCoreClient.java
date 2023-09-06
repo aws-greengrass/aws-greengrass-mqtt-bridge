@@ -50,6 +50,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     private Set<String> subscribedIotCoreTopics = ConcurrentHashMap.newKeySet();
     @Getter(AccessLevel.PROTECTED)
     private Set<String> toSubscribeIotCoreTopics = new HashSet<>();
+    @Getter
     private volatile Consumer<com.aws.greengrass.mqtt.bridge.model.MqttMessage> messageHandler;
     private Future<?> subscribeFuture;
     private final Object subscribeLock = new Object();

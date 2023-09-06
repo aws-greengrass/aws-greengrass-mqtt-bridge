@@ -28,6 +28,7 @@ public class PubSubClient implements MessageClient<PubSubMessage> {
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedPubSubTopics = new HashSet<>();
 
+    @Getter
     private Consumer<PubSubMessage> messageHandler;
 
     private final PubSubIPCEventStreamAgent pubSubIPCAgent;

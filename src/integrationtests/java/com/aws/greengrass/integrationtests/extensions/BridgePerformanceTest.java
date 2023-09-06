@@ -14,12 +14,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Convenience annotation for bridge integration test class.
+ * Convenience annotation for bridge performance test class.
  *
- * <p>Example: bridge integration test class, with test method that exercises mqtt3 and mqtt5 brokers.
+ * <p>Example: bridge performance test class, with test method that exercises mqtt3 and mqtt5 brokers.
  *
  * <pre>
- * &#64;BridgeIntegrationTest
+ * &#64;BridgePerformanceTest
  * class MyTest {
  *     &#64;TestWithAllBrokers
  *     &#64;WithKernel("config.yaml")
@@ -37,7 +37,7 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@Tag("integration")
+@Tag("performance")
 @BridgeIntegrationTestExtensions
-public @interface BridgeIntegrationTest {
+public @interface BridgePerformanceTest {
 }

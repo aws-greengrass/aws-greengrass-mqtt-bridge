@@ -95,6 +95,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         reset();
     };
 
+    @Getter // for testing
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
 
     private final URI brokerUri;

@@ -639,6 +639,11 @@ public class MessageBridgeTest {
         @Override
         public void stop() {
         }
+
+        @Override
+        public Consumer<MqttMessage> getMessageHandler() {
+            return null;
+        }
     }
 
     static class FakePubSubMessageClient implements MessageClient<PubSubMessage> {
@@ -666,6 +671,11 @@ public class MessageBridgeTest {
 
         @Override
         public void stop() {
+        }
+
+        @Override
+        public Consumer<PubSubMessage> getMessageHandler() {
+            return null;
         }
     }
 }

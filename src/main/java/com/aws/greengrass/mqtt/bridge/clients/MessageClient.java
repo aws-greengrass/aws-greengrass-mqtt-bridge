@@ -40,4 +40,6 @@ public interface MessageClient<T extends Message> {
     void start();
 
     void stop();
+
+    Consumer<T> getMessageHandler();
 }

@@ -44,6 +44,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
+    @Getter // for testing
     private Consumer<MqttMessage> messageHandler;
     private final URI brokerUri;
     private final String clientId;

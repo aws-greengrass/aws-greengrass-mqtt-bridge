@@ -15,6 +15,7 @@ import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import lombok.Data;
 
 import java.nio.file.Path;
@@ -34,6 +35,16 @@ public class BridgeIntegrationTestContext {
 
     public IoTCoreClient getIotCoreClient() {
         return getFromContext(IoTCoreClient.class);
+    }
+
+    public MessageClient<MqttMessage> getLocalMqttClient() {
+        if (getConfig().getMqttVersion() == MqttVersion.MQTT5) {
+            return getLocalV5Client();
+        } else if (getConfig().getMqttVersion() == MqttVersion.MQTT3) {
+            return getLocalV3Client();
+        } else {
+            throw new UnsupportedOperationException(getConfig().getMqttVersion() + " client not supported");
+        }
     }
 
     public MQTTClient getLocalV3Client() {
