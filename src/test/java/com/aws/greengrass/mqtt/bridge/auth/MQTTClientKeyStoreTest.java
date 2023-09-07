@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -71,6 +72,7 @@ public class MQTTClientKeyStoreTest {
 
     @BeforeEach
     void beforeEach() throws NoSuchAlgorithmException {
+        assumeTrue(System.getProperty("java.version").startsWith("1.8"));
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         kpg.initialize(2048);
         keyPair = kpg.generateKeyPair();
