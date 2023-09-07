@@ -356,21 +356,26 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         ? null : convertUserProperty(message.getUserProperties()))
                 .withMessageExpiryIntervalSeconds(message.getMessageExpiryIntervalSeconds())
                 .build();
-        LOGGER.atDebug().kv(LOG_KEY_TOPIC, message.getTopic()).kv(LOG_KEY_MESSAGE, message)
+        LOGGER.atTrace().kv(LOG_KEY_TOPIC, message.getTopic()).kv(LOG_KEY_MESSAGE, message)
                 .log("Publishing message to MQTT topic");
 
         client.publish(publishPacket).whenComplete((result, e) -> {
             PubAckPacket pubAck = result.getResultPubAck();
-            if (e == null && (pubAck == null || pubAck.getReasonCode().equals(PubAckPacket.PubAckReasonCode.SUCCESS))) {
-                LOGGER.atDebug().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
-            } else {
+            PubAckPacket.PubAckReasonCode reasonCode = pubAck == null ? null : pubAck.getReasonCode();
+            String reasonString = pubAck == null ? null : pubAck.getReasonString();
+            if (e != null
+                    || !(PubAckPacket.PubAckReasonCode.SUCCESS.equals(reasonCode)
+                    || PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.equals(reasonCode))) {
                 LOGGER.atError()
                         .cause(e)
                         .kv(LOG_KEY_MESSAGE, message)
-                        .kv(LOG_KEY_REASON_STRING, pubAck == null ? null : pubAck.getReasonString())
-                        .kv(LOG_KEY_REASON_CODE, pubAck == null ? null : pubAck.getReasonCode())
+                        .kv(LOG_KEY_REASON_STRING, reasonString)
+                        .kv(LOG_KEY_REASON_CODE, reasonCode)
                         .log("Message failed to publish");
+                return;
             }
+
+            LOGGER.atTrace().kv(LOG_KEY_MESSAGE, message).log("Message published successfully");
         });
     }
 
