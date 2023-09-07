@@ -242,6 +242,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
         MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(true);
+        connOpts.setMaxInflight(1000);
 
         if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
