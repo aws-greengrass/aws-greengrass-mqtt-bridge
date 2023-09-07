@@ -25,6 +25,7 @@ import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.InvocationInterceptor;
@@ -34,7 +35,9 @@ import org.testcontainers.DockerClientFactory;
 import org.testcontainers.hivemq.HiveMQContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
@@ -52,6 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -145,6 +149,11 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     private void initializeContext(ExtensionContext extensionContext) {
         context = new BridgeIntegrationTestContext();
         injectContext(extensionContext, context);
+
+        // ignore exceptions that can happen during disconnects
+        ignoreExceptionOfType(extensionContext, CrtRuntimeException.class);
+        ignoreExceptionOfType(extensionContext, MqttException.class);
+        ignoreExceptionUltimateCauseOfType(extensionContext, EOFException.class);
 
         // relies on UniqueRootPathExtension being run before this extension via the IntegrationTest annotation
         context.setRootDir(Paths.get(System.getProperty("root")));
