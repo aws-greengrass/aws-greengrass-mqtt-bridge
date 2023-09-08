@@ -96,7 +96,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         initializeContext(extensionContext);
 
         if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT3::equals)) {
-            startMqtt3Broker();
+            configureContextForMqtt3Broker();
         } else if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT5::equals)) {
             if (!isDockerAvailable()) {
                 logger.atWarn().log("Skipping parameterized test for MQTT5 broker, "
@@ -104,7 +104,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 invocation.skip();
                 return;
             }
-            startMqtt5Broker();
+            configureContextForMqtt5Broker();
         } else if (extensionContext.getRequiredTestMethod().getAnnotation(TestWithAllBrokers.class) != null
                 || extensionContext.getRequiredTestMethod().getAnnotation(TestWithMqtt3Broker.class) != null
                 || extensionContext.getRequiredTestMethod().getAnnotation(TestWithMqtt5Broker.class) != null) {
@@ -112,6 +112,8 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                     + " to parameterized test " + extensionContext.getRequiredTestMethod().getName()
                     + ". It's required by IntegrationTestExtension to determine which broker to spin up");
         }
+
+        context.startBroker();
 
         String configFile = getConfigFile(extensionContext);
         if (configFile == null) {
@@ -126,6 +128,18 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         // since testcontainers picks a dynamic broker port
         if (context.broker == Broker.MQTT5) {
             pointBridgeToV5Broker();
+            // if test decides to start the broker again,
+            // make sure that we re-point bridge to the broker
+            // if port changes
+            Runnable startBroker = context.startBroker;
+            context.startBroker = () -> {
+                startBroker.run();
+                try {
+                    pointBridgeToV5Broker();
+                } catch (Exception e) {
+                    fail(e);
+                }
+            };
         }
 
         // TODO support for offline scenarios?
@@ -139,12 +153,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         if (kernel != null) {
             kernel.shutdown();
         }
-        if (v5Broker != null) {
-            v5Broker.stop();
-        }
-        if (v3Broker != null) {
-            v3Broker.stopServer();
-        }
+        context.stopBroker();
     }
 
     private void initializeContext(ExtensionContext extensionContext) {
@@ -181,18 +190,25 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         kernel.getContext().put(MQTTClientKeyStore.class, clientKeyStore);
     }
 
-    private void startMqtt3Broker() throws IOException {
+    private void configureContextForMqtt3Broker() {
         int brokerPort = 8883;
         IConfig brokerConf = new MemoryConfig(new Properties());
         brokerConf.setProperty(BrokerConstants.PORT_PROPERTY_NAME, String.valueOf(brokerPort));
         v3Broker = new Server();
-        v3Broker.startServer(brokerConf);
         context.setBrokerHost("localhost");
         context.setBrokerTCPPort(brokerPort);
         context.setBroker(Broker.MQTT3);
+        context.startBroker = () -> {
+            try {
+                v3Broker.startServer(brokerConf);
+            } catch (IOException e) {
+                fail(e);
+            }
+        };
+        context.stopBroker = v3Broker::stopServer;
     }
 
-    private void startMqtt5Broker() throws KeyStoreException {
+    private void configureContextForMqtt5Broker() throws KeyStoreException {
         Certs certs = new Certs(clientKeyStore);
 
         Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
@@ -200,7 +216,6 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
 
         Path serverTruststorePath = context.getRootDir().resolve("truststore.jks");
         certs.writeServerTruststore(serverTruststorePath);
-
         v5Broker = new HiveMQContainer(
                 DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
                 .withCopyFileToContainer(MountableFile.forHostPath(serverKeystorePath), "/opt/hivemq/hivemq.jks")
@@ -209,11 +224,14 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
                 .withExposedPorts(8883, 1883)
                 .withLogLevel(Level.DEBUG);
-        v5Broker.start();
         context.setBroker(Broker.MQTT5);
-        context.setBrokerHost(v5Broker.getHost());
-        context.setBrokerSSLPort(v5Broker.getMappedPort(8883));
-        context.setBrokerTCPPort(v5Broker.getMappedPort(1883));
+        context.startBroker = () -> {
+            v5Broker.start();
+            context.setBrokerHost(v5Broker.getHost());
+            context.setBrokerSSLPort(v5Broker.getMappedPort(8883));
+            context.setBrokerTCPPort(v5Broker.getMappedPort(1883));
+        };
+        context.stopBroker = v5Broker::stop;
     }
 
     private String getConfigFile(ExtensionContext extensionContext) {

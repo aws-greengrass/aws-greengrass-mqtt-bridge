@@ -15,9 +15,13 @@ import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
 
 import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.fail;
 
 @Data
 public class BridgeIntegrationTestContext {
@@ -25,6 +29,10 @@ public class BridgeIntegrationTestContext {
     Integer brokerSSLPort;
     Integer brokerTCPPort;
     String brokerHost;
+    @Getter(AccessLevel.NONE)
+    Runnable stopBroker;
+    @Getter(AccessLevel.NONE)
+    Runnable startBroker;
     Path rootDir;
     Kernel kernel;
 
@@ -63,5 +71,19 @@ public class BridgeIntegrationTestContext {
             throw new RuntimeException("Kernel not available. Ensure the test method is annotated with @WithKernel");
         }
         return kernel.getContext().get(clazz);
+    }
+
+    public void startBroker() {
+        if (startBroker == null) {
+            fail("startBroker operation has not been set");
+        }
+        startBroker.run();
+    }
+
+    public void stopBroker() {
+        if (stopBroker == null) {
+            fail("stopBroker operation has not been set");
+        }
+        stopBroker.run();
     }
 }
