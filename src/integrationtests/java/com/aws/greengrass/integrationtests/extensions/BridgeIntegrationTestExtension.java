@@ -90,6 +90,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     }
 
     @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void interceptTestTemplateMethod(Invocation<Void> invocation,
                                             ReflectiveInvocationContext<Method> invocationContext,
                                             ExtensionContext extensionContext) throws Throwable {

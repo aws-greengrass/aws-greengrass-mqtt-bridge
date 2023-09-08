@@ -106,6 +106,7 @@ public class BridgeIntegrationTestExtensionTest {
 
     @TestWithAllBrokers
     @WithKernel("config.yaml")
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     void GIVEN_any_broker_WHEN_test_restarts_broker_THEN_test_executes(Broker broker) {
         Supplier<Boolean> brokerIsListening = () -> {
             try (Socket ignored = new Socket("localhost", context.getBrokerTCPPort())) {
