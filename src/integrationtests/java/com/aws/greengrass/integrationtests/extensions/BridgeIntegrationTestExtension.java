@@ -154,7 +154,12 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         if (kernel != null) {
             kernel.shutdown();
         }
-        context.stopBroker();
+        if (v5Broker != null) {
+            v5Broker.stop();
+        }
+        if (v3Broker != null) {
+            v3Broker.stopServer();
+        }
     }
 
     private void initializeContext(ExtensionContext extensionContext) {
