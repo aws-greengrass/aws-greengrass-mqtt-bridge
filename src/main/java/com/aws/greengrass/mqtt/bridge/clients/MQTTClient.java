@@ -14,9 +14,9 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -46,7 +46,9 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
-    private Consumer<MqttMessage> messageHandler;
+    @Getter // for testing
+    @Setter
+    private volatile Consumer<MqttMessage> messageHandler;
     private final URI brokerUri;
     private final String clientId;
 
@@ -59,9 +61,9 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Getter // for testing
     private volatile IMqttClient mqttClientInternal;
     private final CrashableSupplier<IMqttClient, MqttException> clientFactory;
-    @Getter(AccessLevel.PROTECTED)
-    private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
-    private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
+    @Getter // for testing
+    private final Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
+    private final Set<String> toSubscribeLocalMqttTopics = ConcurrentHashMap.newKeySet();
 
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
@@ -92,7 +94,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         @Override
         public void connectionLost(Throwable cause) {
             LOGGER.atDebug().setCause(cause).log("MQTT client disconnected, reconnecting...");
-            reconnectAndResubscribeAsync();
+            connectAndSubscribeAsync();
         }
 
         @Override
@@ -145,7 +147,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
 
     void reset() {
         disconnect(30_000L); // paho default
-        connectAndSubscribe();
+        connectAndSubscribeAsync();
     }
 
     /**
@@ -159,7 +161,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
             throw new MessageClientException("Unable to create MQTTClient", e);
         }
         mqttClientInternal.setCallback(mqttCallback);
-        connectAndSubscribe();
+        connectAndSubscribeAsync();
     }
 
     private void disconnect() {
@@ -228,16 +230,19 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
         this.messageHandler = messageHandler;
 
-        this.toSubscribeLocalMqttTopics = new HashSet<>(topics);
+        synchronized (subscribeLock) {
+            toSubscribeLocalMqttTopics.clear();
+            toSubscribeLocalMqttTopics.addAll(topics);
+        }
         LOGGER.atDebug().kv("topics", topics).log("Updated local MQTT topics to subscribe");
 
         if (mqttClientInternal.isConnected()) {
-            updateSubscriptionsInternal();
+            updateSubscriptionsAsync();
         }
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void updateSubscriptionsInternal() {
+    private void updateSubscriptionsAsync() {
         synchronized (subscribeLock) {
             if (subscribeFuture != null) {
                 subscribeFuture.cancel(true);
@@ -279,15 +284,13 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         return connOpts;
     }
 
-    private void connectAndSubscribe() {
+    private void connectAndSubscribeAsync() {
         LOGGER.atInfo()
                 .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
                 .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
                 .log("Connecting to broker");
-        reconnectAndResubscribeAsync();
-    }
-
-    private void reconnectAndResubscribeAsync() {
+        // client connected without session, need to resubscribe to all topics after connect
+        subscribedLocalMqttTopics.clear();
         synchronized (connectTaskLock) {
             cancelConnectTask();
             connectFuture = executorService.submit(this::reconnectAndResubscribe);
@@ -343,13 +346,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
                 .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
                 .log("Connected to broker");
 
-        resubscribe();
-    }
-
-    private void resubscribe() {
-        subscribedLocalMqttTopics.clear();
-        // Resubscribe to topics
-        updateSubscriptionsInternal();
+        updateSubscriptionsAsync();
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

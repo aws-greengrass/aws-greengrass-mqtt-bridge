@@ -9,11 +9,13 @@ import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -51,7 +54,8 @@ public class MQTTClientTest {
     private final ExecutorService ses = TestUtils.synchronousExecutorService();
 
     @BeforeEach
-    void setup() {
+    void setup(ExtensionContext context) {
+        ignoreExceptionOfType(context, MqttException.class);
         fakeMqttClient = new FakePahoMqtt3Client(CLIENT_ID);
     }
 
@@ -219,8 +223,6 @@ public class MQTTClientTest {
         SSLSocketFactory mockSocketFactory = mock(SSLSocketFactory.class);
         when(mockKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory);
 
-        // This code assumes reset synchronously disconnects. This will need to be revisited if
-        // this assumption changes and this test starts failing
         mqttClient.reset();
         fakeMqttClient.waitForConnect(1000);
 

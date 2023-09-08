@@ -6,6 +6,7 @@
 package com.aws.greengrass.mqtt.bridge;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -36,6 +37,7 @@ public class TopicMapping {
     /**
      * A single entry in the mapping.
      */
+    @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     @EqualsAndHashCode
