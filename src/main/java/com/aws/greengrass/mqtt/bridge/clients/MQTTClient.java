@@ -71,7 +71,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
         public void connectionLost(Throwable cause) {
-            LOGGER.atDebug().setCause(cause).log("MQTT client disconnected, reconnecting...");
+            LOGGER.atWarn().setCause(cause).log("MQTT client disconnected, reconnecting...");
             reconnectAndResubscribe();
         }
 
