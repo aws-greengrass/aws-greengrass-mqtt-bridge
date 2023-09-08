@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URL;
+import java.nio.channels.ClosedChannelException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStoreException;
@@ -154,6 +155,9 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         ignoreExceptionOfType(extensionContext, CrtRuntimeException.class);
         ignoreExceptionOfType(extensionContext, MqttException.class);
         ignoreExceptionUltimateCauseOfType(extensionContext, EOFException.class);
+
+        // when checking docker availability
+        ignoreExceptionOfType(extensionContext, ClosedChannelException.class);
 
         // relies on UniqueRootPathExtension being run before this extension via the IntegrationTest annotation
         context.setRootDir(Paths.get(System.getProperty("root")));
