@@ -209,7 +209,7 @@ class BridgeConfigTest {
     }
 
     @Test
-    void GIVEN_ping_greater_than_zero_keepalive_WHEN_bridge_config_created_THEN_exception_thrown() throws InvalidConfigurationException {
+    void GIVEN_ping_greater_than_zero_keepalive_WHEN_bridge_config_created_THEN_ping_and_keepalive_used() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(0);
 
