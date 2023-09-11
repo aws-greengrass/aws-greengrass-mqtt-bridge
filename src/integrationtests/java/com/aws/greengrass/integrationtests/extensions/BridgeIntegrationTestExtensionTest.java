@@ -10,8 +10,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.net.Socket;
+import java.util.function.Supplier;
+
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Disabled("Only useful to run when modifying classes in this package")
 @BridgeIntegrationTest
@@ -95,5 +102,25 @@ public class BridgeIntegrationTestExtensionTest {
         assertNotNull(context.getBrokerTCPPort());
         assertNull(context.getKernel());
         assertNotNull(context.getRootDir());
+    }
+
+    @TestWithAllBrokers
+    @WithKernel("config.yaml")
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    void GIVEN_any_broker_WHEN_test_restarts_broker_THEN_test_executes(Broker broker) {
+        Supplier<Boolean> brokerIsListening = () -> {
+            try (Socket ignored = new Socket("localhost", context.getBrokerTCPPort())) {
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        };
+        assertTrue(brokerIsListening.get());
+        context.stopBroker();
+        assertThat("broker stopped listening", brokerIsListening, eventuallyEval(is(false)));
+        assertThat("local client is disconnected", () -> context.getLocalV3Client().getMqttClientInternal().isConnected(), eventuallyEval(is(false)));
+        context.startBroker();
+        assertThat("broker is listening", brokerIsListening, eventuallyEval(is(true)));
+        assertThat("local client reconnects", () -> context.getLocalV3Client().getMqttClientInternal().isConnected(), eventuallyEval(is(true)));
     }
 }
