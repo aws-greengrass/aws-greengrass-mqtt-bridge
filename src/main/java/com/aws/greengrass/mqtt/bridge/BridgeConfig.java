@@ -49,6 +49,7 @@ public final class BridgeConfig {
     static final String KEY_ACK_TIMEOUT_SECONDS = "ackTimeoutSeconds";
     static final String KEY_CONNACK_TIMEOUT_MS = "connAckTimeoutMs";
     static final String KEY_PING_TIMEOUT_MS = "pingTimeoutMs";
+    static final String KEY_KEEP_ALIVE_TIMEOUT_SECONDS = "keepAliveTimeoutSeconds";
     static final String KEY_MAX_RECONNECT_DELAY_MS = "maxReconnectDelayMs";
     static final String KEY_MIN_RECONNECT_DELAY_MS = "minReconnectDelayMs";
     public static final String KEY_MQTT_TOPIC_MAPPING = "mqttTopicMapping";
@@ -77,6 +78,7 @@ public final class BridgeConfig {
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = Duration.ofSeconds(20).toMillis();
     private static final long DEFAULT_PING_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
+    private static final long DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS = Duration.ofSeconds(60).getSeconds();
     private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = Duration.ofSeconds(30).toMillis();
     private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = Duration.ofSeconds(1).toMillis();
 
@@ -85,6 +87,7 @@ public final class BridgeConfig {
     private final long ackTimeoutSeconds;
     private final long connAckTimeoutMs;
     private final long pingTimeoutMs;
+    private final long keepAliveTimeoutSeconds;
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
     private final Map<String, TopicMapping.MappingEntry> topicMapping;
@@ -111,12 +114,20 @@ public final class BridgeConfig {
                     "maxReconnectDelayMs must be greater than or equal to minReconnectDelayMs");
         }
 
+        long keepAliveTimeoutSeconds = getKeepAliveTimeoutSeconds(configurationTopics);
+        long pingTimeoutMs = getPingTimeoutMs(configurationTopics);
+        if (Duration.ofSeconds(keepAliveTimeoutSeconds).toMillis() <= pingTimeoutMs) {
+            throw new InvalidConfigurationException(String.format("%s must be greater than %s",
+                    KEY_KEEP_ALIVE_TIMEOUT_SECONDS, KEY_PING_TIMEOUT_MS));
+        }
+
         return BridgeConfig.builder()
                 .brokerUri(getBrokerUri(configurationTopics))
                 .clientId(getClientId(configurationTopics))
                 .ackTimeoutSeconds(getAckTimeoutSeconds(configurationTopics))
                 .connAckTimeoutMs(getConnAckTimeoutMs(configurationTopics))
-                .pingTimeoutMs(getPingTimeoutMs(configurationTopics))
+                .pingTimeoutMs(pingTimeoutMs)
+                .keepAliveTimeoutSeconds(keepAliveTimeoutSeconds)
                 .maxReconnectDelayMs(maxReconnectDelayMs)
                 .minReconnectDelayMs(minReconnectDelayMs)
                 .topicMapping(getTopicMapping(configurationTopics))
@@ -176,6 +187,19 @@ public final class BridgeConfig {
             return DEFAULT_PING_TIMEOUT_MS;
         }
         return pingTimeoutMs;
+    }
+
+    private static long getKeepAliveTimeoutSeconds(Topics configurationTopics) {
+        long keepAliveTimeoutSeconds = Coerce.toLong(
+                configurationTopics.findOrDefault(DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS, KEY_BROKER_CLIENT,
+                        KEY_KEEP_ALIVE_TIMEOUT_SECONDS));
+        if (keepAliveTimeoutSeconds < MIN_TIMEOUT) {
+            LOGGER.atWarn().kv(KEY_KEEP_ALIVE_TIMEOUT_SECONDS, keepAliveTimeoutSeconds)
+                    .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_KEEP_ALIVE_TIMEOUT_SECONDS,
+                            DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS);
+            return DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS;
+        }
+        return keepAliveTimeoutSeconds;
     }
 
     private static long getMaxReconnectDelayMs(Topics configurationTopics) {

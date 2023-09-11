@@ -59,6 +59,7 @@ public class LocalMqttClientFactory {
                         config.getAckTimeoutSeconds(),
                         config.getConnAckTimeoutMs(),
                         config.getPingTimeoutMs(),
+                        config.getKeepAliveTimeoutSeconds(),
                         config.getMaxReconnectDelayMs(),
                         config.getMinReconnectDelayMs(),
                         config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),

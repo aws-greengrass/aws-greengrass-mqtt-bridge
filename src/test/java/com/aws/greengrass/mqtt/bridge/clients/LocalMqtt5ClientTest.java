@@ -116,6 +116,7 @@ class LocalMqtt5ClientTest {
                 1L,
                 1L,
                 1L,
+                1L,
                 Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
                 executorService);
@@ -456,6 +457,7 @@ class LocalMqtt5ClientTest {
                 BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL,
                 BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE,
                 BridgeConfig.DEFAULT_RECEIVE_MAXIMUM,
+                1L,
                 1L,
                 1L,
                 1L,

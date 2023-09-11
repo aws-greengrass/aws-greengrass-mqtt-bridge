@@ -108,6 +108,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final long ackTimeoutSeconds;
     private final long connAckTimeoutMs;
     private final long pingTimeoutMs;
+    private final long keepAliveTimeoutSeconds;
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
 
@@ -241,19 +242,20 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     /**
      * Construct a LocalMqtt5Client.
      *
-     * @param brokerUri             broker uri
-     * @param clientId              client id
-     * @param sessionExpiryInterval session expiry interval
-     * @param maximumPacketSize     maximum packet size
-     * @param receiveMaximum        receive maximum
-     * @param ackTimeoutSeconds   ack timeout seconds
-     * @param connAckTimeoutMs    connack timeout ms
-     * @param pingTimeoutMs       ping timeout ms
-     * @param maxReconnectDelayMs max reconnect delay ms
-     * @param minReconnectDelayMs min reconnect delay ms
-     * @param optionsByTopic      mqtt5 route options
-     * @param mqttClientKeyStore  KeyStore for MQTT Client
-     * @param executorService     Executor service
+     * @param brokerUri               broker uri
+     * @param clientId                client id
+     * @param sessionExpiryInterval   session expiry interval
+     * @param maximumPacketSize       maximum packet size
+     * @param receiveMaximum          receive maximum
+     * @param ackTimeoutSeconds       ack timeout seconds
+     * @param connAckTimeoutMs        connack timeout ms
+     * @param pingTimeoutMs           ping timeout ms
+     * @param keepAliveTimeoutSeconds keep alive timeout seconds
+     * @param maxReconnectDelayMs     max reconnect delay ms
+     * @param minReconnectDelayMs     min reconnect delay ms
+     * @param optionsByTopic          mqtt5 route options
+     * @param mqttClientKeyStore      KeyStore for MQTT Client
+     * @param executorService         Executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
@@ -265,6 +267,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             long ackTimeoutSeconds,
                             long connAckTimeoutMs,
                             long pingTimeoutMs,
+                            long keepAliveTimeoutSeconds,
                             long maxReconnectDelayMs,
                             long minReconnectDelayMs,
                             @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
@@ -275,6 +278,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.ackTimeoutSeconds = ackTimeoutSeconds;
         this.connAckTimeoutMs = connAckTimeoutMs;
         this.pingTimeoutMs = pingTimeoutMs;
+        this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
         this.maxReconnectDelayMs = maxReconnectDelayMs;
         this.minReconnectDelayMs = minReconnectDelayMs;
         this.mqttClientKeyStore = mqttClientKeyStore;
@@ -289,20 +293,21 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     /**
      * Construct a LocalMqtt5Client for testing.
      *
-     * @param brokerUri             broker uri
-     * @param clientId              client id
-     * @param sessionExpiryInterval session expiry interval
-     * @param maximumPacketSize     maximum packet size
-     * @param receiveMaximum        receive maximum
-     * @param ackTimeoutSeconds   ack timeout seconds
-     * @param connAckTimeoutMs    connack timeout ms
-     * @param pingTimeoutMs       ping timeout ms
-     * @param maxReconnectDelayMs max reconnect delay ms
-     * @param minReconnectDelayMs min reconnect delay ms
-     * @param optionsByTopic      mqtt5 route options
-     * @param mqttClientKeyStore  mqttClientKeyStore
-     * @param executorService     Executor service
-     * @param client              mqtt client;
+     * @param brokerUri               broker uri
+     * @param clientId                client id
+     * @param sessionExpiryInterval   session expiry interval
+     * @param maximumPacketSize       maximum packet size
+     * @param receiveMaximum          receive maximum
+     * @param ackTimeoutSeconds       ack timeout seconds
+     * @param connAckTimeoutMs        connack timeout ms
+     * @param pingTimeoutMs           ping timeout ms
+     * @param keepAliveTimeoutSeconds keep alive timeout seconds
+     * @param maxReconnectDelayMs     max reconnect delay ms
+     * @param minReconnectDelayMs     min reconnect delay ms
+     * @param optionsByTopic          mqtt5 route options
+     * @param mqttClientKeyStore      mqttClientKeyStore
+     * @param executorService         Executor service
+     * @param client                  mqtt client;
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
@@ -313,6 +318,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                      long ackTimeoutSeconds,
                      long connAckTimeoutMs,
                      long pingTimeoutMs,
+                     long keepAliveTimeoutSeconds,
                      long maxReconnectDelayMs,
                      long minReconnectDelayMs,
                      @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
@@ -324,6 +330,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.ackTimeoutSeconds = ackTimeoutSeconds;
         this.connAckTimeoutMs = connAckTimeoutMs;
         this.pingTimeoutMs = pingTimeoutMs;
+        this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
         this.maxReconnectDelayMs = maxReconnectDelayMs;
         this.minReconnectDelayMs = minReconnectDelayMs;
         this.optionsByTopic = optionsByTopic;
@@ -624,6 +631,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
                             .withRequestProblemInformation(true)
                             .withClientId(clientId)
+                            .withKeepAliveIntervalSeconds(keepAliveTimeoutSeconds)
                             .withSessionExpiryIntervalSeconds(sessionExpiryInterval)
                             .withMaximumPacketSizeBytes(maximumPacketSize)
                             .withReceiveMaximum((long) receiveMaximum)
