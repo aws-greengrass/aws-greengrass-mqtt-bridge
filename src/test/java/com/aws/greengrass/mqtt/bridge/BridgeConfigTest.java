@@ -42,6 +42,7 @@ class BridgeConfigTest {
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = 20000L;
     private static final long DEFAULT_PING_TIMEOUT_MS = 30000L;
+    private static final long DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_MAX_RECONNECT_DELAY_MS = 30000L;
     private static final long DEFAULT_MIN_RECONNECT_DELAY_MS = 1000L;
     private static final String BROKER_URI = "tcp://localhost:8883";
@@ -60,6 +61,7 @@ class BridgeConfigTest {
             .ackTimeoutSeconds(DEFAULT_ACK_TIMEOUT_SECONDS)
             .connAckTimeoutMs(DEFAULT_CONNACK_TIMEOUT_MS)
             .pingTimeoutMs(DEFAULT_PING_TIMEOUT_MS)
+            .keepAliveTimeoutSeconds(DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS)
             .maxReconnectDelayMs(DEFAULT_MAX_RECONNECT_DELAY_MS)
             .minReconnectDelayMs(DEFAULT_MIN_RECONNECT_DELAY_MS)
             .build();
@@ -180,6 +182,42 @@ class BridgeConfigTest {
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
                 .pingTimeoutMs(DEFAULT_PING_TIMEOUT_MS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void GIVEN_too_small_keepAliveTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_keepAliveTimeoutMs_used(long invalidKeepAliveTimeout) throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(invalidKeepAliveTimeout);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .keepAliveTimeoutSeconds(DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
+    void GIVEN_ping_greater_than_keepalive_WHEN_bridge_config_created_THEN_exception_thrown() {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(2);
+        assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
+    }
+
+    @Test
+    void GIVEN_ping_greater_than_zero_keepalive_WHEN_bridge_config_created_THEN_ping_and_keepalive_used() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(0);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .pingTimeoutMs(3000)
+                .keepAliveTimeoutSeconds(0)
                 .build();
         assertDefaultClientId(config);
         assertEquals(expectedConfig, config);
