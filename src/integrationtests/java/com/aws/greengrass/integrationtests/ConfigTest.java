@@ -107,13 +107,13 @@ public class ConfigTest {
         assertEquals(expectedMaximumPacketSize, testContext.getConfig().getMaximumPacketSize());
         assertEquals(expectedReceiveMaximum, testContext.getConfig().getReceiveMaximum());
 
-        // verify that the brokerClient config values are correctly set in the local client
+        // verify that the mqtt config values are correctly set in the local client
         assertEquals(expectedSessionExpiryInterval, testContext.getLocalV5Client().getSessionExpiryInterval());
         assertEquals(expectedMaximumPacketSize, testContext.getLocalV5Client().getMaximumPacketSize());
         assertEquals(expectedReceiveMaximum, testContext.getLocalV5Client().getReceiveMaximum());
 
         Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("brokerClient");
+                .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("mqtt");
 
         // publish a small message and verify that it is received
         String topic = "topic/toLocal";

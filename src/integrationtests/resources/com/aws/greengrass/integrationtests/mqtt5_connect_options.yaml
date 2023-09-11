@@ -7,7 +7,7 @@ services:
           topic: topic/toLocal
           source: LocalMqtt
           target: LocalMqtt
-      brokerClient:
+      mqtt:
         version: "mqtt5"
         receiveMaximum: 1000
         maximumPacketSize: 100

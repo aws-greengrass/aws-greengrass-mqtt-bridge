@@ -15,7 +15,7 @@ services:
           topic: topic/toLocal
           source: IotCore
           target: LocalMqtt
-      brokerClient:
+      mqtt:
         version: "mqtt5"
   main:
     dependencies:

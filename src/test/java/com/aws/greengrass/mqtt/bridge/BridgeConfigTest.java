@@ -148,7 +148,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_ackTimeoutSeconds_provided_WHEN_bridge_config_created_THEN_min_ackTimeoutSeconds_used(long invalidAckTimeout) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_ACK_TIMEOUT_SECONDS).dflt(invalidAckTimeout);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_ACK_TIMEOUT_SECONDS).dflt(invalidAckTimeout);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -162,7 +162,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_connAckTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_connAckTimeoutMs_used(long invalidConnAckTimeout) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_CONNACK_TIMEOUT_MS).dflt(invalidConnAckTimeout);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_CONNACK_TIMEOUT_MS).dflt(invalidConnAckTimeout);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -176,7 +176,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_pingTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_pingTimeoutMs_used(long invalidPingTimeout) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(invalidPingTimeout);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(invalidPingTimeout);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -190,7 +190,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_keepAliveTimeoutMs_provided_WHEN_bridge_config_created_THEN_min_keepAliveTimeoutMs_used(long invalidKeepAliveTimeout) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(invalidKeepAliveTimeout);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(invalidKeepAliveTimeout);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -203,15 +203,15 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_ping_greater_than_keepalive_WHEN_bridge_config_created_THEN_exception_thrown() {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(2);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(2);
         assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
     }
 
     @Test
     void GIVEN_ping_greater_than_zero_keepalive_WHEN_bridge_config_created_THEN_ping_and_keepalive_used() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(0);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(0);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -225,15 +225,15 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_maxReconnectDelay_less_than_minReconnectDelay_WHEN_bridge_config_created_THEN_exception_thrown() {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(10);
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(20);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(10);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(20);
         assertThrows(InvalidConfigurationException.class, () -> BridgeConfig.fromTopics(topics));
     }
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_maxReconnectDelayMs_provided_WHEN_bridge_config_created_THEN_min_maxReconnectDelayMs_used(long invalidMaxReconnectDelay) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(invalidMaxReconnectDelay);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(invalidMaxReconnectDelay);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -247,7 +247,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_minReconnectDelayMs_provided_WHEN_bridge_config_created_THEN_min_minReconnectDelayMs_used(long invalidMinReconnectDelay) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(invalidMinReconnectDelay);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(invalidMinReconnectDelay);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -301,7 +301,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_mqtt_version_config_WHEN_bridge_config_created_THEN_version_set() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -314,7 +314,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_invalid_mqtt_version_config_WHEN_bridge_config_created_THEN_default_version_used() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("INVALID_VALUE");
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
                 .clientId(config.getClientId())
@@ -326,7 +326,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 1234, DEFAULT_RECEIVE_MAXIMUM})
     void GIVEN_receiveMaximum_provided_WHEN_bridge_config_created_THEN_receiveMaximum_used(int receiveMaximum) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(receiveMaximum);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(receiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -340,7 +340,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(ints = {DEFAULT_RECEIVE_MAXIMUM + 1, Integer.MAX_VALUE})
     void GIVEN_too_large_receiveMaximum_provided_WHEN_bridge_config_created_THEN_max_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -354,7 +354,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
     void GIVEN_too_small_receiveMaximum_provided_WHEN_bridge_config_created_THEN_min_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -368,7 +368,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {1, 1234, 4294967295L})
     void GIVEN_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_maximumPacketSize_used(long maximumPacketSize) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(maximumPacketSize);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(maximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -382,7 +382,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {0L, -1L, Long.MIN_VALUE})
     void GIVEN_too_small_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_min_maximumPacketSize_used(long invalidMaximumPacketSize) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -396,7 +396,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {4294967296L, Long.MAX_VALUE})
     void GIVEN_too_large_maximumPacketSize_provided_WHEN_bridge_config_created_THEN_max_maximumPacketSize_used(long invalidMaximumPacketSize) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_MAXIMUM_PACKET_SIZE).dflt(invalidMaximumPacketSize);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -410,7 +410,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {0, 1234, 4294967295L})
     void GIVEN_sessionExpiryInterval_provided_WHEN_bridge_config_created_THEN_sessionExpiryInterval_used(long sessionExpiryInterval) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(sessionExpiryInterval);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(sessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -424,7 +424,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {-1L, Long.MIN_VALUE})
     void GIVEN_too_small_sessionExpiryInterval_provided_WHEN_bridge_config_created_THEN_min_sessionExpiryInterval_used(long invalidSessionExpiryInterval) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -438,7 +438,7 @@ class BridgeConfigTest {
     @ParameterizedTest
     @ValueSource(longs = {4_294_967_296L, Long.MAX_VALUE})
     void GIVEN_too_large_sessionExpiryInterval_provided_WHEN_bridge_config_created_THEN_max_sessionExpiryInterval_used(long invalidSessionExpiryInterval) throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_SESSION_EXPIRY_INTERVAL).dflt(invalidSessionExpiryInterval);
 
         BridgeConfig config = BridgeConfig.fromTopics(topics);
         BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
@@ -472,7 +472,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_config_WHEN_get_route_options_for_source_THEN_options_returned() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
 
         topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
                 Utils.immutableMap(
@@ -502,7 +502,7 @@ class BridgeConfigTest {
 
     @Test
     void GIVEN_config_mqtt_3_WHEN_get_route_options_for_source_THEN_no_options_returned() throws InvalidConfigurationException {
-        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_VERSION).dflt("mqtt3");
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt3");
 
         topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
                 Utils.immutableMap(

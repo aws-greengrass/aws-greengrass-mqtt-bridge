@@ -57,7 +57,7 @@ public final class BridgeConfig {
     public static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
     public static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
     public static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
-    static final String KEY_BROKER_CLIENT = "brokerClient";
+    static final String KEY_MQTT = "mqtt";
     static final String KEY_VERSION = "version";
 
 
@@ -158,7 +158,7 @@ public final class BridgeConfig {
 
     private static long getAckTimeoutSeconds(Topics configurationTopics) {
         long ackTimeoutSeconds = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_ACK_TIMEOUT_SECONDS,
-                KEY_BROKER_CLIENT, KEY_ACK_TIMEOUT_SECONDS));
+                KEY_MQTT, KEY_ACK_TIMEOUT_SECONDS));
         if (ackTimeoutSeconds < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_ACK_TIMEOUT_SECONDS, ackTimeoutSeconds)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_ACK_TIMEOUT_SECONDS, DEFAULT_ACK_TIMEOUT_SECONDS);
@@ -169,7 +169,7 @@ public final class BridgeConfig {
 
     private static long getConnAckTimeoutMs(Topics configurationTopics) {
         long connackTimeoutSeconds = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_CONNACK_TIMEOUT_MS,
-                KEY_BROKER_CLIENT, KEY_CONNACK_TIMEOUT_MS));
+                KEY_MQTT, KEY_CONNACK_TIMEOUT_MS));
         if (connackTimeoutSeconds < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_CONNACK_TIMEOUT_MS, connackTimeoutSeconds)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_CONNACK_TIMEOUT_MS, DEFAULT_CONNACK_TIMEOUT_MS);
@@ -180,7 +180,7 @@ public final class BridgeConfig {
 
     private static long getPingTimeoutMs(Topics configurationTopics) {
         long pingTimeoutMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_PING_TIMEOUT_MS,
-                KEY_BROKER_CLIENT, KEY_PING_TIMEOUT_MS));
+                KEY_MQTT, KEY_PING_TIMEOUT_MS));
         if (pingTimeoutMs < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_PING_TIMEOUT_MS, pingTimeoutMs)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_PING_TIMEOUT_MS, DEFAULT_PING_TIMEOUT_MS);
@@ -191,7 +191,7 @@ public final class BridgeConfig {
 
     private static long getKeepAliveTimeoutSeconds(Topics configurationTopics) {
         long keepAliveTimeoutSeconds = Coerce.toLong(
-                configurationTopics.findOrDefault(DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS, KEY_BROKER_CLIENT,
+                configurationTopics.findOrDefault(DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS, KEY_MQTT,
                         KEY_KEEP_ALIVE_TIMEOUT_SECONDS));
         if (keepAliveTimeoutSeconds < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_KEEP_ALIVE_TIMEOUT_SECONDS, keepAliveTimeoutSeconds)
@@ -204,7 +204,7 @@ public final class BridgeConfig {
 
     private static long getMaxReconnectDelayMs(Topics configurationTopics) {
         long maxReconnectDelayMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_MAX_RECONNECT_DELAY_MS,
-                KEY_BROKER_CLIENT, KEY_MAX_RECONNECT_DELAY_MS));
+                KEY_MQTT, KEY_MAX_RECONNECT_DELAY_MS));
         if (maxReconnectDelayMs < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_MAX_RECONNECT_DELAY_MS, maxReconnectDelayMs)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MAX_RECONNECT_DELAY_MS, DEFAULT_MAX_RECONNECT_DELAY_MS);
@@ -215,7 +215,7 @@ public final class BridgeConfig {
 
     private static long getMinReconnectDelayMs(Topics configurationTopics) {
         long minReconnectDelayMs = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_MIN_RECONNECT_DELAY_MS,
-                KEY_BROKER_CLIENT, KEY_MIN_RECONNECT_DELAY_MS));
+                KEY_MQTT, KEY_MIN_RECONNECT_DELAY_MS));
         if (minReconnectDelayMs < MIN_TIMEOUT) {
             LOGGER.atWarn().kv(KEY_MIN_RECONNECT_DELAY_MS, minReconnectDelayMs)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_MIN_RECONNECT_DELAY_MS, DEFAULT_MIN_RECONNECT_DELAY_MS);
@@ -251,13 +251,13 @@ public final class BridgeConfig {
     private static MqttVersion getMqttVersion(Topics configurationTopics) {
         return Coerce.toEnum(MqttVersion.class,
                 Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MQTT_VERSION.name(),
-                        KEY_BROKER_CLIENT, KEY_VERSION)).toUpperCase(),
+                        KEY_MQTT, KEY_VERSION)).toUpperCase(),
                 DEFAULT_MQTT_VERSION);
     }
 
     private static int getReceiveMaximum(Topics configurationTopics) {
         int receiveMaximum = Coerce.toInt(configurationTopics.findOrDefault(DEFAULT_RECEIVE_MAXIMUM,
-                KEY_BROKER_CLIENT, KEY_RECEIVE_MAXIMUM));
+                KEY_MQTT, KEY_RECEIVE_MAXIMUM));
         if (receiveMaximum < MIN_RECEIVE_MAXIMUM) {
             LOGGER.atWarn().kv(KEY_RECEIVE_MAXIMUM, receiveMaximum)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_RECEIVE_MAXIMUM, MIN_RECEIVE_MAXIMUM);
@@ -273,7 +273,7 @@ public final class BridgeConfig {
 
     private static Long getMaximumPacketSize(Topics configurationTopics) {
         String maximumPacketSizeConf = Coerce.toString(configurationTopics.findOrDefault(DEFAULT_MAXIMUM_PACKET_SIZE,
-                KEY_BROKER_CLIENT, KEY_MAXIMUM_PACKET_SIZE));
+                KEY_MQTT, KEY_MAXIMUM_PACKET_SIZE));
         if (maximumPacketSizeConf == null) {
             return null;
         }
@@ -293,7 +293,7 @@ public final class BridgeConfig {
 
     private static long getSessionExpiryInterval(Topics configurationTopics) {
         long sessionExpiryInterval = Coerce.toLong(configurationTopics.findOrDefault(DEFAULT_SESSION_EXPIRY_INTERVAL,
-                KEY_BROKER_CLIENT, KEY_SESSION_EXPIRY_INTERVAL));
+                KEY_MQTT, KEY_SESSION_EXPIRY_INTERVAL));
         if (sessionExpiryInterval < MIN_SESSION_EXPIRY_INTERVAL) {
             LOGGER.atWarn().kv(KEY_SESSION_EXPIRY_INTERVAL, sessionExpiryInterval)
                     .log(INVALID_CONFIG_LOG_FORMAT_STRING, KEY_SESSION_EXPIRY_INTERVAL, MIN_SESSION_EXPIRY_INTERVAL);
