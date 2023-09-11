@@ -114,7 +114,7 @@ class LocalMqtt5ClientTest {
                 1L,
                 1L,
                 1L,
-                1L,
+                0L,
                 1L,
                 1L,
                 Collections.emptyMap(),

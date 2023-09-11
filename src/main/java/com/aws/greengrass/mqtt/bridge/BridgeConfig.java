@@ -116,7 +116,7 @@ public final class BridgeConfig {
 
         long keepAliveTimeoutSeconds = getKeepAliveTimeoutSeconds(configurationTopics);
         long pingTimeoutMs = getPingTimeoutMs(configurationTopics);
-        if (Duration.ofSeconds(keepAliveTimeoutSeconds).toMillis() <= pingTimeoutMs) {
+        if (keepAliveTimeoutSeconds != 0 && Duration.ofSeconds(keepAliveTimeoutSeconds).toMillis() <= pingTimeoutMs) {
             throw new InvalidConfigurationException(String.format("%s must be greater than %s",
                     KEY_KEEP_ALIVE_TIMEOUT_SECONDS, KEY_PING_TIMEOUT_MS));
         }

@@ -209,6 +209,21 @@ class BridgeConfigTest {
     }
 
     @Test
+    void GIVEN_ping_greater_than_zero_keepalive_WHEN_bridge_config_created_THEN_exception_thrown() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_PING_TIMEOUT_MS).dflt(3000);
+        topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_KEEP_ALIVE_TIMEOUT_SECONDS).dflt(0);
+
+        BridgeConfig config = BridgeConfig.fromTopics(topics);
+        BridgeConfig expectedConfig = BASE_CONFIG.toBuilder()
+                .clientId(config.getClientId())
+                .pingTimeoutMs(3000)
+                .keepAliveTimeoutSeconds(0)
+                .build();
+        assertDefaultClientId(config);
+        assertEquals(expectedConfig, config);
+    }
+
+    @Test
     void GIVEN_maxReconnectDelay_less_than_minReconnectDelay_WHEN_bridge_config_created_THEN_exception_thrown() {
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MAX_RECONNECT_DELAY_MS).dflt(10);
         topics.lookup(BridgeConfig.KEY_BROKER_CLIENT, BridgeConfig.KEY_MIN_RECONNECT_DELAY_MS).dflt(20);
