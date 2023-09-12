@@ -36,7 +36,7 @@ class BridgeConfigTest {
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID_PREFIX = "mqtt-bridge-";
     private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
-    private static final int DEFAULT_RECEIVE_MAXIMUM = 65535;
+    private static final int DEFAULT_RECEIVE_MAXIMUM = 100;
     private static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     private static final long DEFAULT_SESSION_EXPIRY_INTERVAL = 4_294_967_295L;
     private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
@@ -338,7 +338,7 @@ class BridgeConfigTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {DEFAULT_RECEIVE_MAXIMUM + 1, Integer.MAX_VALUE})
+    @ValueSource(ints = {65536, Integer.MAX_VALUE})
     void GIVEN_too_large_receiveMaximum_provided_WHEN_bridge_config_created_THEN_max_receiveMaximum_used(int invalidReceiveMaximum) throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_RECEIVE_MAXIMUM).dflt(invalidReceiveMaximum);
 
