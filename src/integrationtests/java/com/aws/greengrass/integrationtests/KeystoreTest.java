@@ -24,16 +24,21 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Pair;
-import org.junit.jupiter.api.AfterEach;
+import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
+import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
+import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
+import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -42,33 +47,24 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STOR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
-import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @BridgeIntegrationTest
 public class KeystoreTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
-
-    ExecutorService executor = Executors.newCachedThreadPool();
     BridgeIntegrationTestContext testContext;
-
-    @AfterEach
-    void tearDown() {
-        executor.shutdownNow();
-    }
 
     @TestWithMqtt5Broker
     @WithKernel("mqtt5_config_ssl.yaml")
     void GIVEN_mqtt_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
-        CountDownLatch clientReset = new CountDownLatch(1);
-        executor.submit(() -> {
-            assertThat("client disconnected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(false)));
-            assertThat("client reconnected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(true)));
-            clientReset.countDown();
-        });
+        // assert when a connection happens
+        Pair<CompletableFuture<Void>, Consumer<Void>> onConnect
+                = asyncAssertOnConsumer(unused -> {}, 1);
+        testContext.getLocalV5Client().setConnectionEventCallback(
+                new DelegatingConnectionEventsCallback(
+                        testContext.getLocalV5Client().getConnectionEventCallback(),
+                        () -> onConnect.getRight().accept(null)));
 
         // rotate client cert
         Certs.RotationResult client = testContext.getCerts().rotateClientCert();
@@ -79,7 +75,7 @@ public class KeystoreTest {
                         client.getCaCerts()));
 
         // verify local mqtt5 client reset due to client cert change
-        assertTrue(clientReset.await(5L, TimeUnit.SECONDS));
+        onConnect.getLeft().get(5L, TimeUnit.SECONDS);
     }
 
     @TestWithMqtt3Broker
@@ -166,5 +162,40 @@ public class KeystoreTest {
 
         // shouldn't update
         assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    @RequiredArgsConstructor
+    static class DelegatingConnectionEventsCallback implements Mqtt5ClientOptions.LifecycleEvents {
+
+        private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
+        private final Runnable onConnectionSuccess;
+
+        @Override
+        public void onAttemptingConnect(Mqtt5Client mqtt5Client, OnAttemptingConnectReturn onAttemptingConnectReturn) {
+            lifecycleEvents.onAttemptingConnect(mqtt5Client, onAttemptingConnectReturn);
+        }
+
+        @Override
+        public void onConnectionSuccess(Mqtt5Client mqtt5Client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
+            if (onConnectionSuccess != null) {
+                onConnectionSuccess.run();
+            }
+            lifecycleEvents.onConnectionSuccess(mqtt5Client, onConnectionSuccessReturn);
+        }
+
+        @Override
+        public void onConnectionFailure(Mqtt5Client mqtt5Client, OnConnectionFailureReturn onConnectionFailureReturn) {
+            lifecycleEvents.onConnectionFailure(mqtt5Client, onConnectionFailureReturn);
+        }
+
+        @Override
+        public void onDisconnection(Mqtt5Client mqtt5Client, OnDisconnectionReturn onDisconnectionReturn) {
+            lifecycleEvents.onDisconnection(mqtt5Client, onDisconnectionReturn);
+        }
+
+        @Override
+        public void onStopped(Mqtt5Client mqtt5Client, OnStoppedReturn onStoppedReturn) {
+            lifecycleEvents.onStopped(mqtt5Client, onStoppedReturn);
+        }
     }
 }

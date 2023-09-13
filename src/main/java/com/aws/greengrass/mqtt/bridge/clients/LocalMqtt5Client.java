@@ -15,6 +15,7 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -169,8 +170,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }};
     private Future<?> updateSubscriptionsTask;
 
-    @Getter(AccessLevel.PACKAGE)
-    private final Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
+    @Getter
+    @Setter // for testing
+    private Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
             new Mqtt5ClientOptions.LifecycleEvents() {
         @Override
         public void onAttemptingConnect(Mqtt5Client client,
