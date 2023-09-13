@@ -90,9 +90,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private boolean clientStarted = false; // crt close is not idempotent
 
-    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = () -> {
-        LOGGER.atInfo().log("Keystore update received, resetting client");
-        reset();
+    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
+        @Override
+        public void onCAUpdate() {
+            LOGGER.atInfo().log("New CA cert available, reconnecting client");
+            reset();
+        }
+
+        @Override
+        public void onClientCertUpdate() {
+            LOGGER.atInfo().log("New client certificate available, reconnecting client");
+            reset();
+        }
     };
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
@@ -590,7 +599,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void stop() {
-        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+        mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
         cancelUpdateSubscriptionsTask();
         closeClient();
     }
@@ -680,7 +689,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     void setClient(Mqtt5Client client) {
         if (isSSL()) {
-            mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
+            mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         }
         this.client = client;
     }
