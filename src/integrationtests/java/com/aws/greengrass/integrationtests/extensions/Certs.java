@@ -77,6 +77,7 @@ public class Certs {
         X509Certificate[] caCerts;
     }
 
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
     public RotationResult rotateClientCert() throws Exception {
         genClientCert();
         trustClientCert();

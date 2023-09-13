@@ -27,8 +27,6 @@ import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import java.security.KeyPair;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
