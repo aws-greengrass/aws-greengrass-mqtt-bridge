@@ -11,8 +11,6 @@ import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Utils;
-import lombok.Builder;
-import lombok.Data;
 import lombok.Getter;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -47,6 +45,7 @@ public class Certs {
     private final X509Certificate serverCert;
     private final KeyStore serverKeyStore;
     private final KeyStore serverTrustStore;
+    private final MQTTClientKeyStore clientKeyStore;
 
     public Certs(MQTTClientKeyStore clientKeyStore) throws KeyStoreException {
         try {
@@ -62,30 +61,23 @@ public class Certs {
             this.clientCert = genClientCert();
             trustClientCert();
 
-            initClientKeyStoreWithCerts(clientKeyStore);
+            this.clientKeyStore = clientKeyStore;
+            initClientKeyStoreWithCerts();
         } catch (CertificateException | IOException | OperatorCreationException
                  | NoSuchAlgorithmException | CertificateGenerationException e) {
             throw new KeyStoreException(e);
         }
     }
 
-    @Data
-    @Builder
-    public static class RotationResult {
-        KeyPair kp;
-        X509Certificate cert;
-        X509Certificate[] caCerts;
-    }
-
     @SuppressWarnings("PMD.SignatureDeclareThrowsException")
-    public RotationResult rotateClientCert() throws Exception {
+    public void rotateClientCert() throws Exception {
         genClientCert();
         trustClientCert();
-        return RotationResult.builder()
-                .kp(clientKeyPair)
-                .cert(clientCert)
-                .caCerts(new X509Certificate[]{caCert})
-                .build();
+        clientKeyStore
+                .updateCert(new CertificateUpdateEvent(
+                        clientKeyPair,
+                        clientCert,
+                        new X509Certificate[]{caCert}));
     }
 
     private X509Certificate genCACert(KeyPair keyPair)
@@ -169,7 +161,7 @@ public class Certs {
         );
     }
 
-    private MQTTClientKeyStore initClientKeyStoreWithCerts(MQTTClientKeyStore clientKeyStore)
+    private MQTTClientKeyStore initClientKeyStoreWithCerts()
             throws KeyStoreException, CertificateException, IOException, CertificateGenerationException {
         clientKeyStore.init();
         clientKeyStore.updateCert(new CertificateUpdateEvent(clientKeyPair, clientCert, new X509Certificate[]{caCert}));

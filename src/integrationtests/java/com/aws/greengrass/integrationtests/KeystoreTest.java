@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests;
 
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
-import com.aws.greengrass.clientdevices.auth.api.CertificateUpdateEvent;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.config.Topic;
@@ -14,7 +13,6 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
-import com.aws.greengrass.integrationtests.extensions.Certs;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
@@ -67,12 +65,7 @@ public class KeystoreTest {
                         () -> onConnect.getRight().accept(null)));
 
         // rotate client cert
-        Certs.RotationResult client = testContext.getCerts().rotateClientCert();
-        testContext.getFromContext(MQTTClientKeyStore.class)
-                .updateCert(new CertificateUpdateEvent(
-                        client.getKp(),
-                        client.getCert(),
-                        client.getCaCerts()));
+        testContext.getCerts().rotateClientCert();
 
         // verify local mqtt5 client reset due to client cert change
         onConnect.getLeft().get(5L, TimeUnit.SECONDS);
