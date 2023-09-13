@@ -102,7 +102,7 @@ class MQTTClientKeyStoreTest {
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockServiceApi);
         mqttClientKeyStore.init();
         CountDownLatch updateLatch = new CountDownLatch(1);
-        mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
+        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
 
         KeyStore keyStore = mqttClientKeyStore.getKeyStore();
         assertThat(keyStore.size(), is(0));
@@ -119,7 +119,7 @@ class MQTTClientKeyStoreTest {
         MQTTClientKeyStore mqttClientKeyStore = new MQTTClientKeyStore(mockServiceApi);
         mqttClientKeyStore.init();
         CountDownLatch updateLatch = new CountDownLatch(1);
-        mqttClientKeyStore.listenToCAUpdates(updateLatch::countDown);
+        mqttClientKeyStore.listenToUpdates(updateLatch::countDown);
 
         ArgumentCaptor<GetCertificateRequest> cbArgumentCaptor = ArgumentCaptor.forClass(GetCertificateRequest.class);
         verify(mockServiceApi, times(1))

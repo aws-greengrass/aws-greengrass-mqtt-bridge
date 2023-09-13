@@ -119,7 +119,8 @@ class LocalMqtt5ClientTest {
                 1L,
                 Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
-                executorService);
+                executorService,
+                null);
     }
 
     @Test
@@ -466,6 +467,7 @@ class LocalMqtt5ClientTest {
                 opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
+                null,
                 null
         );
 

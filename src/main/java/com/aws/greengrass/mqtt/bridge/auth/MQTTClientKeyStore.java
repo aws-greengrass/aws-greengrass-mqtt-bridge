@@ -56,6 +56,9 @@ public class MQTTClientKeyStore {
     @FunctionalInterface
     public interface UpdateListener {
         void onCAUpdate();
+
+        default void onClientCertUpdate() {
+        }
     }
 
     /**
@@ -109,6 +112,7 @@ public class MQTTClientKeyStore {
                     .toArray(X509Certificate[]::new);
             keyStore.setKeyEntry(
                     KEY_ALIAS, certificateUpdate.getKeyPair().getPrivate(), DEFAULT_KEYSTORE_PASSWORD, certChain);
+            updateListeners.forEach(UpdateListener::onClientCertUpdate);
         } catch (KeyStoreException e) {
             LOGGER.atError().log("Unable to store generated cert", e);
         }
@@ -135,16 +139,8 @@ public class MQTTClientKeyStore {
             X509Certificate caCert = pemToX509Certificate(caCerts.get(i));
             keyStore.setCertificateEntry("CA" + i, caCert);
         }
-        setCaCerts(caCerts);
-        updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
-    }
-
-    private synchronized void setCaCerts(List<String> caCerts) {
         this.caCerts = caCerts;
-    }
-
-    private synchronized List<String> getCaCerts() {
-        return caCerts;
+        updateListeners.forEach(UpdateListener::onCAUpdate); //notify MQTTClient
     }
 
     /**
@@ -153,7 +149,7 @@ public class MQTTClientKeyStore {
      * @return ca certs
      */
     public Optional<String> getCaCertsAsString() {
-        List<String> certs = getCaCerts();
+        List<String> certs = this.caCerts;
         if (certs.isEmpty()) {
             return Optional.empty();
         }
@@ -174,7 +170,7 @@ public class MQTTClientKeyStore {
      * Add listener to listen to KeyStore updates.
      * @param listener listener method
      */
-    public synchronized void listenToCAUpdates(UpdateListener listener) {
+    public void listenToUpdates(UpdateListener listener) {
         updateListeners.add(listener);
     }
 
@@ -182,7 +178,7 @@ public class MQTTClientKeyStore {
      * Remove a listener from KeyStore updates.
      * @param listener listener method
      */
-    public synchronized void unsubscribeFromCAUpdates(UpdateListener listener) {
+    public void unsubscribeFromUpdates(UpdateListener listener) {
         updateListeners.remove(listener);
     }
 
