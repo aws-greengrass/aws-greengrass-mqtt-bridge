@@ -216,6 +216,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
 
     private void configureContextForMqtt5Broker() throws KeyStoreException {
         Certs certs = new Certs(clientKeyStore);
+        context.certs = certs;
 
         Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
         certs.writeServerKeystore(serverKeystorePath);

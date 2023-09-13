@@ -11,6 +11,8 @@ import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Utils;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -31,7 +33,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.stream.Stream;
 
-class Certs {
+public class Certs {
     private static final Duration CERT_EXPIRY = Duration.ofMinutes(5);
 
     @Getter
@@ -50,17 +52,39 @@ class Certs {
         try {
             this.caKeys = genKeys();
             this.caCert = genCACert(caKeys);
-            this.clientKeyPair = genKeys();
+
             this.serverKeyPair = genKeys();
-            this.clientCert = genClientCert(clientKeyPair);
-            this.serverCert = genServerCert(serverKeyPair);
-            initClientKeyStoreWithCerts(clientKeyStore);
+            this.serverCert = genServerCert();
             this.serverKeyStore = createServerKeystore();
             this.serverTrustStore = createServerTruststore();
+
+            this.clientKeyPair = genKeys();
+            this.clientCert = genClientCert();
+            trustClientCert();
+
+            initClientKeyStoreWithCerts(clientKeyStore);
         } catch (CertificateException | IOException | OperatorCreationException
                  | NoSuchAlgorithmException | CertificateGenerationException e) {
             throw new KeyStoreException(e);
         }
+    }
+
+    @Data
+    @Builder
+    public static class RotationResult {
+        KeyPair kp;
+        X509Certificate cert;
+        X509Certificate[] caCerts;
+    }
+
+    public RotationResult rotateClientCert() throws Exception {
+        genClientCert();
+        trustClientCert();
+        return RotationResult.builder()
+                .kp(clientKeyPair)
+                .cert(clientCert)
+                .caCerts(new X509Certificate[]{caCert})
+                .build();
     }
 
     private X509Certificate genCACert(KeyPair keyPair)
@@ -74,31 +98,31 @@ class Certs {
         );
     }
 
-    private KeyPair genKeys() throws NoSuchAlgorithmException {
+    public KeyPair genKeys() throws NoSuchAlgorithmException {
         return CertificateStore.newRSAKeyPair(4096);
     }
 
-    private X509Certificate genServerCert(KeyPair keyPair)
+    private X509Certificate genServerCert()
             throws CertificateException, NoSuchAlgorithmException, IOException, OperatorCreationException {
         Instant now = Instant.now();
         return CertificateHelper.issueServerCertificate(
                 caCert,
                 caKeys.getPrivate(),
                 CertificateHelper.getX500Name("localhost"),
-                keyPair.getPublic(),
+                serverKeyPair.getPublic(),
                 Collections.singletonList("localhost"),
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)));
     }
 
-    private X509Certificate genClientCert(KeyPair keyPair)
+    private X509Certificate genClientCert()
             throws CertificateException, NoSuchAlgorithmException, IOException, OperatorCreationException {
         Instant now = Instant.now();
         return CertificateHelper.issueClientCertificate(
                 caCert,
                 caKeys.getPrivate(),
                 CertificateHelper.getX500Name("client"),
-                keyPair.getPublic(),
+                clientKeyPair.getPublic(),
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)));
     }
@@ -134,12 +158,14 @@ class Certs {
             throw new KeyStoreException("Unable to load keystore", e);
         }
 
-        serverTruststore.setCertificateEntry(
+        return serverTruststore;
+    }
+
+    private void trustClientCert() throws KeyStoreException {
+        serverTrustStore.setCertificateEntry(
                 "client",
                 clientCert
         );
-
-        return serverTruststore;
     }
 
     private MQTTClientKeyStore initClientKeyStoreWithCerts(MQTTClientKeyStore clientKeyStore)

@@ -6,6 +6,7 @@
 package com.aws.greengrass.integrationtests;
 
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
+import com.aws.greengrass.clientdevices.auth.api.CertificateUpdateEvent;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.config.Topic;
@@ -13,6 +14,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
+import com.aws.greengrass.integrationtests.extensions.Certs;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
@@ -22,13 +24,18 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Pair;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+import java.security.KeyPair;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -37,6 +44,9 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STOR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,14 +54,42 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class KeystoreTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
 
+    ExecutorService executor = Executors.newCachedThreadPool();
     BridgeIntegrationTestContext testContext;
+
+    @AfterEach
+    void tearDown() {
+        executor.shutdownNow();
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+        CountDownLatch clientReset = new CountDownLatch(1);
+        executor.submit(() -> {
+            assertThat("client disconnected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(false)));
+            assertThat("client reconnected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(true)));
+            clientReset.countDown();
+        });
+
+        // rotate client cert
+        Certs.RotationResult client = testContext.getCerts().rotateClientCert();
+        testContext.getFromContext(MQTTClientKeyStore.class)
+                .updateCert(new CertificateUpdateEvent(
+                        client.getKp(),
+                        client.getCert(),
+                        client.getCaCerts()));
+
+        // verify local mqtt5 client reset due to client cert change
+        assertTrue(clientReset.await(5L, TimeUnit.SECONDS));
+    }
 
     @TestWithMqtt3Broker
     @WithKernel("config.yaml")
     void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated(Broker broker) throws Exception {
         Pair<CompletableFuture<Void>, Consumer<Void>> keystoreUpdated = asyncAssertOnConsumer(p -> {}, 1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(() -> keystoreUpdated.getRight().accept(null));
+        keyStore.listenToUpdates(() -> keystoreUpdated.getRight().accept(null));
 
         Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
                 SERVICES_NAMESPACE_TOPIC,
@@ -110,7 +148,7 @@ public class KeystoreTest {
 
         CountDownLatch keyStoreUpdated = new CountDownLatch(1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(keyStoreUpdated::countDown);
+        keyStore.listenToUpdates(keyStoreUpdated::countDown);
 
         // update topic with CA
         Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
