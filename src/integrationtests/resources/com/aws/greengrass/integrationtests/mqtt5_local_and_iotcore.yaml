@@ -11,8 +11,6 @@ services:
           topic: topic/toLocal
           source: IotCore
           target: LocalMqtt
-      mqtt:
-        version: "mqtt5"
   main:
     dependencies:
       - aws.greengrass.clientdevices.mqtt.Bridge

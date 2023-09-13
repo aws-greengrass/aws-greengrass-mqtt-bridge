@@ -8,7 +8,6 @@ services:
           source: LocalMqtt
           target: LocalMqtt
       mqtt:
-        version: "mqtt5"
         receiveMaximum: 1000
         maximumPacketSize: 100
         sessionExpiryInterval: 10

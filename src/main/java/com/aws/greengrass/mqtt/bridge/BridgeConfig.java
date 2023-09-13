@@ -71,7 +71,7 @@ public final class BridgeConfig {
 
     private static final String DEFAULT_BROKER_URI = "ssl://localhost:8883";
     private static final String DEFAULT_CLIENT_ID = "mqtt-bridge-" + Utils.generateRandomString(11);
-    private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT3;
+    private static final MqttVersion DEFAULT_MQTT_VERSION = MqttVersion.MQTT5;
     public static final int DEFAULT_RECEIVE_MAXIMUM = 100;
     public static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     public static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;

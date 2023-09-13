@@ -2,6 +2,8 @@ services:
   aws.greengrass.clientdevices.mqtt.Bridge:
     configuration:
       brokerUri: 'tcp://localhost:8883'
+      mqtt:
+        version: mqtt3
       mqttTopicMapping:
         toIotCore:
           topic: topic/toIotCore
