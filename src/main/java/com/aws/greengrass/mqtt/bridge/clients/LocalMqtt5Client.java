@@ -636,6 +636,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         // otherwise, stopping is in-progress, client.close() will be invoked in callback
     }
 
+    private boolean waitForClientStop(long timeoutSeconds) throws InterruptedException {
+        CountDownLatch stopping = this.stopping.get();
+        return stopping == null || stopping.await(timeoutSeconds, TimeUnit.SECONDS);
+    }
+
     @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
     private Mqtt5Client createCrtClient() throws MessageClientException {
         boolean isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
@@ -719,32 +724,31 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     /**
      * Stop and start the client.
      */
-    @SuppressWarnings("PMD.NullAssignment") // make previousRestartTask effectively final
     public void reset() {
-        // TODO clean this up
         synchronized (restartLock) {
+            long stopTimeoutSeconds = 10L;
             Future<?> previousRestartTask = restartTask;
             restartTask = executorService.submit(() -> {
+                // wait for existing restart task to complete
                 if (previousRestartTask != null) {
                     try {
-                        previousRestartTask.get(20L, TimeUnit.SECONDS);
+                        previousRestartTask.get(stopTimeoutSeconds * 2, TimeUnit.SECONDS);
                     } catch (InterruptedException e) {
                         return;
                     } catch (ExecutionException | TimeoutException ignore) {
                         LOGGER.atWarn().log("Previous restart task did not complete. Continuing with client restart");
                     }
                 }
+
                 closeClient();
-                CountDownLatch stopping = this.stopping.get();
-                if (stopping != null) {
-                    try {
-                        if (!stopping.await(10L, TimeUnit.SECONDS)) {
-                            LOGGER.atWarn().log("MQTT client did not stop. Continuing with restart");
-                        }
-                    } catch (InterruptedException e) {
-                        return;
+                try {
+                    if (!waitForClientStop(stopTimeoutSeconds)) {
+                        LOGGER.atWarn().log("MQTT client did not stop. Continuing with restart");
                     }
+                } catch (InterruptedException e) {
+                    return;
                 }
+
                 try {
                     setClient(createCrtClient());
                 } catch (MessageClientException e) {
@@ -753,6 +757,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             + "Check previous logs and restart the bridge component");
                     return;
                 }
+
                 start();
             });
         }
