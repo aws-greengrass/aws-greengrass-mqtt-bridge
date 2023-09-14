@@ -22,7 +22,8 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Pair;
-import lombok.RequiredArgsConstructor;
+import lombok.Builder;
+import lombok.Setter;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -55,20 +56,51 @@ public class KeystoreTest {
 
     @TestWithMqtt5Broker
     @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
         // assert when a connection happens
+        CountDownLatch callbackApplied = new CountDownLatch(1);
         Pair<CompletableFuture<Void>, Consumer<Void>> onConnect
-                = asyncAssertOnConsumer(unused -> {}, 1);
+                = asyncAssertOnConsumer(unused -> callbackApplied.countDown(),
+                1 + 1); // one call taken up by restarting for callback to take effect
         testContext.getLocalV5Client().setConnectionEventCallback(
-                new DelegatingConnectionEventsCallback(
-                        testContext.getLocalV5Client().getConnectionEventCallback(),
-                        () -> onConnect.getRight().accept(null)));
+                DelegatingConnectionEventsCallback.builder()
+                        .lifecycleEvents(testContext.getLocalV5Client().getConnectionEventCallback())
+                        .onConnectionSuccess(onConnect)
+                        .build());
+        // need to reset for new callback to take effect
+        testContext.getLocalV5Client().reset();
+        assertTrue(callbackApplied.await(5L, TimeUnit.SECONDS));
 
         // rotate client cert
         testContext.getCerts().rotateClientCert();
 
         // verify local mqtt5 client reset due to client cert change
-        onConnect.getLeft().get(5L, TimeUnit.SECONDS);
+        // wait for HiveMQ to load new certs
+        onConnect.getLeft().get(60L, TimeUnit.SECONDS);
+        assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt5_bridge_WHEN_ca_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+        CountDownLatch callbackApplied = new CountDownLatch(1);
+        Pair<CompletableFuture<Void>, Consumer<Void>> onConnect = asyncAssertOnConsumer(unused -> callbackApplied.countDown(),
+                1 + 1); // one call taken up by restarting for callback to take effect
+        testContext.getLocalV5Client().setConnectionEventCallback(
+                DelegatingConnectionEventsCallback.builder()
+                        .lifecycleEvents(testContext.getLocalV5Client().getConnectionEventCallback())
+                        .onConnectionSuccess(onConnect)
+                        .build());
+        // need to reset for new callback to take effect
+        testContext.getLocalV5Client().reset();
+        assertTrue(callbackApplied.await(5L, TimeUnit.SECONDS));
+
+        testContext.getCerts().rotateCA();
+        testContext.getCerts().rotateServerCert();
+        testContext.getCerts().rotateClientCert();
+        // wait for HiveMQ to load new certs
+        onConnect.getLeft().get(60L, TimeUnit.SECONDS);
+        assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }
 
     @TestWithMqtt3Broker
@@ -157,11 +189,12 @@ public class KeystoreTest {
         assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
-    @RequiredArgsConstructor
+    @Builder
     static class DelegatingConnectionEventsCallback implements Mqtt5ClientOptions.LifecycleEvents {
 
         private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
-        private final Runnable onConnectionSuccess;
+        @Setter
+        private Pair<CompletableFuture<Void>, Consumer<Void>> onConnectionSuccess;
 
         @Override
         public void onAttemptingConnect(Mqtt5Client mqtt5Client, OnAttemptingConnectReturn onAttemptingConnectReturn) {
@@ -171,7 +204,7 @@ public class KeystoreTest {
         @Override
         public void onConnectionSuccess(Mqtt5Client mqtt5Client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
             if (onConnectionSuccess != null) {
-                onConnectionSuccess.run();
+                onConnectionSuccess.getRight().accept(null);
             }
             lifecycleEvents.onConnectionSuccess(mqtt5Client, onConnectionSuccessReturn);
         }

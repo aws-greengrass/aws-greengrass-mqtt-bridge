@@ -58,9 +58,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -89,7 +93,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
-    private boolean clientStarted = false; // crt close is not idempotent
 
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
@@ -121,9 +124,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final long keepAliveTimeoutSeconds;
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
-
     @Getter
-    private Mqtt5Client client;
+    private volatile Mqtt5Client client;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
     private final Map<String, Mqtt5RouteOptions> optionsByTopic;
@@ -169,6 +171,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.add(SubAckPacket.SubAckReasonCode.WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED.getValue());
     }};
     private Future<?> updateSubscriptionsTask;
+    private Future<?> restartTask;
+    private final Object restartLock = new Object();
+    private final AtomicReference<CountDownLatch> stopping = new AtomicReference<>();
 
     @Getter
     @Setter // for testing
@@ -241,6 +246,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
                     .log("client stopped");
             client.close();
+            CountDownLatch stopping = LocalMqtt5Client.this.stopping.get();
+            if (stopping != null) {
+                stopping.countDown();
+            }
         }
     };
 
@@ -592,11 +601,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start()  {
-        if (clientStarted) {
-            return;
-        }
         client.start();
-        clientStarted = true;
     }
 
     @Override
@@ -607,16 +612,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private void closeClient() {
-        try {
-            if (clientStarted) {
+        if (client.getIsConnected()) {
+            try {
+                stopping.set(new CountDownLatch(1));
                 client.stop(null);
-            } else {
-                client.close();
+            } catch (CrtRuntimeException e) {
+                LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
             }
-        } catch (CrtRuntimeException e) {
-            LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
-        } finally {
-            clientStarted = false;
+        } else if (stopping.get() == null) {
+            client.close();
         }
     }
 
@@ -700,16 +704,52 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         return "ssl".equalsIgnoreCase(brokerUri.getScheme());
     }
 
-    void reset() { // TODO callback shouldn't be synchronous
-        stop();
-        try {
-            setClient(createCrtClient());
-        } catch (MessageClientException e) {
-            // TODO recover
-            LOGGER.atError().cause(e).log("unable to start mqtt client during reset");
-            return;
+    /**
+     * Stop and start the client.
+     */
+    @SuppressWarnings("PMD.NullAssignment") // make previousRestartTask effectively final
+    public void reset() {
+        // TODO clean this up
+        synchronized (restartLock) {
+            Future<?> previousRestartTask;
+            if (restartTask == null || restartTask.isDone()) {
+                previousRestartTask = null;
+            } else {
+                restartTask.cancel(false);
+                previousRestartTask = restartTask;
+            }
+            restartTask = executorService.submit(() -> {
+                if (previousRestartTask != null) {
+                    try {
+                        previousRestartTask.get(20L, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        return;
+                    } catch (ExecutionException | TimeoutException ignore) {
+                        LOGGER.atWarn().log("Previous restart task did not stop. Continuing with client restart");
+                    }
+                }
+                stop();
+                CountDownLatch stopping = this.stopping.get();
+                if (stopping != null) {
+                    try {
+                        if (!stopping.await(10L, TimeUnit.SECONDS)) {
+                            LOGGER.atWarn().log("MQTT client did not stop. Continuing with restart.");
+                        }
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                }
+                try {
+                    setClient(createCrtClient());
+                } catch (MessageClientException e) {
+                    // TODO recover
+                    LOGGER.atError().cause(e).log("Unable to create mqtt client. "
+                            + "Check previous logs and restart the bridge component");
+                    return;
+                }
+                start();
+            });
         }
-        start();
     }
 
     @Override

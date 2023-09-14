@@ -37,54 +37,78 @@ public class Certs {
     @Getter
     private final String serverKeystorePassword = Utils.generateRandomString(20);
 
-    private final KeyPair caKeys;
-    private final X509Certificate caCert;
-    private final KeyPair clientKeyPair;
-    private final X509Certificate clientCert;
-    private final KeyPair serverKeyPair;
-    private final X509Certificate serverCert;
-    private final KeyStore serverKeyStore;
-    private final KeyStore serverTrustStore;
+    private KeyPair caKeys;
+    private X509Certificate caCert;
+    private KeyPair clientKeyPair;
+    private X509Certificate clientCert;
+    private KeyPair serverKeyPair;
+    private X509Certificate serverCert;
+    private KeyStore serverKeyStore;
+    private KeyStore serverTrustStore;
     private final MQTTClientKeyStore clientKeyStore;
+    private final Path keystorePath;
+    private final Path trustorePath;
 
-    public Certs(MQTTClientKeyStore clientKeyStore) throws KeyStoreException {
+    public Certs(MQTTClientKeyStore clientKeyStore,
+                 Path keystorePath,
+                 Path trustorePath) {
+        this.clientKeyStore = clientKeyStore;
+        this.keystorePath = keystorePath;
+        this.trustorePath = trustorePath;
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    void initialize() throws KeyStoreException {
         try {
             this.caKeys = genKeys();
-            this.caCert = genCACert(caKeys);
+            this.caCert = genCACert();
 
             this.serverKeyPair = genKeys();
             this.serverCert = genServerCert();
             this.serverKeyStore = createServerKeystore();
             this.serverTrustStore = createServerTruststore();
+            storeServerKeyEntry();
 
             this.clientKeyPair = genKeys();
             this.clientCert = genClientCert();
             trustClientCert();
 
-            this.clientKeyStore = clientKeyStore;
             initClientKeyStoreWithCerts();
-        } catch (CertificateException | IOException | OperatorCreationException
-                 | NoSuchAlgorithmException | CertificateGenerationException e) {
+
+            writeServerKeystore();
+            writeServerTruststore();
+        } catch (Exception e) {
             throw new KeyStoreException(e);
         }
     }
 
     @SuppressWarnings("PMD.SignatureDeclareThrowsException")
     public void rotateClientCert() throws Exception {
-        genClientCert();
+        this.clientCert = genClientCert();
         trustClientCert();
-        clientKeyStore
-                .updateCert(new CertificateUpdateEvent(
-                        clientKeyPair,
-                        clientCert,
-                        new X509Certificate[]{caCert}));
+        clientKeyStore.updateCert(new CertificateUpdateEvent(clientKeyPair, clientCert, new X509Certificate[]{caCert}));
+        writeServerTruststore();
     }
 
-    private X509Certificate genCACert(KeyPair keyPair)
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    public void rotateServerCert() throws Exception {
+        this.serverCert = genServerCert();
+        storeServerKeyEntry();
+        writeServerKeystore();
+    }
+
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    public void rotateCA() throws Exception {
+        this.caCert = genCACert();
+        clientKeyStore.updateCA(Collections.singletonList(CertificateHelper.toPem(caCert)));
+        writeServerKeystore();
+    }
+
+    private X509Certificate genCACert()
             throws CertificateException, NoSuchAlgorithmException, OperatorCreationException, CertIOException {
         Instant now = Instant.now();
         return CertificateHelper.createCACertificate(
-                keyPair,
+                caKeys,
                 Date.from(now),
                 Date.from(now.plus(CERT_EXPIRY)),
                 "localhost"
@@ -130,6 +154,10 @@ public class Certs {
             throw new KeyStoreException("Unable to load keystore", e);
         }
 
+        return serverKeyStore;
+    }
+
+    private void storeServerKeyEntry() throws KeyStoreException {
         // add key and certs to keystore
         serverKeyStore.setKeyEntry(
                 "hivemq",
@@ -137,8 +165,6 @@ public class Certs {
                 serverKeystorePassword.toCharArray(),
                 Stream.of(serverCert, caCert).toArray(X509Certificate[]::new)
         );
-
-        return serverKeyStore;
     }
 
     private KeyStore createServerTruststore() throws KeyStoreException {
@@ -169,19 +195,19 @@ public class Certs {
         return clientKeyStore;
     }
 
-    public void writeServerKeystore(Path output) throws KeyStoreException {
-        try (OutputStream fos = Files.newOutputStream(output)) {
+    public void writeServerKeystore() throws KeyStoreException {
+        try (OutputStream fos = Files.newOutputStream(keystorePath)) {
             serverKeyStore.store(fos, serverKeystorePassword.toCharArray());
         } catch (IOException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
-            throw new KeyStoreException("unable to write keystore to " + output, e);
+            throw new KeyStoreException("unable to write keystore to " + keystorePath, e);
         }
     }
 
-    public void writeServerTruststore(Path output) throws KeyStoreException {
-        try (OutputStream fos = Files.newOutputStream(output)) {
+    public void writeServerTruststore() throws KeyStoreException {
+        try (OutputStream fos = Files.newOutputStream(trustorePath)) {
             serverTrustStore.store(fos, serverKeystorePassword.toCharArray());
         } catch (IOException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
-            throw new KeyStoreException("unable to write truststore to " + output, e);
+            throw new KeyStoreException("unable to write truststore to " + trustorePath, e);
         }
     }
 }
