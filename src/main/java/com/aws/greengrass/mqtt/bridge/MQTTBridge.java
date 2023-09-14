@@ -61,6 +61,7 @@ public class MQTTBridge extends PluginService {
     private final IoTCoreClient ioTCoreClient;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
+    private final FatalErrorHandler fatalErrorHandler;
 
 
     /**
@@ -89,8 +90,8 @@ public class MQTTBridge extends PluginService {
                       BridgeConfigReference bridgeConfig,
                       FatalErrorHandler fatalErrorHandler) {
         this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent,
-                iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
-        fatalErrorHandler.initialize(this::serviceErrored);
+                iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig,
+                fatalErrorHandler);
     }
 
     // for testing
@@ -104,7 +105,8 @@ public class MQTTBridge extends PluginService {
                          MQTTClientKeyStore mqttClientKeyStore,
                          LocalMqttClientFactory localMqttClientFactory,
                          ExecutorService executorService,
-                         BridgeConfigReference bridgeConfig) {
+                         BridgeConfigReference bridgeConfig,
+                         FatalErrorHandler fatalErrorHandler) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
@@ -116,6 +118,7 @@ public class MQTTBridge extends PluginService {
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
         this.bridgeConfig = bridgeConfig;
+        this.fatalErrorHandler = fatalErrorHandler;
     }
 
     @Override
@@ -127,6 +130,8 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void startup() {
+        fatalErrorHandler.initialize(this::serviceErrored);
+
         try {
             mqttClientKeyStore.init();
         } catch (KeyStoreException | CertificateGenerationException e) {

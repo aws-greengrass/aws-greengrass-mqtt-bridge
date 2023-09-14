@@ -14,6 +14,7 @@ public class FatalErrorHandler {
     private Consumer<Exception> callback;
 
     public void initialize(Consumer<Exception> callback) {
+        this.fatalClientError.set(null);
         this.callback = callback;
     }
 
