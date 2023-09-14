@@ -606,12 +606,21 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void stop() {
-        mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
-        cancelUpdateSubscriptionsTask();
+        synchronized (restartLock) {
+            if (restartTask != null) {
+                restartTask.cancel(true);
+            }
+        }
         closeClient();
     }
 
     private void closeClient() {
+        mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
+        cancelUpdateSubscriptionsTask();
+        doCloseClient();
+    }
+
+    private void doCloseClient() {
         if (client.getIsConnected()) {
             try {
                 stopping.set(new CountDownLatch(1));
@@ -722,7 +731,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                         LOGGER.atWarn().log("Previous restart task did not complete. Continuing with client restart");
                     }
                 }
-                stop();
+                closeClient();
                 CountDownLatch stopping = this.stopping.get();
                 if (stopping != null) {
                     try {
