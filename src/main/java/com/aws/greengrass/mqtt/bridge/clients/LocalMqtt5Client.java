@@ -736,11 +736,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * Stop and start the client.
      */
     public void reset() {
-        if (fatalErrorHandler.fatalErrorOccurred()) {
-            LOGGER.atWarn().log("Skipping client reset due to recent fatal error");
-            return;
-        }
         synchronized (restartLock) {
+            if (fatalErrorHandler.fatalErrorOccurred()) {
+                LOGGER.atWarn().log("Skipping client reset due to recent fatal error");
+                return;
+            }
             long stopTimeoutSeconds = 10L;
             Future<?> previousRestartTask = restartTask;
             restartTask = executorService.submit(() -> {
