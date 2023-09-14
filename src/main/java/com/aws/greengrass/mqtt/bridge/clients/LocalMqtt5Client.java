@@ -711,13 +711,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     public void reset() {
         // TODO clean this up
         synchronized (restartLock) {
-            Future<?> previousRestartTask;
-            if (restartTask == null || restartTask.isDone()) {
-                previousRestartTask = null;
-            } else {
-                restartTask.cancel(false);
-                previousRestartTask = restartTask;
-            }
+            Future<?> previousRestartTask = restartTask;
             restartTask = executorService.submit(() -> {
                 if (previousRestartTask != null) {
                     try {
@@ -725,7 +719,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     } catch (InterruptedException e) {
                         return;
                     } catch (ExecutionException | TimeoutException ignore) {
-                        LOGGER.atWarn().log("Previous restart task did not stop. Continuing with client restart");
+                        LOGGER.atWarn().log("Previous restart task did not complete. Continuing with client restart");
                     }
                 }
                 stop();
@@ -733,7 +727,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 if (stopping != null) {
                     try {
                         if (!stopping.await(10L, TimeUnit.SECONDS)) {
-                            LOGGER.atWarn().log("MQTT client did not stop. Continuing with restart.");
+                            LOGGER.atWarn().log("MQTT client did not stop. Continuing with restart");
                         }
                     } catch (InterruptedException e) {
                         return;
