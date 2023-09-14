@@ -62,7 +62,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
-            LOGGER.atInfo("New CA certificate available, reconnecting client").log();
+            LOGGER.atInfo().log("New CA certificate available, reconnecting client");
             reset();
         }
 
