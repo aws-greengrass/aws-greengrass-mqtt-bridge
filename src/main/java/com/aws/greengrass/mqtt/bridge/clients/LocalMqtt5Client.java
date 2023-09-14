@@ -166,7 +166,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         @Override
         public void onAttemptingConnect(Mqtt5Client client,
                                        OnAttemptingConnectReturn onAttemptingConnectReturn) {
-            LOGGER.atDebug().log("Attempting to connect to Local Mqtt5 Client");
+            LOGGER.atDebug()
+                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .log("Attempting connection to broker");
         }
 
         @Override
@@ -193,12 +196,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         public void onConnectionFailure(Mqtt5Client client, OnConnectionFailureReturn onConnectionFailureReturn) {
             int errorCode = onConnectionFailureReturn.getErrorCode();
             ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
-            LogEventBuilder l = LOGGER.atError().kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode));
+            LogEventBuilder l = LOGGER.atError()
+                    .kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode))
+                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId);
             if (packet != null) {
                 l.kv(LOG_KEY_REASON_CODE, packet.getReasonCode().name())
                         .kv(LOG_KEY_REASON, packet.getReasonString());
             }
-            l.log("Failed to connect to Local Mqtt5 Client");
+            l.log("Failed to connect to broker");
         }
 
         @Override
@@ -218,7 +224,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             .kv(LOG_KEY_REASON, packet.getReasonString());
                 }
             }
-            l.log("Connection interrupted");
+            l.kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .log("Connection to broker interrupted");
 
             cancelUpdateSubscriptionsTask();
         }
