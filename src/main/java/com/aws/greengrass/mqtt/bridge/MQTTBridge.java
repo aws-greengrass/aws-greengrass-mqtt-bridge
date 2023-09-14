@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
@@ -25,6 +26,7 @@ import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.util.FatalErrorHandler;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import lombok.Getter;
@@ -73,21 +75,32 @@ public class MQTTBridge extends PluginService {
      * @param localMqttClientFactory local mqtt client factory
      * @param executorService        Executor service
      * @param bridgeConfig           reference to bridge config
+     * @param fatalErrorHandler      fatal error handler
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
+    public MQTTBridge(Topics topics,
+                      TopicMapping topicMapping,
+                      PubSubIPCEventStreamAgent pubSubIPCAgent,
+                      MqttClient iotMqttClient,
+                      Kernel kernel,
+                      MQTTClientKeyStore mqttClientKeyStore,
                       LocalMqttClientFactory localMqttClientFactory,
                       ExecutorService executorService,
-                      BridgeConfigReference bridgeConfig) {
+                      BridgeConfigReference bridgeConfig,
+                      FatalErrorHandler fatalErrorHandler) {
         this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent,
                 iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
+        fatalErrorHandler.initialize(this::serviceErrored);
     }
 
     // for testing
     @SuppressWarnings("PMD.ExcessiveParameterList")
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
-                         PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
+    protected MQTTBridge(Topics topics,
+                         TopicMapping topicMapping,
+                         MessageBridge messageBridge,
+                         PubSubIPCEventStreamAgent pubSubIPCAgent,
+                         MqttClient iotMqttClient,
+                         Kernel kernel,
                          MQTTClientKeyStore mqttClientKeyStore,
                          LocalMqttClientFactory localMqttClientFactory,
                          ExecutorService executorService,

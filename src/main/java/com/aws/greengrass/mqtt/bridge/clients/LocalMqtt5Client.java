@@ -8,6 +8,7 @@ import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.util.FatalErrorHandler;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.RetryUtils;
@@ -93,7 +94,6 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
-
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
@@ -129,6 +129,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
     private final Map<String, Mqtt5RouteOptions> optionsByTopic;
+    private final FatalErrorHandler fatalErrorHandler;
 
     /**
      * Protects access to update subscriptions task, and
@@ -276,6 +277,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param optionsByTopic          mqtt5 route options
      * @param mqttClientKeyStore      KeyStore for MQTT Client
      * @param executorService         Executor service
+     * @param fatalErrorHandler       fatal error handler
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
@@ -292,7 +294,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             long minReconnectDelayMs,
                             @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
-                            ExecutorService executorService) throws MessageClientException {
+                            ExecutorService executorService,
+                            FatalErrorHandler fatalErrorHandler) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.ackTimeoutSeconds = ackTimeoutSeconds;
@@ -307,6 +310,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
+        this.fatalErrorHandler = fatalErrorHandler;
         setClient(createCrtClient());
     }
 
@@ -327,7 +331,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param optionsByTopic          mqtt5 route options
      * @param mqttClientKeyStore      mqttClientKeyStore
      * @param executorService         Executor service
-     * @param client                  mqtt client;
+     * @param client                  mqtt client
+     * @param fatalErrorHandler       fatal error handler
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
@@ -344,7 +349,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                      @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
-                     Mqtt5Client client) {
+                     Mqtt5Client client,
+                     FatalErrorHandler fatalErrorHandler) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.ackTimeoutSeconds = ackTimeoutSeconds;
@@ -360,6 +366,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
         this.client = client;
+        this.fatalErrorHandler = fatalErrorHandler;
     }
 
     @Override
@@ -465,6 +472,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         synchronized (subscriptionsLock) {
             if (updateSubscriptionsTask != null) {
                 updateSubscriptionsTask.cancel(true);
+            }
+        }
+    }
+
+    private void cancelRestartTask() {
+        synchronized (restartLock) {
+            if (restartTask != null) {
+                restartTask.cancel(true);
             }
         }
     }
@@ -606,11 +621,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void stop() {
-        synchronized (restartLock) {
-            if (restartTask != null) {
-                restartTask.cancel(true);
-            }
-        }
+        cancelRestartTask();
         closeClient();
     }
 
@@ -725,6 +736,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * Stop and start the client.
      */
     public void reset() {
+        if (fatalErrorHandler.fatalErrorOccurred()) {
+            LOGGER.atWarn().log("Skipping client reset due to recent fatal error");
+            return;
+        }
         synchronized (restartLock) {
             long stopTimeoutSeconds = 10L;
             Future<?> previousRestartTask = restartTask;
@@ -752,9 +767,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 try {
                     setClient(createCrtClient());
                 } catch (MessageClientException e) {
-                    // TODO recover
-                    LOGGER.atError().cause(e).log("Unable to create mqtt client. "
-                            + "Check previous logs and restart the bridge component");
+                    LOGGER.atError().cause(e).log("Failed to create new mqtt client during reset. "
+                            + "Bridge is unable to recover by itself, "
+                            + "please check previous logs and redeploy bridge to fix");
+                    cancelRestartTask();
+                    fatalErrorHandler.fatalError(e);
                     return;
                 }
 

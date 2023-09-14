@@ -11,6 +11,7 @@ import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.util.FatalErrorHandler;
 
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
@@ -20,6 +21,7 @@ public class LocalMqttClientFactory {
     private final BridgeConfigReference config;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final FatalErrorHandler fatalErrorHandler;
 
     /**
      * Create a new LocalMqttClientFactory.
@@ -27,14 +29,17 @@ public class LocalMqttClientFactory {
      * @param config             bridge config
      * @param mqttClientKeyStore mqtt client key store
      * @param executorService    executor service
+     * @param fatalErrorHandler  fatal error handler
      */
     @Inject
     public LocalMqttClientFactory(BridgeConfigReference config,
                                   MQTTClientKeyStore mqttClientKeyStore,
-                                  ExecutorService executorService) {
+                                  ExecutorService executorService,
+                                  FatalErrorHandler fatalErrorHandler) {
         this.config = config;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
+        this.fatalErrorHandler = fatalErrorHandler;
     }
 
     /**
@@ -64,7 +69,8 @@ public class LocalMqttClientFactory {
                         config.getMinReconnectDelayMs(),
                         config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
                         mqttClientKeyStore,
-                        executorService
+                        executorService,
+                        fatalErrorHandler
                 );
             case MQTT3: // fall-through
             default:

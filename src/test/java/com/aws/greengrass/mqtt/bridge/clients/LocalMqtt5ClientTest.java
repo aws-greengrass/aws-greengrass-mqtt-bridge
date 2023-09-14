@@ -9,6 +9,7 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.util.FatalErrorHandler;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -119,7 +120,8 @@ class LocalMqtt5ClientTest {
                 1L,
                 Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
-                executorService);
+                executorService,
+                mock(FatalErrorHandler.class));
     }
 
     @Test
@@ -466,7 +468,8 @@ class LocalMqtt5ClientTest {
                 opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
-                null
+                null,
+                mock(FatalErrorHandler.class)
         );
 
         lifecycleEvents = spy(new Mqtt5ClientOptions.LifecycleEvents() {
