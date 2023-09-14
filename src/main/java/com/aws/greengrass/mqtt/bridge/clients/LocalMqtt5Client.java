@@ -622,15 +622,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private void doCloseClient() {
         if (client.getIsConnected()) {
+            // callers of doCloseClient may wish to wait for stop to happen completely
+            stopping.set(new CountDownLatch(1));
             try {
-                stopping.set(new CountDownLatch(1));
                 client.stop(null);
             } catch (CrtRuntimeException e) {
                 LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
+                stopping.get().countDown();
             }
         } else if (stopping.get() == null) {
             client.close();
         }
+        // otherwise, stopping is in-progress, client.close() will be invoked in callback
     }
 
     @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
