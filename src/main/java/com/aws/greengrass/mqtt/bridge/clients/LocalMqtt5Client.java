@@ -9,6 +9,7 @@ import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
@@ -124,6 +125,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Getter
     private Mqtt5Client client;
+    /**
+     * How a new client is generated during {@link LocalMqtt5Client#reset()}.
+     * Required for unit testing reset behavior.
+     */
+    @Setter
+    private CrashableSupplier<Mqtt5Client, MessageClientException> clientSupplier;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
     private final ScheduledExecutorService ses;
@@ -315,29 +322,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
-        setClient(createCrtClient());
+        this.clientSupplier = this::createCrtClient;
+        this.client = clientSupplier.apply();
     }
 
-    /**
-     * Construct a LocalMqtt5Client for testing.
-     *
-     * @param brokerUri               broker uri
-     * @param clientId                client id
-     * @param sessionExpiryInterval   session expiry interval
-     * @param maximumPacketSize       maximum packet size
-     * @param receiveMaximum          receive maximum
-     * @param ackTimeoutSeconds       ack timeout seconds
-     * @param connAckTimeoutMs        connack timeout ms
-     * @param pingTimeoutMs           ping timeout ms
-     * @param keepAliveTimeoutSeconds keep alive timeout seconds
-     * @param maxReconnectDelayMs     max reconnect delay ms
-     * @param minReconnectDelayMs     min reconnect delay ms
-     * @param optionsByTopic          mqtt5 route options
-     * @param mqttClientKeyStore      mqttClientKeyStore
-     * @param executorService         Executor service
-     * @param ses                     scheduled executor service
-     * @param client                  mqtt client;
-     */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
@@ -354,7 +342,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      ScheduledExecutorService ses,
-                     Mqtt5Client client) {
+                     Mqtt5Client client)
+            throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.ackTimeoutSeconds = ackTimeoutSeconds;
@@ -363,14 +352,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
         this.maxReconnectDelayMs = maxReconnectDelayMs;
         this.minReconnectDelayMs = minReconnectDelayMs;
-        this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
+        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
         this.ses = ses;
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
-        this.client = client;
+        this.clientSupplier = () -> client;
+        this.client = clientSupplier.apply();
     }
 
     @Override
@@ -730,7 +720,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             closeClient();
 
             try {
-                setClient(createCrtClient());
+                this.client = clientSupplier.apply();
             } catch (MessageClientException e) {
                 LOGGER.atWarn().cause(e).log("Unable to create mqtt client, will retry");
                 scheduleResetRetry();
