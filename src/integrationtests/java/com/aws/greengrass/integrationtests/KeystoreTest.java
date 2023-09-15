@@ -24,6 +24,7 @@ import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Pair;
 import lombok.Builder;
 import lombok.Setter;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
@@ -55,6 +56,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class KeystoreTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
     BridgeIntegrationTestContext testContext;
+
+    @Disabled("use for manual memory leak testing")
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_memory_does_not_leak(Broker broker) throws Exception {
+        while (true) {
+            CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
+            testContext.getCerts().rotateClientCert();
+            numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
 
     @TestWithMqtt5Broker
     @WithKernel("mqtt5_config_ssl.yaml")
