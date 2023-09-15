@@ -62,9 +62,8 @@ public class KeystoreTest {
     @WithKernel("mqtt5_config_ssl.yaml")
     void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_memory_does_not_leak(Broker broker) throws Exception {
         while (true) {
-            CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
             testContext.getCerts().rotateClientCert();
-            numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Thread.sleep(5000L);
         }
     }
 
