@@ -123,8 +123,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
 
-    @Getter
-    private Mqtt5Client client;
+    @Getter // for testing
+    volatile Mqtt5Client client;
     /**
      * How a new client is generated during {@link LocalMqtt5Client#reset()}.
      * Required for unit testing reset behavior.
@@ -366,10 +366,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void publish(MqttMessage message) throws MessageClientException {
-        Mqtt5Client client = getClient();
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atDebug()
+                    .kv(LOG_KEY_MESSAGE, message)
+                    .log("Skipping publish, client not connected. "
+                            + "Publish will NOT be retried");
             return;
         }
+
         PublishPacket publishPacket = new PublishPacket.PublishPacketBuilder()
                 .withPayload(message.getPayload())
                 .withQOS(QOS.AT_LEAST_ONCE)
@@ -420,11 +425,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         synchronized (subscriptionsLock) {
             toSubscribeLocalMqttTopics.clear();
             toSubscribeLocalMqttTopics.addAll(topics);
-
             LOGGER.atDebug().kv(LOG_KEY_TOPICS, topics).log("Updated local MQTT5 topics to subscribe");
-            if (getClient().getIsConnected()) {
-                updateSubscriptionsInternalAsync();
+
+            if (clientNotConnected()) {
+                LOGGER.atDebug().log("Skipping update subscriptions, client not connected. "
+                        + "Operation will be retried when client connects");
+                return;
             }
+            updateSubscriptionsInternalAsync();
         }
     }
 
@@ -445,6 +453,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     if (Thread.currentThread().isInterrupted()) {
                         return;
                     }
+                    if (clientNotConnected()) {
+                        LOGGER.atDebug().log("Exiting subscription update, client not connected. "
+                                + "Operation will be retried when client connects");
+                        return;
+                    }
+
                     try {
                         RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
                             unsubscribe(topic);
@@ -474,6 +488,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void subscribeToTopics(Set<String> topics) {
         for (String topic : topics) {
+            if (clientNotConnected()) {
+                LOGGER.atDebug().log("Exiting subscription update, client not connected. "
+                        + "Operation will be retried when client connects");
+                return;
+            }
+
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
                     subscribe(topic);
@@ -489,11 +509,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     void subscribe(String topic) throws RetryableMqttOperationException {
-        Mqtt5Client client = getClient();
-
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atDebug()
+                    .kv(LOG_KEY_TOPIC, topic)
+                    .log("Skipping subscribe, client not connected. "
+                            + "Operation will be retried once client connects");
             return;
         }
+
         SubscribePacket subscribePacket = new SubscribePacket.SubscribePacketBuilder()
                 .withSubscription(
                         topic,
@@ -555,11 +579,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     void unsubscribe(String topic) throws RetryableMqttOperationException {
-        Mqtt5Client client = getClient();
-
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atDebug()
+                    .kv(LOG_KEY_TOPIC, topic)
+                    .log("Skipping unsubscribe, client not connected. "
+                            + "Operation will be retried once client connects");
             return;
         }
+
         UnsubscribePacket unsubscribePacket =
                 new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
@@ -705,8 +733,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    void setClient(Mqtt5Client client) {
-        this.client = client;
+    private boolean clientNotConnected() {
+        return clientNotConnected(this.client);
+    }
+
+    private boolean clientNotConnected(Mqtt5Client client) {
+        return client == null || !client.getIsConnected();
     }
 
     private boolean isSSL() {
@@ -718,6 +750,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      */
     public void reset() {
         synchronized (resetLock) {
+            LOGGER.atWarn().log("Beginning client reset. The client will be offline for a period of time,"
+                    + "during which messages will dropped.");
+
             closeClient();
 
             try {
@@ -739,6 +774,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
             // started successfully, reset the reset delay
             resetDelay = DEFAULT_RESET_DELAY;
+            LOGGER.atInfo().log("Client reset complete");
         }
     }
 

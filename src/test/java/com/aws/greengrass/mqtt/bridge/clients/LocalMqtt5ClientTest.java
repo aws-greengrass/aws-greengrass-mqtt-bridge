@@ -88,8 +88,8 @@ class LocalMqtt5ClientTest {
         ignoreExceptionOfType(context, CrtRuntimeException.class);
         mockMqtt5Client.failToStart(2);
         client.reset();
-        assertThat("client disconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(false)));
-        assertThat("client reconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(true)));
+        assertThat("client disconnects", () -> client.client.getIsConnected(), eventuallyEval(is(false)));
+        assertThat("client reconnects", () -> client.client.getIsConnected(), eventuallyEval(is(true)));
     }
 
     @Test
@@ -104,8 +104,8 @@ class LocalMqtt5ClientTest {
             return mockMqtt5Client.getClient();
         });
         client.reset();
-        assertThat("client disconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(false)));
-        assertThat("client reconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(true)));
+        assertThat("client disconnects", () -> client.client.getIsConnected(), eventuallyEval(is(false)));
+        assertThat("client reconnects", () -> client.client.getIsConnected(), eventuallyEval(is(true)));
     }
 
     @Test
@@ -535,6 +535,6 @@ class LocalMqtt5ClientTest {
                 client.getPublishEventsCallback()
         );
         client.setClientSupplier(mockMqtt5Client::getClient);
-        client.setClient(mockMqtt5Client.getClient());
+        client.client = mockMqtt5Client.getClient();
     }
 }
