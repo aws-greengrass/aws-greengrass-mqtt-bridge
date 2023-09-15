@@ -368,7 +368,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     public void publish(MqttMessage message) throws MessageClientException {
         Mqtt5Client client = this.client;
         if (clientNotConnected(client)) {
-            LOGGER.atDebug()
+            LOGGER.atTrace()
                     .kv(LOG_KEY_MESSAGE, message)
                     .log("Skipping publish, client not connected. "
                             + "Publish will NOT be retried");
