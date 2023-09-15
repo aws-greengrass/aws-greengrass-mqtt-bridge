@@ -734,6 +734,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 LOGGER.atWarn().cause(e).log("Unable to start mqtt client, will retry");
                 closeClient();
                 scheduleResetTask();
+                return;
             }
 
             // started successfully, reset the reset delay
