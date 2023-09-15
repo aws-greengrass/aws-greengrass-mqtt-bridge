@@ -44,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -82,11 +83,28 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_reset_fails_THEN_retry(ExtensionContext context) {
+    void GIVEN_client_WHEN_client_fails_to_start_during_resetTHEN_retry(ExtensionContext context) {
         ignoreExceptionOfType(context, MessageClientException.class);
         ignoreExceptionOfType(context, CrtRuntimeException.class);
         mockMqtt5Client.failToStart(2);
         client.reset();
+        assertThat("client disconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(false)));
+        assertThat("client reconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(true)));
+    }
+
+    @Test
+    void GIVEN_client_WHEN_unable_create_client_during_reset_THEN_retry(ExtensionContext context) {
+        ignoreExceptionOfType(context, MessageClientException.class);
+        ignoreExceptionOfType(context, CrtRuntimeException.class);
+        AtomicBoolean failed = new AtomicBoolean();
+        client.setClientSupplier(() -> {
+            if (failed.compareAndSet(false, true)) {
+                throw new MessageClientException("");
+            }
+            return mockMqtt5Client.getClient();
+        });
+        client.reset();
+        assertThat("client disconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(false)));
         assertThat("client reconnects", () -> client.getClient().getIsConnected(), eventuallyEval(is(true)));
     }
 
