@@ -725,17 +725,25 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      */
     public void reset() {
         synchronized (resetLock) {
+            // we may reset through client cert or ca change, cancel any pending reset attempts
             cancelResetRetry();
             closeClient();
+
             try {
                 setClient(createCrtClient());
             } catch (MessageClientException e) {
-                LOGGER.atError().cause(e).log("Unable to create mqtt client, will retry");
+                LOGGER.atWarn().cause(e).log("Unable to create mqtt client, will retry");
                 scheduleResetRetry();
                 return;
             }
-            cancelResetRetry();
-            client.start();
+
+            try {
+                client.start();
+            } catch (CrtRuntimeException e) {
+                LOGGER.atWarn().cause(e).log("Unable to start mqtt client, will retry");
+                closeClient();
+                scheduleResetRetry();
+            }
         }
     }
 
