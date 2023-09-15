@@ -136,7 +136,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final ScheduledExecutorService ses;
     private final Map<String, Mqtt5RouteOptions> optionsByTopic;
 
-    private static final Duration DEFAULT_RESET_DELAY = Duration.ofSeconds(1);
+    private static final Duration DEFAULT_RESET_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
     private final Object resetLock = new Object();
     private Duration resetDelay = DEFAULT_RESET_DELAY;
@@ -744,7 +744,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private void scheduleResetTask() {
         synchronized (resetLock) {
             cancelResetTask();
-            resetTask = ses.schedule(this::reset, resetDelay.getSeconds(), TimeUnit.SECONDS);
+            resetTask = ses.schedule(this::reset, resetDelay.toMillis(), TimeUnit.MILLISECONDS);
             resetDelay = resetDelay.plus(resetDelay); // exponential backoff
             if (resetDelay.compareTo(MAX_RESET_DELAY) > 0) {
                 resetDelay = MAX_RESET_DELAY;
