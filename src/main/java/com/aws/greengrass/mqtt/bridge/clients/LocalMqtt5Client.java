@@ -751,7 +751,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     public void reset() {
         synchronized (resetLock) {
             LOGGER.atWarn().log("Beginning client reset. The client will be offline for a period of time,"
-                    + "during which messages will dropped.");
+                    + "during which messages will dropped");
 
             closeClient();
 
