@@ -96,13 +96,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         @Override
         public void onCAUpdate() {
             LOGGER.atInfo().log("New CA cert available, reconnecting client");
-            reset();
+            scheduleResetTask();
         }
 
         @Override
         public void onClientCertUpdate() {
             LOGGER.atInfo().log("New client certificate available, reconnecting client");
-            reset();
+            scheduleResetTask();
         }
     };
 
@@ -140,7 +140,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
     private final Object resetLock = new Object();
     private Duration resetDelay = DEFAULT_RESET_DELAY;
-    private Future<?> resetRetryTask;
+    private Future<?> resetTask;
 
     /**
      * Protects access to update subscriptions task, and
@@ -612,7 +612,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Override
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
-        cancelResetRetry();
+        cancelResetTask();
         closeClient();
     }
 
@@ -718,15 +718,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      */
     public void reset() {
         synchronized (resetLock) {
-            // we may reset through client cert or ca change, cancel any pending reset attempts
-            cancelResetRetry();
             closeClient();
 
             try {
                 this.client = clientSupplier.apply();
             } catch (MessageClientException e) {
                 LOGGER.atWarn().cause(e).log("Unable to create mqtt client, will retry");
-                scheduleResetRetry();
+                scheduleResetTask();
                 return;
             }
 
@@ -735,7 +733,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             } catch (CrtRuntimeException e) {
                 LOGGER.atWarn().cause(e).log("Unable to start mqtt client, will retry");
                 closeClient();
-                scheduleResetRetry();
+                scheduleResetTask();
             }
 
             // started successfully, reset the reset delay
@@ -743,10 +741,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    private void scheduleResetRetry() {
+    private void scheduleResetTask() {
         synchronized (resetLock) {
-            cancelResetRetry();
-            resetRetryTask = ses.schedule(this::reset, resetDelay.getSeconds(), TimeUnit.SECONDS);
+            cancelResetTask();
+            resetTask = ses.schedule(this::reset, resetDelay.getSeconds(), TimeUnit.SECONDS);
             resetDelay = resetDelay.plus(resetDelay); // exponential backoff
             if (resetDelay.compareTo(MAX_RESET_DELAY) > 0) {
                 resetDelay = MAX_RESET_DELAY;
@@ -754,10 +752,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    private void cancelResetRetry() {
+    private void cancelResetTask() {
         synchronized (resetLock) {
-            if (resetRetryTask != null) {
-                resetRetryTask.cancel(true);
+            if (resetTask != null) {
+                resetTask.cancel(true);
             }
         }
     }
