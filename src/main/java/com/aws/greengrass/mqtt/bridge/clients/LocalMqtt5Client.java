@@ -136,9 +136,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final ScheduledExecutorService ses;
     private final Map<String, Mqtt5RouteOptions> optionsByTopic;
 
+    private static final Duration DEFAULT_RESET_DELAY = Duration.ofSeconds(1);
     private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
     private final Object resetLock = new Object();
-    private Duration resetDelay = Duration.ofSeconds(1);
+    private Duration resetDelay = DEFAULT_RESET_DELAY;
     private Future<?> resetRetryTask;
 
     /**
@@ -623,12 +624,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private void doCloseClient() {
         try {
             if (client.getIsConnected()) {
-                client.stop(null);
+                client.stop(new DisconnectPacket.DisconnectPacketBuilder()
+                        .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
+                        .build());
             } else {
                 client.close();
             }
         } catch (CrtRuntimeException e) {
-            LOGGER.atDebug().setCause(e).log("Failed to stop MQTT5 client");
+            LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
             client.close();
         }
     }
@@ -734,6 +737,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 closeClient();
                 scheduleResetRetry();
             }
+
+            // started successfully, reset the reset delay
+            resetDelay = DEFAULT_RESET_DELAY;
         }
     }
 
