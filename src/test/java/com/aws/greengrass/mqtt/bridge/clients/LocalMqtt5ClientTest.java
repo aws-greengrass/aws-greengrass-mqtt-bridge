@@ -138,18 +138,21 @@ class LocalMqtt5ClientTest {
     @Test
     void GIVEN_client_WHEN_port_is_missing_THEN_succeeds() throws Exception {
         client.stop();
-        client = new LocalMqtt5Client(URI.create("tcp://localhost"),
-                "test-client",
-                BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL,
-                BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE,
-                BridgeConfig.DEFAULT_RECEIVE_MAXIMUM,
-                1L,
-                1L,
-                1L,
-                0L,
-                1L,
-                1L,
-                Collections.emptyMap(),
+        client = new LocalMqtt5Client(
+                LocalMqtt5Client.Config.builder()
+                        .brokerUri(URI.create("tcp://localhost"))
+                        .clientId("test-client")
+                        .sessionExpiryInterval(BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL)
+                        .maximumPacketSize(BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE)
+                        .receiveMaximum(BridgeConfig.DEFAULT_RECEIVE_MAXIMUM)
+                        .ackTimeoutSeconds(1L)
+                        .connAckTimeoutMs(1L)
+                        .pingTimeoutMs(1L)
+                        .keepAliveTimeoutSeconds(0L)
+                        .maxReconnectDelayMs(1L)
+                        .minReconnectDelayMs(1L)
+                        .optionsByTopic(Collections.emptyMap())
+                        .build(),
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 null);
@@ -485,18 +488,20 @@ class LocalMqtt5ClientTest {
 
     private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) throws MessageClientException {
         client = new LocalMqtt5Client(
-                URI.create("tcp://localhost:1883"),
-                "test-client",
-                BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL,
-                BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE,
-                BridgeConfig.DEFAULT_RECEIVE_MAXIMUM,
-                1L,
-                1L,
-                1L,
-                0L,
-                1L,
-                1L,
-                opts,
+                LocalMqtt5Client.Config.builder()
+                        .brokerUri(URI.create("tcp://localhost:1883"))
+                        .clientId("test-client")
+                        .sessionExpiryInterval(BridgeConfig.DEFAULT_SESSION_EXPIRY_INTERVAL)
+                        .maximumPacketSize(BridgeConfig.DEFAULT_MAXIMUM_PACKET_SIZE)
+                        .receiveMaximum(BridgeConfig.DEFAULT_RECEIVE_MAXIMUM)
+                        .ackTimeoutSeconds(1L)
+                        .connAckTimeoutMs(1L)
+                        .pingTimeoutMs(1L)
+                        .keepAliveTimeoutSeconds(0L)
+                        .maxReconnectDelayMs(1L)
+                        .minReconnectDelayMs(1L)
+                        .optionsByTopic(opts)
+                        .build(),
                 mock(MQTTClientKeyStore.class),
                 executorService,
                 ses,

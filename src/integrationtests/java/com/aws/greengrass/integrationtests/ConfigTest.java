@@ -108,9 +108,9 @@ public class ConfigTest {
         assertEquals(expectedReceiveMaximum, testContext.getConfig().getReceiveMaximum());
 
         // verify that the mqtt config values are correctly set in the local client
-        assertEquals(expectedSessionExpiryInterval, testContext.getLocalV5Client().getSessionExpiryInterval());
-        assertEquals(expectedMaximumPacketSize, testContext.getLocalV5Client().getMaximumPacketSize());
-        assertEquals(expectedReceiveMaximum, testContext.getLocalV5Client().getReceiveMaximum());
+        assertEquals(expectedSessionExpiryInterval, testContext.getLocalV5Client().getConfig().getSessionExpiryInterval());
+        assertEquals(expectedMaximumPacketSize, testContext.getLocalV5Client().getConfig().getMaximumPacketSize());
+        assertEquals(expectedReceiveMaximum, testContext.getLocalV5Client().getConfig().getReceiveMaximum());
 
         Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(CONFIGURATION_CONFIG_KEY).lookupTopics("mqtt");
@@ -154,10 +154,10 @@ public class ConfigTest {
 
         // verify that config changes take effect
         assertThat("session expiry interval config update",
-                () -> testContext.getLocalV5Client().getSessionExpiryInterval(), eventuallyEval(is(1L)));
-        assertThat("maximum packet size config update", () -> testContext.getLocalV5Client().getMaximumPacketSize(),
+                () -> testContext.getLocalV5Client().getConfig().getSessionExpiryInterval(), eventuallyEval(is(1L)));
+        assertThat("maximum packet size config update", () -> testContext.getLocalV5Client().getConfig().getMaximumPacketSize(),
                 eventuallyEval(is(1L)));
-        assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getReceiveMaximum(),
+        assertThat("receive maximum config update", () -> testContext.getLocalV5Client().getConfig().getReceiveMaximum(),
                 eventuallyEval(is(1)));
 
         // Publish a large message to the local broker and verify that it is not received due to the local client's

@@ -56,18 +56,20 @@ public class LocalMqttClientFactory {
         switch (config.getMqttVersion()) {
             case MQTT5:
                 return new LocalMqtt5Client(
-                        config.getBrokerUri(),
-                        config.getClientId(),
-                        config.getSessionExpiryInterval(),
-                        config.getMaximumPacketSize(),
-                        config.getReceiveMaximum(),
-                        config.getAckTimeoutSeconds(),
-                        config.getConnAckTimeoutMs(),
-                        config.getPingTimeoutMs(),
-                        config.getKeepAliveTimeoutSeconds(),
-                        config.getMaxReconnectDelayMs(),
-                        config.getMinReconnectDelayMs(),
-                        config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
+                        LocalMqtt5Client.Config.builder()
+                                .brokerUri(config.getBrokerUri())
+                                .clientId(config.getClientId())
+                                .sessionExpiryInterval(config.getSessionExpiryInterval())
+                                .maximumPacketSize(config.getMaximumPacketSize())
+                                .receiveMaximum(config.getReceiveMaximum())
+                                .ackTimeoutSeconds(config.getAckTimeoutSeconds())
+                                .connAckTimeoutMs(config.getConnAckTimeoutMs())
+                                .pingTimeoutMs(config.getPingTimeoutMs())
+                                .keepAliveTimeoutSeconds(config.getKeepAliveTimeoutSeconds())
+                                .maxReconnectDelayMs(config.getMaxReconnectDelayMs())
+                                .minReconnectDelayMs(config.getMinReconnectDelayMs())
+                                .optionsByTopic(config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt))
+                                .build(),
                         mqttClientKeyStore,
                         executorService,
                         ses

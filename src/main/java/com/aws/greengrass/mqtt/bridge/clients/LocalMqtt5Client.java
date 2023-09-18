@@ -14,6 +14,8 @@ import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -92,6 +94,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
+    @Getter // for testing
+    volatile Config config;
+
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
@@ -118,33 +123,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
 
-    private final URI brokerUri;
-    private final String clientId;
-    @Getter // for testing
-    private final long sessionExpiryInterval;
-    @Getter // for testing
-    private final Long maximumPacketSize;
-    @Getter // for testing
-    private final int receiveMaximum;
-    private final long ackTimeoutSeconds;
-    private final long connAckTimeoutMs;
-    private final long pingTimeoutMs;
-    private final long keepAliveTimeoutSeconds;
-    private final long maxReconnectDelayMs;
-    private final long minReconnectDelayMs;
-
-    @Getter // for testing
-    volatile Mqtt5Client client;
     /**
      * How a new client is generated during {@link LocalMqtt5Client#reset()}.
      * Required for unit testing reset behavior.
      */
     @Setter
     private CrashableSupplier<Mqtt5Client, MessageClientException> clientSupplier;
+    @Getter // for testing
+    volatile Mqtt5Client client;
+
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
     private final ScheduledExecutorService ses;
-    private final Map<String, Mqtt5RouteOptions> optionsByTopic;
 
     private static final Duration DEFAULT_RESET_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
@@ -202,8 +192,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         public void onAttemptingConnect(Mqtt5Client client,
                                        OnAttemptingConnectReturn onAttemptingConnectReturn) {
             LOGGER.atDebug()
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                    .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                     .log("Attempting connection to broker");
         }
 
@@ -212,8 +202,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             boolean sessionPresent = onConnectionSuccessReturn.getConnAckPacket().getSessionPresent();
             LOGGER.atInfo()
                     .kv("sessionPresent", sessionPresent)
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                    .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                     .log("Connected to broker");
 
             if (!sessionPresent) {
@@ -233,8 +223,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
             ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
             LogEventBuilder l = LOGGER.atError()
                     .kv(LOG_KEY_ERROR, CRT.awsErrorString(errorCode))
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId);
+                    .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                    .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId());
             if (packet != null) {
                 l.kv(LOG_KEY_REASON_CODE, packet.getReasonCode().name())
                         .kv(LOG_KEY_REASON, packet.getReasonString());
@@ -259,8 +249,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             .kv(LOG_KEY_REASON, packet.getReasonString());
                 }
             }
-            l.kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+            l.kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                    .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                     .log("Connection to broker interrupted");
 
             cancelUpdateSubscriptionsTask();
@@ -269,8 +259,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         @Override
         public void onStopped(Mqtt5Client client, OnStoppedReturn onStoppedReturn) {
             LOGGER.atInfo()
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                    .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                    .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                     .log("client stopped");
             client.close();
         }
@@ -282,94 +272,58 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 publishReturn.getPublishPacket())));
     };
 
+    @Data
+    @Builder
+    public static class Config {
+        URI brokerUri;
+        Map<String, Mqtt5RouteOptions> optionsByTopic;
+        String clientId;
+        long sessionExpiryInterval;
+        Long maximumPacketSize;
+        int receiveMaximum;
+        long ackTimeoutSeconds;
+        long connAckTimeoutMs;
+        long pingTimeoutMs;
+        long keepAliveTimeoutSeconds;
+        long maxReconnectDelayMs;
+        long minReconnectDelayMs;
+    }
+
+    void setConfig(@NonNull Config config) {
+        this.config = config;
+    }
+
     /**
      * Construct a LocalMqtt5Client.
      *
-     * @param brokerUri               broker uri
-     * @param clientId                client id
-     * @param sessionExpiryInterval   session expiry interval
-     * @param maximumPacketSize       maximum packet size
-     * @param receiveMaximum          receive maximum
-     * @param ackTimeoutSeconds       ack timeout seconds
-     * @param connAckTimeoutMs        connack timeout ms
-     * @param pingTimeoutMs           ping timeout ms
-     * @param keepAliveTimeoutSeconds keep alive timeout seconds
-     * @param maxReconnectDelayMs     max reconnect delay ms
-     * @param minReconnectDelayMs     min reconnect delay ms
-     * @param optionsByTopic          mqtt5 route options
+     * @param config                  config
      * @param mqttClientKeyStore      KeyStore for MQTT Client
      * @param executorService         Executor service
      * @param ses                     scheduled executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    public LocalMqtt5Client(@NonNull URI brokerUri,
-                            @NonNull String clientId,
-                            long sessionExpiryInterval,
-                            Long maximumPacketSize,
-                            int receiveMaximum,
-                            long ackTimeoutSeconds,
-                            long connAckTimeoutMs,
-                            long pingTimeoutMs,
-                            long keepAliveTimeoutSeconds,
-                            long maxReconnectDelayMs,
-                            long minReconnectDelayMs,
-                            @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
+    public LocalMqtt5Client(Config config,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService,
                             ScheduledExecutorService ses) throws MessageClientException {
-        this.brokerUri = brokerUri;
-        this.clientId = clientId;
-        this.ackTimeoutSeconds = ackTimeoutSeconds;
-        this.connAckTimeoutMs = connAckTimeoutMs;
-        this.pingTimeoutMs = pingTimeoutMs;
-        this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
-        this.maxReconnectDelayMs = maxReconnectDelayMs;
-        this.minReconnectDelayMs = minReconnectDelayMs;
+        setConfig(config);
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
         this.ses = ses;
-        this.sessionExpiryInterval = sessionExpiryInterval;
-        this.maximumPacketSize = maximumPacketSize;
-        this.receiveMaximum = receiveMaximum;
         this.clientSupplier = this::createCrtClient;
         this.client = clientSupplier.apply();
     }
 
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    LocalMqtt5Client(@NonNull URI brokerUri,
-                     @NonNull String clientId,
-                     long sessionExpiryInterval,
-                     Long maximumPacketSize,
-                     int receiveMaximum,
-                     long ackTimeoutSeconds,
-                     long connAckTimeoutMs,
-                     long pingTimeoutMs,
-                     long keepAliveTimeoutSeconds,
-                     long maxReconnectDelayMs,
-                     long minReconnectDelayMs,
-                     @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
+    LocalMqtt5Client(Config config,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      ScheduledExecutorService ses,
                      Mqtt5Client client)
             throws MessageClientException {
-        this.brokerUri = brokerUri;
-        this.clientId = clientId;
-        this.ackTimeoutSeconds = ackTimeoutSeconds;
-        this.connAckTimeoutMs = connAckTimeoutMs;
-        this.pingTimeoutMs = pingTimeoutMs;
-        this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
-        this.maxReconnectDelayMs = maxReconnectDelayMs;
-        this.minReconnectDelayMs = minReconnectDelayMs;
+        setConfig(config);
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
         this.ses = ses;
-        this.sessionExpiryInterval = sessionExpiryInterval;
-        this.maximumPacketSize = maximumPacketSize;
-        this.receiveMaximum = receiveMaximum;
         this.clientSupplier = () -> client;
         this.client = clientSupplier.apply();
     }
@@ -573,7 +527,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private boolean isNoLocal(String topic) {
-        return Optional.ofNullable(optionsByTopic.get(topic))
+        return Optional.ofNullable(config.getOptionsByTopic().get(topic))
                 .map(Mqtt5RouteOptions::isNoLocal)
                 .orElse(DEFAULT_NO_LOCAL);
     }
@@ -674,9 +628,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
     private Mqtt5Client createCrtClient() throws MessageClientException {
-        boolean isSSL = "ssl".equalsIgnoreCase(brokerUri.getScheme());
+        boolean isSSL = "ssl".equalsIgnoreCase(config.getBrokerUri().getScheme());
 
-        long port = brokerUri.getPort();
+        long port = config.getBrokerUri().getPort();
         if (port < 0) {
             port = isSSL ? DEFAULT_SSL_MQTT_PORT : DEFAULT_TCP_MQTT_PORT;
         }
@@ -685,7 +639,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         TlsContextOptions tlsContextOptions = null;
         try {
             Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder builder =
-                    new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(brokerUri.getHost(), port)
+                    new Mqtt5ClientOptions.Mqtt5ClientOptionsBuilder(config.getBrokerUri().getHost(), port)
                     .withLifecycleEvents(connectionEventCallback)
                     .withPublishEvents(publishEventsCallback)
                     .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
@@ -693,17 +647,17 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             .FAIL_ALL_ON_DISCONNECT)
                     .withConnectOptions(new ConnectPacket.ConnectPacketBuilder()
                             .withRequestProblemInformation(true)
-                            .withClientId(clientId)
-                            .withKeepAliveIntervalSeconds(keepAliveTimeoutSeconds)
-                            .withSessionExpiryIntervalSeconds(sessionExpiryInterval)
-                            .withMaximumPacketSizeBytes(maximumPacketSize)
-                            .withReceiveMaximum((long) receiveMaximum)
+                            .withClientId(config.getClientId())
+                            .withKeepAliveIntervalSeconds(config.getKeepAliveTimeoutSeconds())
+                            .withSessionExpiryIntervalSeconds(config.getSessionExpiryInterval())
+                            .withMaximumPacketSizeBytes(config.getMaximumPacketSize())
+                            .withReceiveMaximum((long) config.getReceiveMaximum())
                             .build())
-                    .withAckTimeoutSeconds(ackTimeoutSeconds)
-                    .withConnackTimeoutMs(connAckTimeoutMs)
-                    .withPingTimeoutMs(pingTimeoutMs)
-                    .withMaxReconnectDelayMs(maxReconnectDelayMs)
-                    .withMinReconnectDelayMs(minReconnectDelayMs);
+                    .withAckTimeoutSeconds(config.getAckTimeoutSeconds())
+                    .withConnackTimeoutMs(config.getConnAckTimeoutMs())
+                    .withPingTimeoutMs(config.getPingTimeoutMs())
+                    .withMaxReconnectDelayMs(config.getMaxReconnectDelayMs())
+                    .withMinReconnectDelayMs(config.getMinReconnectDelayMs());
 
             if (isSSL) {
                 // aws-c-io requires PKCS#1 key encoding for non-linux
@@ -750,7 +704,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     private boolean isSSL() {
-        return "ssl".equalsIgnoreCase(brokerUri.getScheme());
+        return "ssl".equalsIgnoreCase(config.getBrokerUri().getScheme());
     }
 
     /**
