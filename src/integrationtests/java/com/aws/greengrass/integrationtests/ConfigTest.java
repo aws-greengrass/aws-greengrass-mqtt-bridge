@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.integrationtests;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
@@ -89,8 +88,9 @@ public class ConfigTest {
         Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
                 .lookupTopics(CONFIGURATION_CONFIG_KEY);
 
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_BROKER_URI, String.format("tcp://localhost:%d", testContext.getBrokerTCPPort())), MERGE_UPDATE_BEHAVIOR.get());
+        config.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).withValue("mqtt3");
+        config.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).withValue("mqtt5");
+        config.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).withValue("mqtt3");
 
         assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals(1, numRestarts.get());
@@ -179,36 +179,6 @@ public class ConfigTest {
                         .build());
         assertThrows(TimeoutException.class,
                 () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
-    }
-
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqtt5RouteOptions_updated_THEN_mapping_updated_and_bridge_restarts
-            (Broker broker, ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, MqttException.class);
-
-        Topics routeOptions =
-                testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(
-                                CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS)
-                        .lookupTopics("toIotCore");
-        Topic retainAsPublished = routeOptions.lookup("retainAsPublished");
-        assertTrue((boolean) retainAsPublished.getOnce());
-
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-        testContext.getKernel().getContext().addGlobalStateChangeListener((
-                GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
-
-        testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(CONFIGURATION_CONFIG_KEY,
-                        BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).lookupTopics("toIotCore").lookup("retainAsPublished")
-                .withValue(false);
-        testContext.getKernel().getContext().waitForPublishQueueToClear();
-        retainAsPublished = routeOptions.lookup("retainAsPublished");
-        assertFalse((boolean) retainAsPublished.getOnce());
-        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @TestWithMqtt3Broker

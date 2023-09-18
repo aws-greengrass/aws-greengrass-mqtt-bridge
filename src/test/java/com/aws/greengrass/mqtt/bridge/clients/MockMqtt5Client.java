@@ -69,6 +69,8 @@ public class MockMqtt5Client {
     private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     private final Mqtt5ClientOptions.PublishEvents publishEvents;
     private final AtomicInteger timesToFailStart = new AtomicInteger();
+    @Getter
+    private final AtomicInteger numDisconnects = new AtomicInteger();
 
 
     public MockMqtt5Client(@NonNull Mqtt5ClientOptions.LifecycleEvents lifecycleEvents,
@@ -92,6 +94,7 @@ public class MockMqtt5Client {
         }).when(client).start();
 
         lenient().doAnswer(ignored -> {
+            numDisconnects.incrementAndGet();
             offline(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION);
             return null;
         }).when(client).stop(any());

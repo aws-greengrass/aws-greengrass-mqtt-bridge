@@ -18,7 +18,9 @@ import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
+import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
@@ -286,12 +288,25 @@ public class MQTTBridge extends PluginService {
                 return;
             }
 
-            if (newConfig.reinstallRequired(prevConfig)) {
+            if (reinstallRequired(prevConfig, newConfig)) {
                 logger.atInfo("service-config-change")
                         .log("Requesting re-installation of bridge");
                 requestReinstall();
+                return;
+            }
+
+            // TODO same for MQTT3 client
+            if (localMqttClient instanceof LocalMqtt5Client) {
+                ((LocalMqtt5Client) localMqttClient).applyConfig(LocalMqtt5Client.Config.fromBridgeConfig(newConfig));
             }
         });
+
+        private boolean reinstallRequired(BridgeConfig prevConfig, BridgeConfig newConfig) {
+            return !Objects.equals(prevConfig.getMqttVersion(), newConfig.getMqttVersion()) // to switch between clients
+                    || localMqttClient instanceof MQTTClient
+                    && (!Objects.equals(prevConfig.getBrokerUri(), newConfig.getBrokerUri())
+                    || !Objects.equals(prevConfig.getClientId(), newConfig.getClientId()));
+        }
 
         /**
          * Begin listening and responding to bridge configuration changes.
