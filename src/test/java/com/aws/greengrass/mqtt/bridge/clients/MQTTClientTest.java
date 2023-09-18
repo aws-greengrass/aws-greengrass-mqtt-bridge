@@ -86,7 +86,7 @@ public class MQTTClientTest {
 
         mqttClient.stop();
 
-        verify(mockMqttClientKeyStore).unsubscribeFromCAUpdates(any());
+        verify(mockMqttClientKeyStore).unsubscribeFromUpdates(any());
         subscriptions = fakeMqttClient.getSubscriptionTopics();
         assertThat(fakeMqttClient.isConnected(), is(false));
         assertThat(subscriptions, hasSize(0));

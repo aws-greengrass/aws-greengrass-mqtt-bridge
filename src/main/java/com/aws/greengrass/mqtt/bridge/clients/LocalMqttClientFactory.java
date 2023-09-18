@@ -13,6 +13,7 @@ import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 
 public class LocalMqttClientFactory {
@@ -20,6 +21,7 @@ public class LocalMqttClientFactory {
     private final BridgeConfigReference config;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final ScheduledExecutorService ses;
 
     /**
      * Create a new LocalMqttClientFactory.
@@ -27,14 +29,17 @@ public class LocalMqttClientFactory {
      * @param config             bridge config
      * @param mqttClientKeyStore mqtt client key store
      * @param executorService    executor service
+     * @param ses                scheduled executor service
      */
     @Inject
     public LocalMqttClientFactory(BridgeConfigReference config,
                                   MQTTClientKeyStore mqttClientKeyStore,
-                                  ExecutorService executorService) {
+                                  ExecutorService executorService,
+                                  ScheduledExecutorService ses) {
         this.config = config;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
+        this.ses = ses;
     }
 
     /**
@@ -64,7 +69,8 @@ public class LocalMqttClientFactory {
                         config.getMinReconnectDelayMs(),
                         config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt),
                         mqttClientKeyStore,
-                        executorService
+                        executorService,
+                        ses
                 );
             case MQTT3: // fall-through
             default:

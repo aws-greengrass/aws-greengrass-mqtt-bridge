@@ -9,12 +9,14 @@ import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -60,6 +62,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -88,11 +92,18 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final long DEFAULT_TCP_MQTT_PORT = 1883;
     private static final long DEFAULT_SSL_MQTT_PORT = 8883;
 
-    private boolean clientStarted = false; // crt close is not idempotent
+    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
+        @Override
+        public void onCAUpdate() {
+            LOGGER.atInfo().log("New CA cert available, reconnecting client");
+            scheduleResetTask();
+        }
 
-    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = () -> {
-        LOGGER.atInfo().log("Keystore update received, resetting client");
-        reset();
+        @Override
+        public void onClientCertUpdate() {
+            LOGGER.atInfo().log("New client certificate available, reconnecting client");
+            scheduleResetTask();
+        }
     };
 
     private volatile Consumer<MqttMessage> messageHandler = m -> {};
@@ -112,11 +123,24 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final long maxReconnectDelayMs;
     private final long minReconnectDelayMs;
 
-    @Getter
-    private Mqtt5Client client;
+    @Getter // for testing
+    volatile Mqtt5Client client;
+    /**
+     * How a new client is generated during {@link LocalMqtt5Client#reset()}.
+     * Required for unit testing reset behavior.
+     */
+    @Setter
+    private CrashableSupplier<Mqtt5Client, MessageClientException> clientSupplier;
     private final MQTTClientKeyStore mqttClientKeyStore;
     private final ExecutorService executorService;
+    private final ScheduledExecutorService ses;
     private final Map<String, Mqtt5RouteOptions> optionsByTopic;
+
+    private static final Duration DEFAULT_RESET_DELAY = Duration.ofMillis(100);
+    private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
+    private final Object resetLock = new Object();
+    private Duration resetDelay = DEFAULT_RESET_DELAY;
+    private Future<?> resetTask;
 
     /**
      * Protects access to update subscriptions task, and
@@ -160,8 +184,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }};
     private Future<?> updateSubscriptionsTask;
 
-    @Getter(AccessLevel.PACKAGE)
-    private final Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
+    @Getter
+    @Setter // for testing
+    private Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
             new Mqtt5ClientOptions.LifecycleEvents() {
         @Override
         public void onAttemptingConnect(Mqtt5Client client,
@@ -264,6 +289,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param optionsByTopic          mqtt5 route options
      * @param mqttClientKeyStore      KeyStore for MQTT Client
      * @param executorService         Executor service
+     * @param ses                     scheduled executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
@@ -280,7 +306,8 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                             long minReconnectDelayMs,
                             @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                             MQTTClientKeyStore mqttClientKeyStore,
-                            ExecutorService executorService) throws MessageClientException {
+                            ExecutorService executorService,
+                            ScheduledExecutorService ses) throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.ackTimeoutSeconds = ackTimeoutSeconds;
@@ -292,31 +319,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
+        this.ses = ses;
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
-        setClient(createCrtClient());
+        this.clientSupplier = this::createCrtClient;
+        this.client = clientSupplier.apply();
     }
 
-    /**
-     * Construct a LocalMqtt5Client for testing.
-     *
-     * @param brokerUri               broker uri
-     * @param clientId                client id
-     * @param sessionExpiryInterval   session expiry interval
-     * @param maximumPacketSize       maximum packet size
-     * @param receiveMaximum          receive maximum
-     * @param ackTimeoutSeconds       ack timeout seconds
-     * @param connAckTimeoutMs        connack timeout ms
-     * @param pingTimeoutMs           ping timeout ms
-     * @param keepAliveTimeoutSeconds keep alive timeout seconds
-     * @param maxReconnectDelayMs     max reconnect delay ms
-     * @param minReconnectDelayMs     min reconnect delay ms
-     * @param optionsByTopic          mqtt5 route options
-     * @param mqttClientKeyStore      mqttClientKeyStore
-     * @param executorService         Executor service
-     * @param client                  mqtt client;
-     */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     LocalMqtt5Client(@NonNull URI brokerUri,
                      @NonNull String clientId,
@@ -332,7 +342,9 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                      @NonNull Map<String, Mqtt5RouteOptions> optionsByTopic,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
-                     Mqtt5Client client) {
+                     ScheduledExecutorService ses,
+                     Mqtt5Client client)
+            throws MessageClientException {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
         this.ackTimeoutSeconds = ackTimeoutSeconds;
@@ -341,21 +353,28 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.keepAliveTimeoutSeconds = keepAliveTimeoutSeconds;
         this.maxReconnectDelayMs = maxReconnectDelayMs;
         this.minReconnectDelayMs = minReconnectDelayMs;
-        this.optionsByTopic = optionsByTopic;
         this.mqttClientKeyStore = mqttClientKeyStore;
+        this.optionsByTopic = optionsByTopic;
         this.executorService = executorService;
+        this.ses = ses;
         this.sessionExpiryInterval = sessionExpiryInterval;
         this.maximumPacketSize = maximumPacketSize;
         this.receiveMaximum = receiveMaximum;
-        this.client = client;
+        this.clientSupplier = () -> client;
+        this.client = clientSupplier.apply();
     }
 
     @Override
     public void publish(MqttMessage message) throws MessageClientException {
-        Mqtt5Client client = getClient();
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atTrace()
+                    .kv(LOG_KEY_MESSAGE, message)
+                    .log("Skipping publish, client not connected. "
+                            + "Publish will NOT be retried");
             return;
         }
+
         PublishPacket publishPacket = new PublishPacket.PublishPacketBuilder()
                 .withPayload(message.getPayload())
                 .withQOS(QOS.AT_LEAST_ONCE)
@@ -406,11 +425,14 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         synchronized (subscriptionsLock) {
             toSubscribeLocalMqttTopics.clear();
             toSubscribeLocalMqttTopics.addAll(topics);
-
             LOGGER.atDebug().kv(LOG_KEY_TOPICS, topics).log("Updated local MQTT5 topics to subscribe");
-            if (getClient().getIsConnected()) {
-                updateSubscriptionsInternalAsync();
+
+            if (clientNotConnected()) {
+                LOGGER.atDebug().log("Skipping update subscriptions, client not connected. "
+                        + "Operation will be retried when client connects");
+                return;
             }
+            updateSubscriptionsInternalAsync();
         }
     }
 
@@ -431,6 +453,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                     if (Thread.currentThread().isInterrupted()) {
                         return;
                     }
+                    if (clientNotConnected()) {
+                        LOGGER.atDebug().log("Exiting subscription update, client not connected. "
+                                + "Operation will be retried when client connects");
+                        return;
+                    }
+
                     try {
                         RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
                             unsubscribe(topic);
@@ -460,6 +488,12 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void subscribeToTopics(Set<String> topics) {
         for (String topic : topics) {
+            if (clientNotConnected()) {
+                LOGGER.atDebug().log("Exiting subscription update, client not connected. "
+                        + "Operation will be retried when client connects");
+                return;
+            }
+
             try {
                 RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
                     subscribe(topic);
@@ -475,11 +509,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     void subscribe(String topic) throws RetryableMqttOperationException {
-        Mqtt5Client client = getClient();
-
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atDebug()
+                    .kv(LOG_KEY_TOPIC, topic)
+                    .log("Skipping subscribe, client not connected. "
+                            + "Operation will be retried once client connects");
             return;
         }
+
         SubscribePacket subscribePacket = new SubscribePacket.SubscribePacketBuilder()
                 .withSubscription(
                         topic,
@@ -541,11 +579,15 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     }
 
     void unsubscribe(String topic) throws RetryableMqttOperationException {
-        Mqtt5Client client = getClient();
-
-        if (!client.getIsConnected()) {
+        Mqtt5Client client = this.client;
+        if (clientNotConnected(client)) {
+            LOGGER.atDebug()
+                    .kv(LOG_KEY_TOPIC, topic)
+                    .log("Skipping unsubscribe, client not connected. "
+                            + "Operation will be retried once client connects");
             return;
         }
+
         UnsubscribePacket unsubscribePacket =
                 new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build();
         LOGGER.atDebug().kv(LOG_KEY_TOPIC, topic).log("Unsubscribing from MQTT topic");
@@ -589,31 +631,36 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start()  {
-        if (clientStarted) {
-            return;
+        if (isSSL()) {
+            mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         }
         client.start();
-        clientStarted = true;
     }
 
     @Override
     public void stop() {
-        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
-        cancelUpdateSubscriptionsTask();
+        mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
+        cancelResetTask();
         closeClient();
     }
 
     private void closeClient() {
+        cancelUpdateSubscriptionsTask();
+        doCloseClient();
+    }
+
+    private void doCloseClient() {
         try {
-            if (clientStarted) {
-                client.stop(null);
+            if (client.getIsConnected()) {
+                client.stop(new DisconnectPacket.DisconnectPacketBuilder()
+                        .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
+                        .build());
             } else {
                 client.close();
             }
         } catch (CrtRuntimeException e) {
             LOGGER.atError().setCause(e).log("Failed to stop MQTT5 client");
-        } finally {
-            clientStarted = false;
+            client.close();
         }
     }
 
@@ -686,27 +733,68 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         }
     }
 
-    void setClient(Mqtt5Client client) {
-        if (isSSL()) {
-            mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
-        }
-        this.client = client;
+    private boolean clientNotConnected() {
+        return clientNotConnected(this.client);
+    }
+
+    private boolean clientNotConnected(Mqtt5Client client) {
+        return client == null || !client.getIsConnected();
     }
 
     private boolean isSSL() {
         return "ssl".equalsIgnoreCase(brokerUri.getScheme());
     }
 
-    void reset() { // TODO callback shouldn't be synchronous
-        stop();
-        try {
-            setClient(createCrtClient());
-        } catch (MessageClientException e) {
-            // TODO recover
-            LOGGER.atError().cause(e).log("unable to start mqtt client during reset");
-            return;
+    /**
+     * Stop and start the mqtt client.
+     */
+    public void reset() {
+        synchronized (resetLock) {
+            LOGGER.atWarn().log("Beginning client reset. The client will be offline for a period of time, "
+                    + "during which messages will dropped");
+
+            closeClient();
+
+            try {
+                this.client = clientSupplier.apply();
+            } catch (MessageClientException e) {
+                LOGGER.atWarn().cause(e).log("Unable to create mqtt client, will retry");
+                scheduleResetTask();
+                return;
+            }
+
+            try {
+                client.start();
+            } catch (CrtRuntimeException e) {
+                LOGGER.atWarn().cause(e).log("Unable to start mqtt client, will retry");
+                closeClient();
+                scheduleResetTask();
+                return;
+            }
+
+            // started successfully, reset the reset delay
+            resetDelay = DEFAULT_RESET_DELAY;
+            LOGGER.atInfo().log("Client reset complete");
         }
-        start();
+    }
+
+    private void scheduleResetTask() {
+        synchronized (resetLock) {
+            cancelResetTask();
+            resetTask = ses.schedule(this::reset, resetDelay.toMillis(), TimeUnit.MILLISECONDS);
+            resetDelay = resetDelay.plus(resetDelay); // exponential backoff
+            if (resetDelay.compareTo(MAX_RESET_DELAY) > 0) {
+                resetDelay = MAX_RESET_DELAY;
+            }
+        }
+    }
+
+    private void cancelResetTask() {
+        synchronized (resetLock) {
+            if (resetTask != null) {
+                resetTask.cancel(true);
+            }
+        }
     }
 
     @Override

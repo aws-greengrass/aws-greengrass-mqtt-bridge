@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -41,6 +42,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -59,6 +63,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class LocalMqtt5ClientTest {
 
+    ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
     Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     MockMqtt5Client mockMqtt5Client;
@@ -66,7 +71,7 @@ class LocalMqtt5ClientTest {
     LocalMqtt5Client client;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws MessageClientException {
         createLocalMqtt5Client();
         client.start();
     }
@@ -74,6 +79,33 @@ class LocalMqtt5ClientTest {
     @AfterEach
     void tearDown() {
         client.stop();
+        ses.shutdownNow();
+    }
+
+    @Test
+    void GIVEN_client_WHEN_client_fails_to_start_during_resetTHEN_retry(ExtensionContext context) {
+        ignoreExceptionOfType(context, MessageClientException.class);
+        ignoreExceptionOfType(context, CrtRuntimeException.class);
+        mockMqtt5Client.failToStart(2);
+        client.reset();
+        assertThat("client disconnects", () -> client.client.getIsConnected(), eventuallyEval(is(false)));
+        assertThat("client reconnects", () -> client.client.getIsConnected(), eventuallyEval(is(true)));
+    }
+
+    @Test
+    void GIVEN_client_WHEN_unable_create_client_during_reset_THEN_retry(ExtensionContext context) {
+        ignoreExceptionOfType(context, MessageClientException.class);
+        ignoreExceptionOfType(context, CrtRuntimeException.class);
+        AtomicBoolean failed = new AtomicBoolean();
+        client.setClientSupplier(() -> {
+            if (failed.compareAndSet(false, true)) {
+                throw new MessageClientException("");
+            }
+            return mockMqtt5Client.getClient();
+        });
+        client.reset();
+        assertThat("client disconnects", () -> client.client.getIsConnected(), eventuallyEval(is(false)));
+        assertThat("client reconnects", () -> client.client.getIsConnected(), eventuallyEval(is(true)));
     }
 
     @Test
@@ -119,11 +151,12 @@ class LocalMqtt5ClientTest {
                 1L,
                 Collections.emptyMap(),
                 mock(MQTTClientKeyStore.class),
-                executorService);
+                executorService,
+                null);
     }
 
     @Test
-    void GIVEN_client_WHEN_fail_to_connect_THEN_connection_failure() {
+    void GIVEN_client_WHEN_fail_to_connect_THEN_connection_failure() throws MessageClientException {
         client.stop();
         createLocalMqtt5Client();
 
@@ -446,11 +479,11 @@ class LocalMqtt5ClientTest {
                 .collect(Collectors.toSet());
     }
 
-    private void createLocalMqtt5Client() {
+    private void createLocalMqtt5Client() throws MessageClientException {
         createLocalMqtt5ClientWithMqtt5Options(Collections.emptyMap());
     }
 
-    private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) {
+    private void createLocalMqtt5ClientWithMqtt5Options(Map<String, Mqtt5RouteOptions> opts) throws MessageClientException {
         client = new LocalMqtt5Client(
                 URI.create("tcp://localhost:1883"),
                 "test-client",
@@ -460,12 +493,13 @@ class LocalMqtt5ClientTest {
                 1L,
                 1L,
                 1L,
-                1L,
+                0L,
                 1L,
                 1L,
                 opts,
                 mock(MQTTClientKeyStore.class),
                 executorService,
+                ses,
                 null
         );
 
@@ -500,6 +534,7 @@ class LocalMqtt5ClientTest {
                 lifecycleEvents,
                 client.getPublishEventsCallback()
         );
-        client.setClient(mockMqtt5Client.getClient());
+        client.setClientSupplier(mockMqtt5Client::getClient);
+        client.client = mockMqtt5Client.getClient();
     }
 }

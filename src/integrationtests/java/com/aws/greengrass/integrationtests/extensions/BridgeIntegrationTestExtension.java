@@ -32,6 +32,7 @@ import org.junit.jupiter.api.extension.InvocationInterceptor;
 import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
 import org.slf4j.event.Level;
 import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.hivemq.HiveMQContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
@@ -215,21 +216,22 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     }
 
     private void configureContextForMqtt5Broker() throws KeyStoreException {
-        Certs certs = new Certs(clientKeyStore);
-
         Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
-        certs.writeServerKeystore(serverKeystorePath);
-
         Path serverTruststorePath = context.getRootDir().resolve("truststore.jks");
-        certs.writeServerTruststore(serverTruststorePath);
+
+        Certs certs = new Certs(clientKeyStore, serverKeystorePath, serverTruststorePath);
+        certs.initialize();
+        context.certs = certs;
+
         v5Broker = new HiveMQContainer(
                 DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
-                .withCopyFileToContainer(MountableFile.forHostPath(serverKeystorePath), "/opt/hivemq/hivemq.jks")
-                .withCopyFileToContainer(MountableFile.forHostPath(serverTruststorePath), "/opt/hivemq/truststore.jks")
+                .withFileSystemBind(serverKeystorePath.toAbsolutePath().toString(), "/opt/hivemq/hivemq.jks", BindMode.READ_ONLY)
+                .withFileSystemBind(serverTruststorePath.toAbsolutePath().toString(), "/opt/hivemq/truststore.jks", BindMode.READ_ONLY)
                 .withHiveMQConfig(MountableFile.forClasspathResource("hivemq/config.xml"))
                 .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
                 .withExposedPorts(8883, 1883)
                 .withLogLevel(Level.DEBUG);
+
         context.setBroker(Broker.MQTT5);
         context.startBroker = () -> {
             v5Broker.start();

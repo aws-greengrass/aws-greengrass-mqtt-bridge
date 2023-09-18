@@ -248,7 +248,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
 
     static class FakeMqttClientFactory extends LocalMqttClientFactory {
         public FakeMqttClientFactory() {
-            super(null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

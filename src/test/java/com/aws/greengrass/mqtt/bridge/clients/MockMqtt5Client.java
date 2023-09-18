@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -66,6 +68,7 @@ public class MockMqtt5Client {
     private final Mqtt5Client client = mock(Mqtt5Client.class);
     private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
     private final Mqtt5ClientOptions.PublishEvents publishEvents;
+    private final AtomicInteger timesToFailStart = new AtomicInteger();
 
 
     public MockMqtt5Client(@NonNull Mqtt5ClientOptions.LifecycleEvents lifecycleEvents,
@@ -81,6 +84,9 @@ public class MockMqtt5Client {
         this.cleanSession = cleanSession;
 
         lenient().doAnswer(ignored -> {
+            if (timesToFailStart.decrementAndGet() > 0) {
+                throw new CrtRuntimeException("");
+            }
             online();
             return null;
         }).when(client).start();
@@ -241,6 +247,10 @@ public class MockMqtt5Client {
                 iter.remove();
             }
         }
+    }
+
+    public void failToStart(int times) {
+        timesToFailStart.set(times);
     }
 
     public void online() {

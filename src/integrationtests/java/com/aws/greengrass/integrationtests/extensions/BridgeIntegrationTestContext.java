@@ -35,6 +35,7 @@ public class BridgeIntegrationTestContext {
     Runnable startBroker;
     Path rootDir;
     Kernel kernel;
+    Certs certs;
 
     public MockMqttClient getMockMqttClient() {
         return getFromContext(MockMqttClient.class);

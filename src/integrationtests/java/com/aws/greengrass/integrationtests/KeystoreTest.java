@@ -22,7 +22,17 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.util.Pair;
+import lombok.Builder;
+import lombok.Setter;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
+import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionFailureReturn;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
+import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
+import software.amazon.awssdk.crt.mqtt5.OnStoppedReturn;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -31,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
@@ -39,19 +50,66 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @BridgeIntegrationTest
 public class KeystoreTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
-
     BridgeIntegrationTestContext testContext;
+
+    @Disabled("use for manual memory leak testing")
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_memory_does_not_leak(Broker broker) throws Exception {
+        while (true) {
+            testContext.getCerts().rotateClientCert();
+            Thread.sleep(5000L);
+        }
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+        CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
+        testContext.getCerts().rotateClientCert();
+        testContext.getCerts().waitForBrokerToApplyStoreChanges();
+        numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    void GIVEN_mqtt5_bridge_WHEN_ca_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+        CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
+        testContext.getCerts().rotateCA();
+        testContext.getCerts().rotateServerCert();
+        testContext.getCerts().rotateClientCert();
+        testContext.getCerts().waitForBrokerToApplyStoreChanges();
+        numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
+    }
+
+    @TestWithMqtt5Broker
+    @WithKernel("mqtt5_config_ssl.yaml")
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_a_lot_THEN_local_client_is_connected(Broker broker) throws Exception {
+        IntStream.range(0, 30).forEach(i -> {
+            try {
+                testContext.getCerts().rotateClientCert();
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
+        testContext.getCerts().waitForBrokerToApplyStoreChanges();
+        assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
+    }
 
     @TestWithMqtt3Broker
     @WithKernel("config.yaml")
     void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated(Broker broker) throws Exception {
         Pair<CompletableFuture<Void>, Consumer<Void>> keystoreUpdated = asyncAssertOnConsumer(p -> {}, 1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(() -> keystoreUpdated.getRight().accept(null));
+        keyStore.listenToUpdates(() -> keystoreUpdated.getRight().accept(null));
 
         Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
                 SERVICES_NAMESPACE_TOPIC,
@@ -110,7 +168,7 @@ public class KeystoreTest {
 
         CountDownLatch keyStoreUpdated = new CountDownLatch(1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
-        keyStore.listenToCAUpdates(keyStoreUpdated::countDown);
+        keyStore.listenToUpdates(keyStoreUpdated::countDown);
 
         // update topic with CA
         Topic certificateAuthoritiesTopic = testContext.getKernel().getConfig().lookup(
@@ -130,5 +188,57 @@ public class KeystoreTest {
 
         // shouldn't update
         assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    private CompletableFuture<Void> asyncAssertNumConnects(Integer numConnects) throws InterruptedException {
+        CountDownLatch callbackApplied = new CountDownLatch(1);
+        Pair<CompletableFuture<Void>, Consumer<Void>> onConnect
+                = asyncAssertOnConsumer(unused -> callbackApplied.countDown(),
+                numConnects + 1); // one call taken up by restarting for callback to take effect
+        testContext.getLocalV5Client().setConnectionEventCallback(
+                DelegatingConnectionEventsCallback.builder()
+                        .lifecycleEvents(testContext.getLocalV5Client().getConnectionEventCallback())
+                        .onConnectionSuccess(onConnect)
+                        .build());
+        // need to reset for new callback to take effect
+        testContext.getLocalV5Client().reset();
+        assertTrue(callbackApplied.await(5L, TimeUnit.SECONDS));
+        return onConnect.getLeft();
+    }
+
+    @Builder
+    static class DelegatingConnectionEventsCallback implements Mqtt5ClientOptions.LifecycleEvents {
+
+        private final Mqtt5ClientOptions.LifecycleEvents lifecycleEvents;
+        @Setter
+        private Pair<CompletableFuture<Void>, Consumer<Void>> onConnectionSuccess;
+
+        @Override
+        public void onAttemptingConnect(Mqtt5Client mqtt5Client, OnAttemptingConnectReturn onAttemptingConnectReturn) {
+            lifecycleEvents.onAttemptingConnect(mqtt5Client, onAttemptingConnectReturn);
+        }
+
+        @Override
+        public void onConnectionSuccess(Mqtt5Client mqtt5Client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
+            if (onConnectionSuccess != null) {
+                onConnectionSuccess.getRight().accept(null);
+            }
+            lifecycleEvents.onConnectionSuccess(mqtt5Client, onConnectionSuccessReturn);
+        }
+
+        @Override
+        public void onConnectionFailure(Mqtt5Client mqtt5Client, OnConnectionFailureReturn onConnectionFailureReturn) {
+            lifecycleEvents.onConnectionFailure(mqtt5Client, onConnectionFailureReturn);
+        }
+
+        @Override
+        public void onDisconnection(Mqtt5Client mqtt5Client, OnDisconnectionReturn onDisconnectionReturn) {
+            lifecycleEvents.onDisconnection(mqtt5Client, onDisconnectionReturn);
+        }
+
+        @Override
+        public void onStopped(Mqtt5Client mqtt5Client, OnStoppedReturn onStoppedReturn) {
+            lifecycleEvents.onStopped(mqtt5Client, onStoppedReturn);
+        }
     }
 }

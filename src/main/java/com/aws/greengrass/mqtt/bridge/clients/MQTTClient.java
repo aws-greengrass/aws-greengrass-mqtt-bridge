@@ -59,7 +59,20 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
 
-    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = this::reset;
+    private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
+        @Override
+        public void onCAUpdate() {
+            LOGGER.atInfo().log("New CA certificate available, reconnecting client");
+            reset();
+        }
+
+        @Override
+        public void onClientCertUpdate() {
+            LOGGER.atInfo().log("New client certificate available and will be used "
+                    + "the next time this client reconnects");
+        }
+    };
+
     private final MQTTClientKeyStore mqttClientKeyStore;
 
     private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
@@ -105,7 +118,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         try {
             this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
         } catch (MqttException e) {
-            this.mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+            this.mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
             throw new MQTTClientException("Unable to create an MQTT client", e);
         }
     }
@@ -117,7 +130,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         this.mqttClientInternal = mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
-        this.mqttClientKeyStore.listenToCAUpdates(onKeyStoreUpdate);
+        this.mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         this.executorService = executorService;
     }
 
@@ -151,7 +164,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      */
     @Override
     public void stop() {
-        mqttClientKeyStore.unsubscribeFromCAUpdates(onKeyStoreUpdate);
+        mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
         removeMappingAndSubscriptions();
         try {
             if (mqttClientInternal.isConnected()) {
