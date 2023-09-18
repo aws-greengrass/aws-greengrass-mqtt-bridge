@@ -95,14 +95,24 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
+            if (ignoreUpdate()) {
+                return;
+            }
             LOGGER.atInfo().log("New CA cert available, reconnecting client");
             scheduleResetTask();
         }
 
         @Override
         public void onClientCertUpdate() {
+            if (ignoreUpdate()) {
+                return;
+            }
             LOGGER.atInfo().log("New client certificate available, reconnecting client");
             scheduleResetTask();
+        }
+
+        private boolean ignoreUpdate() {
+            return !isSSL();
         }
     };
 
@@ -631,9 +641,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
 
     @Override
     public void start()  {
-        if (isSSL()) {
-            mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
-        }
+        mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         client.start();
     }
 
