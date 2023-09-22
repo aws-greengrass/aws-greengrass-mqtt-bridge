@@ -210,6 +210,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
                 // Need to resubscribe to dropped topics
                 synchronized (subscriptionsLock) {
                     toSubscribeLocalMqttTopics.addAll(subscribedLocalMqttTopics);
+                    subscribedLocalMqttTopics.clear();
                 }
             }
 
