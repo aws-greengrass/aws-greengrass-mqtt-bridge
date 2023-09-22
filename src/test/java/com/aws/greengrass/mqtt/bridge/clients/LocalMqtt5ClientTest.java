@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -472,6 +473,23 @@ class LocalMqtt5ClientTest {
                 eventuallyEval(is(topics)));
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
         verify(clientSpy, times(2)).subscribe(topic);
+    }
+
+    @Test
+    void GIVEN_client_with_subscriptions_WHEN_connection_lost_and_resumed_THEN_subscriptions_are_made() {
+        Set<String> topics = Collections.singleton("iotcore/topic");
+        client.updateSubscriptions(topics, message -> {});
+
+        assertThat("subscribed topics local client", client::getSubscribedLocalMqttTopics, eventuallyEval(is(topics)));
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+
+        mockMqtt5Client.offline(DisconnectPacket.DisconnectReasonCode.UNSPECIFIED_ERROR);
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(empty())));
+
+        mockMqtt5Client.online();
+
+        assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
+        assertThat("subscribed topics local client", client::getSubscribedLocalMqttTopics, eventuallyEval(is(topics)));
     }
     
     private Set<String> getMockSubscriptions() {
