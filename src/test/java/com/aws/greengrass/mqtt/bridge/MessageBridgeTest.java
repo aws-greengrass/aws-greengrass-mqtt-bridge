@@ -32,7 +32,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -261,8 +260,6 @@ public class MessageBridgeTest {
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockPubSubClient);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockIotCoreClient);
 
-        doReturn(true).when(mockLocalClient).supportsTopicFilters();
-
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
         ArgumentCaptor<Consumer<PubSubMessage>> messageHandlerPubSubCaptor = ArgumentCaptor.forClass(Consumer.class);
@@ -324,8 +321,6 @@ public class MessageBridgeTest {
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockPubSubClient);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockIotCoreClient);
 
-        doReturn(true).when(mockLocalClient).supportsTopicFilters();
-        doReturn(true).when(mockIotCoreClient).supportsTopicFilters();
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
         ArgumentCaptor<Consumer<PubSubMessage>> messageHandlerPubSubCaptor = ArgumentCaptor.forClass(Consumer.class);
@@ -429,9 +424,6 @@ public class MessageBridgeTest {
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt, mockLocalClient);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.Pubsub, mockPubSubClient);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore, mockIotCoreClient);
-
-        doReturn(true).when(mockLocalClient).supportsTopicFilters();
-        doReturn(true).when(mockIotCoreClient).supportsTopicFilters();
 
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
@@ -566,7 +558,6 @@ public class MessageBridgeTest {
         MessageBridge messageBridge = new MessageBridge(mapping, options);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
                 mockLocalClient);
-        doReturn(true).when(mockLocalClient).supportsTopicFilters();
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
         messageHandlerLocalMqttCaptor.getValue()
@@ -597,7 +588,6 @@ public class MessageBridgeTest {
         MessageBridge messageBridge = new MessageBridge(mapping, options);
         messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
                 mockLocalClient);
-        doReturn(true).when(mockLocalClient).supportsTopicFilters();
         ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
         verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
         messageHandlerLocalMqttCaptor.getValue()
@@ -623,11 +613,6 @@ public class MessageBridgeTest {
         }
 
         @Override
-        public boolean supportsTopicFilters() {
-            return true;
-        }
-
-        @Override
         public MqttMessage convertMessage(Message message) {
             return (MqttMessage) message.toMqtt();
         }
@@ -648,11 +633,6 @@ public class MessageBridgeTest {
 
         @Override
         public void updateSubscriptions(Set<String> topics, Consumer<PubSubMessage> messageHandler) {
-        }
-
-        @Override
-        public boolean supportsTopicFilters() {
-            return true;
         }
 
         @Override

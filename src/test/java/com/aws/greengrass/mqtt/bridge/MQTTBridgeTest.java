@@ -263,11 +263,6 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                 }
 
                 @Override
-                public boolean supportsTopicFilters() {
-                    return true;
-                }
-
-                @Override
                 public void start() {
                 }
 

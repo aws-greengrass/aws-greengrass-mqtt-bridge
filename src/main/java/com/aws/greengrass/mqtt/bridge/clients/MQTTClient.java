@@ -206,11 +206,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     @Override
-    public boolean supportsTopicFilters() {
-        return true;
-    }
-
-    @Override
     public void updateSubscriptions(Set<String> topics, Consumer<MqttMessage> messageHandler) {
         this.messageHandler = messageHandler;
 
