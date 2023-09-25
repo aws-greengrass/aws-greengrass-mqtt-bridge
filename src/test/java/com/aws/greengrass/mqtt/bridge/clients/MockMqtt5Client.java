@@ -265,6 +265,12 @@ public class MockMqtt5Client {
     }
 
     private void onDisconnection(DisconnectPacket.DisconnectReasonCode reasonCode) {
+        if (cleanSession) {
+            synchronized (subscriptionsLock) {
+                subscriptions.clear();
+            }
+        }
+
         DisconnectPacket disconnectPacket = mock(DisconnectPacket.class);
         lenient().when(disconnectPacket.getReasonCode()).thenReturn(reasonCode);
 
