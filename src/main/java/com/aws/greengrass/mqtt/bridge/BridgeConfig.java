@@ -57,8 +57,8 @@ public final class BridgeConfig {
     public static final String KEY_MAXIMUM_PACKET_SIZE = "maximumPacketSize";
     public static final String KEY_SESSION_EXPIRY_INTERVAL = "sessionExpiryInterval";
     public static final String KEY_MQTT_5_ROUTE_OPTIONS = "mqtt5RouteOptions";
-    static final String KEY_MQTT = "mqtt";
-    static final String KEY_VERSION = "version";
+    public static final String KEY_MQTT = "mqtt";
+    public static final String KEY_VERSION = "version";
 
 
     private static final long MIN_TIMEOUT = 0L;
