@@ -23,6 +23,7 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttClientPersistence;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.net.URI;
@@ -51,6 +52,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
     private final Object subscribeLock = new Object();
+    private final Object connectTaskLock = new Object();
     private Future<?> connectFuture;
     private Future<?> subscribeFuture;
     @Getter // for testing
@@ -84,7 +86,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         @Override
         public void connectionLost(Throwable cause) {
             LOGGER.atDebug().setCause(cause).log("MQTT client disconnected, reconnecting...");
-            reconnectAndResubscribe();
+            reconnectAndResubscribeAsync();
         }
 
         @Override
@@ -165,40 +167,27 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Override
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
-        removeMappingAndSubscriptions();
-        try {
-            if (connectFuture != null) {
-                connectFuture.cancel(true);
-            }
+        cancelConnectTask();
 
+        try {
             if (mqttClientInternal.isConnected()) {
                 LOGGER.debug("Disconnecting MQTT client");
                 // 0ms quiescence time, just send the disconnect packet immediately
                 mqttClientInternal.disconnect(0);
                 LOGGER.debug("MQTT client disconnected");
             }
-            dataStore.close();
         } catch (MqttException e) {
             LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
+        } finally {
+            // no need to unsubscribe because we connect with cleanSession=true
+            subscribedLocalMqttTopics.clear();
         }
-    }
 
-    private synchronized void removeMappingAndSubscriptions() {
-        unsubscribeAll();
-        subscribedLocalMqttTopics.clear();
-    }
-
-    private void unsubscribeAll() {
-        LOGGER.atDebug().kv("mapping", subscribedLocalMqttTopics).log("Unsubscribe from local MQTT topics");
-
-        this.subscribedLocalMqttTopics.forEach(s -> {
-            try {
-                mqttClientInternal.unsubscribe(s);
-                LOGGER.atDebug().kv(TOPIC, s).log("Unsubscribed from topic");
-            } catch (MqttException e) {
-                LOGGER.atWarn().kv(TOPIC, s).setCause(e).log("Unable to unsubscribe");
-            }
-        });
+        try {
+            dataStore.close();
+        } catch (MqttPersistenceException e) {
+            LOGGER.atDebug().setCause(e).log("Unable to close mqtt client datastore");
+        }
     }
 
     @Override
@@ -267,17 +256,27 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         return connOpts;
     }
 
-    private synchronized void connectAndSubscribe() {
-        if (connectFuture != null) {
-            connectFuture.cancel(true);
-        }
-
+    private void connectAndSubscribe() {
         LOGGER.atInfo()
                 .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
                 .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
                 .log("Connecting to broker");
+        reconnectAndResubscribeAsync();
+    }
 
-        connectFuture = executorService.submit(this::reconnectAndResubscribe);
+    private void reconnectAndResubscribeAsync() {
+        synchronized (connectTaskLock) {
+            cancelConnectTask();
+            connectFuture = executorService.submit(this::reconnectAndResubscribe);
+        }
+    }
+
+    private void cancelConnectTask() {
+        synchronized (connectTaskLock) {
+            if (connectFuture != null) {
+                connectFuture.cancel(true);
+            }
+        }
     }
 
     private synchronized void doConnect() throws MqttException, KeyStoreException {
