@@ -40,6 +40,9 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
+
 
 @ImplementsService(name = MQTTBridge.SERVICE_NAME)
 public class MQTTBridge extends PluginService {
@@ -103,6 +106,13 @@ public class MQTTBridge extends PluginService {
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
         this.bridgeConfig = bridgeConfig;
+
+        // Increase default service shutdown time to 120s
+        Topic shutdownTimeoutTopic =
+                config.lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC,
+                        TIMEOUT_NAMESPACE_TOPIC);
+        shutdownTimeoutTopic.withParentNeedsToKnow(false);
+        shutdownTimeoutTopic.dflt(120);
     }
 
     @Override
