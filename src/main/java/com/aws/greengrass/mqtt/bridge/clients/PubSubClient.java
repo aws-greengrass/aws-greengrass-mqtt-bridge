@@ -10,6 +10,7 @@ import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.PubSubMessage;
 import lombok.AccessLevel;
@@ -126,5 +127,10 @@ public class PubSubClient implements MessageClient<PubSubMessage> {
     @Override
     public PubSubMessage convertMessage(Message message) {
         return (PubSubMessage) message.toPubSub();
+    }
+
+    @Override
+    public TopicMapping.TopicType getType() {
+        return TopicMapping.TopicType.Pubsub;
     }
 }

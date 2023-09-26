@@ -9,6 +9,7 @@ import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithAllBrokers;
+import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
 import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
 import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -70,7 +71,7 @@ public class BridgeTest {
         assertThrows(TimeoutException.class, () -> iotCoreTopicSubscription.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
-    @TestWithAllBrokers
+    @TestWithMqtt3Broker
     @WithKernel("mqtt3_local_and_iotcore.yaml")
     void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_iotcore_message_received_THEN_message_bridged_to_local(Broker broker) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()
@@ -101,7 +102,7 @@ public class BridgeTest {
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    @TestWithAllBrokers
+    @TestWithMqtt3Broker
     @WithKernel("mqtt3_local_and_iotcore.yaml")
     void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(Broker broker) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()

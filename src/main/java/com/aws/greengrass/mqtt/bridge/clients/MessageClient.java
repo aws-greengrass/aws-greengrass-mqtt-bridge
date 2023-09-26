@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 
 import java.util.Set;
@@ -40,4 +41,6 @@ public interface MessageClient<T extends Message> {
     void start();
 
     void stop();
+
+    TopicMapping.TopicType getType();
 }

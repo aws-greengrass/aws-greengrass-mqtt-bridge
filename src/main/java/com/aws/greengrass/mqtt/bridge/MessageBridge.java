@@ -9,20 +9,23 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClients;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.util.Utils;
 import org.eclipse.paho.client.mqttv3.MqttTopic;
 
+import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
@@ -41,10 +44,12 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
-    private final Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
+    private final BridgeConfigReference bridgeConfig;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
-    private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
-            = new ConcurrentHashMap<>();
+    private final MessageClients messageClients;
+
+    private Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
+
     // A map from type of source to its mapping. The mapping is actually mapping from topic name to its destinations
     // (destination topic + type). This data structure may change once we introduce complex routing mechanism.
     // Example:
@@ -55,101 +60,72 @@ public class MessageBridge {
     /**
      * Ctr for Message Bridge.
      *
-     * @param topicMapping              topics mapping
-     * @param localMqttOptionsByTopic   mqtt5 route options
+     * @param topicMapping   topics mapping
+     * @param bridgeConfig   bridge config
+     * @param messageClients message clients
      */
-    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic) {
+    @Inject
+    public MessageBridge(TopicMapping topicMapping,
+                         BridgeConfigReference bridgeConfig,
+                         MessageClients messageClients) {
         this.topicMapping = topicMapping;
-        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.localMqttOptionsByTopic = localMqttOptionsByTopic;
+        this.bridgeConfig = bridgeConfig;
+        this.messageClients = messageClients;
+    }
 
+    public void initialize() throws MessageClientException {
+        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        this.localMqttOptionsByTopic = bridgeConfig.get()
+                .getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt);
         processMappingAndSubscribe();
     }
 
-    /**
-     * Add or replace the client of given type and update subscriptions for the client.
-     *
-     * @param clientType    type of the client (type is the `source` type). Example, it will be LocalMqtt for
-     *                      MQTTClient
-     * @param messageClient client
-     */
-    public void addOrReplaceMessageClientAndUpdateSubscriptions(
-            TopicMapping.TopicType clientType, MessageClient<? extends Message> messageClient) {
-        messageClientMap.put(clientType, messageClient);
-        updateSubscriptionsForClient(clientType, messageClient);
-    }
-
-    /**
-     * Remove the client of given type.
-     *
-     * @param clientType client type
-     */
-    public void removeMessageClient(TopicMapping.TopicType clientType) {
-        messageClientMap.remove(clientType);
-    }
-
-    private <T extends Message> void handleMessage(TopicMapping.TopicType sourceType, T message) {
+    private <T extends Message> void handleMessage(MessageClient<? extends Message> sourceMessageClient, T message) {
         String fullSourceTopic = message.getTopic();
-        LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
+        LOGGER.atDebug()
+                .kv(LOG_KEY_SOURCE_TYPE, sourceMessageClient.getClass().getSimpleName())
+                .kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                 .log("Message received");
 
-        MessageClient<? extends Message> sourceClient = messageClientMap.get(sourceType);
-        if (sourceClient == null) {
-            LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
-                    .log("Source client not found");
+        TopicMapping.TopicType sourceType = sourceMessageClient.getType();
+        Map<String, List<TopicMapping.MappingEntry>> srcDestMapping = perClientSourceDestinationMap.get(sourceType);
+        if (srcDestMapping == null) {
             return;
         }
 
-        Map<String, List<TopicMapping.MappingEntry>> srcDestMapping = perClientSourceDestinationMap.get(sourceType);
-
-        if (srcDestMapping != null) {
-            final Consumer<TopicMapping.MappingEntry> processDestination = mapping -> {
-                MessageClient<? extends Message> client = messageClientMap.get(mapping.getTarget());
-                // If the mapped topic string is empty string, we forward the message to the same topic as the
-                // source topic.
-                final String baseTargetTopic = Utils.isEmpty(mapping.getTargetTopic())
+        final Consumer<TopicMapping.MappingEntry> processDestination = mapping -> {
+            // If the mapped topic string is empty string, we forward the message to the same topic as the
+            // source topic.
+            final String baseTargetTopic = Utils.isEmpty(mapping.getTargetTopic())
                     ? fullSourceTopic
                     : mapping.getTargetTopic();
-                final String targetTopic = Utils.isEmpty(mapping.getTargetTopicPrefix())
+            final String targetTopic = Utils.isEmpty(mapping.getTargetTopicPrefix())
                     ? baseTargetTopic
                     : mapping.getTargetTopicPrefix() + baseTargetTopic;
-                if (client == null) {
-                    LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
-                            .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
-                            .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
-                            .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic)
-                            .log("Message client not found for target type");
-                } else {
-                    try {
-                        publishMessage(client, targetTopic, message);
-                        LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
-                                .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
-                                .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
-                                .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Published message");
-                    } catch (MessageClientException e) {
-                        LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
-                                .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
-                                .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
-                                .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Failed to publish");
-                    }
-                }
-            };
-
-            if (sourceClient.supportsTopicFilters()) {
-                // Do topic filter matching
-                srcDestMapping.entrySet().stream()
-                        .filter(mapping -> MqttTopic.isMatched(mapping.getKey(), fullSourceTopic))
-                        .map(Map.Entry::getValue)
-                        .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
-            } else {
-                // Do direct matching
-                List<TopicMapping.MappingEntry> destinations = srcDestMapping.get(fullSourceTopic);
-                if (destinations == null) {
-                    return;
-                }
-                destinations.forEach(processDestination);
+            try {
+                MessageClient<? extends Message> targetMessageClient = messageClients.getMessageClients().stream()
+                        .filter(c -> Objects.equals(mapping.getTarget(), c.getType()))
+                        .findFirst()
+                        .orElseThrow(() ->
+                                new MessageClientException("No message client found of type " + mapping.getTarget()));
+                publishMessage(targetMessageClient, targetTopic, message);
+                LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
+                        .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
+                        .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
+                        .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Published message");
+            } catch (MessageClientException e) {
+                LOGGER.atError().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
+                        .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
+                        .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
+                        .kv(LOG_KEY_RESOLVED_TARGET_TOPIC, targetTopic).log("Failed to publish");
             }
-        }
+        };
+
+        // Do topic filter matching
+        srcDestMapping.entrySet().stream()
+                .filter(mapping -> MqttTopic.isMatched(mapping.getKey(), fullSourceTopic))
+                .map(Map.Entry::getValue)
+                .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
     }
 
     @SuppressWarnings("unchecked")
@@ -193,24 +169,21 @@ public class MessageBridge {
 
         perClientSourceDestinationMap = perClientSourceDestinationMapTemp;
 
-        messageClientMap.forEach(this::updateSubscriptionsForClient);
+        messageClients.forEach(this::updateSubscriptionsForClient);
         LOGGER.atDebug().kv("topicMapping", perClientSourceDestinationMap).log("Processed mapping");
     }
 
-    private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
-                                                           MessageClient<? extends Message> messageClient) {
+    private synchronized void updateSubscriptionsForClient(MessageClient<? extends Message> messageClient) {
         Map<String, List<TopicMapping.MappingEntry>> srcDestMapping =
-                perClientSourceDestinationMap.get(clientType);
+                perClientSourceDestinationMap.get(messageClient.getType());
 
-        Set<String> topicsToSubscribe;
-        if (srcDestMapping == null) {
-            topicsToSubscribe = new HashSet<>();
-        } else {
-            topicsToSubscribe = srcDestMapping.keySet();
-        }
+        Set<String> topicsToSubscribe = srcDestMapping == null ? new HashSet<>() : srcDestMapping.keySet();
 
-        LOGGER.atDebug().kv("clientType", clientType).kv("topics", topicsToSubscribe).log("Updating subscriptions");
+        LOGGER.atDebug()
+                .kv("clientType", messageClient.getType())
+                .kv("topics", topicsToSubscribe)
+                .log("Updating subscriptions");
 
-        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(clientType, message));
+        messageClient.updateSubscriptions(topicsToSubscribe, message -> handleMessage(messageClient, message));
     }
 }

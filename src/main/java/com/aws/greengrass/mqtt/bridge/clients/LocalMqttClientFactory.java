@@ -16,7 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 
-public class LocalMqttClientFactory {
+public class LocalMqttClientFactory implements MessageClientFactory<MqttMessage> {
 
     private final BridgeConfigReference config;
     private final MQTTClientKeyStore mqttClientKeyStore;
