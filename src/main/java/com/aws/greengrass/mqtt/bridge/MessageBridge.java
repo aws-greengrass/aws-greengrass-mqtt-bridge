@@ -135,20 +135,10 @@ public class MessageBridge {
                 }
             };
 
-            if (sourceClient.supportsTopicFilters()) {
-                // Do topic filter matching
-                srcDestMapping.entrySet().stream()
-                        .filter(mapping -> MqttTopic.isMatched(mapping.getKey(), fullSourceTopic))
-                        .map(Map.Entry::getValue)
-                        .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
-            } else {
-                // Do direct matching
-                List<TopicMapping.MappingEntry> destinations = srcDestMapping.get(fullSourceTopic);
-                if (destinations == null) {
-                    return;
-                }
-                destinations.forEach(processDestination);
-            }
+            srcDestMapping.entrySet().stream()
+                    .filter(mapping -> MqttTopic.isMatched(mapping.getKey(), fullSourceTopic))
+                    .map(Map.Entry::getValue)
+                    .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
         }
     }
 

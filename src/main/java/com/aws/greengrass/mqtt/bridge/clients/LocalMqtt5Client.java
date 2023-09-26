@@ -764,9 +764,4 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     public MqttMessage convertMessage(Message message) {
         return (MqttMessage) message.toMqtt();
     }
-
-    @Override
-    public boolean supportsTopicFilters() {
-        return true;
-    }
 }

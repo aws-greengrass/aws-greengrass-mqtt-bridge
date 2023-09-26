@@ -29,12 +29,6 @@ public interface MessageClient<T extends Message> {
      */
     void updateSubscriptions(Set<String> topics, Consumer<T> messageHandler);
 
-    /**
-     * Does this client support topic filters for subscriptions.
-     * @return true if supported
-     */
-    boolean supportsTopicFilters();
-
     T convertMessage(Message message);
 
     void start();

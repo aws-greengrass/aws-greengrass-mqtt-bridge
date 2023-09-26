@@ -205,10 +205,6 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
         }
     }
 
-    @Override
-    public boolean supportsTopicFilters() {
-        return true;
-    }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace", "PMD.ExceptionAsFlowControl"})
     private void subscribeToTopicsWithRetry(Set<String> topics) {
