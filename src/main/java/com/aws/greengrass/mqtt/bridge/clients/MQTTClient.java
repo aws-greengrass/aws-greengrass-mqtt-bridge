@@ -11,6 +11,7 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
@@ -57,6 +58,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private Future<?> subscribeFuture;
     @Getter // for testing
     private volatile IMqttClient mqttClientInternal;
+    private final CrashableSupplier<IMqttClient, MqttException> clientFactory;
     @Getter(AccessLevel.PROTECTED)
     private Set<String> subscribedLocalMqttTopics = ConcurrentHashMap.newKeySet();
     private Set<String> toSubscribeLocalMqttTopics = new HashSet<>();
@@ -64,6 +66,10 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
+            if (mqttClientInternal == null) {
+                LOGGER.atDebug().log("Client not yet initialized, skipping reset");
+                return;
+            }
             LOGGER.atInfo().log("New CA certificate available, reconnecting client");
             reset();
         }
@@ -112,24 +118,25 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * @param clientId           client id
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
-     * @throws MessageClientException if unable to create client for the mqtt broker
      */
-    public MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
-                      ExecutorService executorService) throws MessageClientException {
-        this(brokerUri, clientId, mqttClientKeyStore, executorService, null);
-        try {
-            this.mqttClientInternal = new MqttClient(brokerUri.toString(), clientId, dataStore);
-        } catch (MqttException e) {
-            this.mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
-            throw new MQTTClientException("Unable to create an MQTT client", e);
-        }
+    public MQTTClient(@NonNull URI brokerUri,
+                      @NonNull String clientId,
+                      MQTTClientKeyStore mqttClientKeyStore,
+                      ExecutorService executorService) {
+        this.brokerUri = brokerUri;
+        this.clientId = clientId;
+        this.dataStore = new MemoryPersistence();
+        this.clientFactory = () -> new MqttClient(brokerUri.toString(), clientId, dataStore);
+        this.mqttClientKeyStore = mqttClientKeyStore;
+        this.mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
+        this.executorService = executorService;
     }
 
     protected MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
                          ExecutorService executorService, IMqttClient mqttClient) {
         this.brokerUri = brokerUri;
         this.clientId = clientId;
-        this.mqttClientInternal = mqttClient;
+        this.clientFactory = () -> mqttClient;
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
@@ -137,10 +144,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     void reset() {
-        if (mqttClientInternal == null) {
-            LOGGER.atDebug().log("Client not yet initialized, skipping reset");
-            return;
-        }
         if (mqttClientInternal.isConnected()) {
             try {
                 mqttClientInternal.disconnect();
@@ -156,7 +159,12 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * Start the {@link MQTTClient}.
      */
     @Override
-    public void start() {
+    public void start() throws MessageClientException {
+        try {
+            this.mqttClientInternal = clientFactory.apply();
+        } catch (MqttException e) {
+            throw new MessageClientException("Unable to create MQTTClient", e);
+        }
         mqttClientInternal.setCallback(mqttCallback);
         connectAndSubscribe();
     }
@@ -165,15 +173,17 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * Stop the {@link MQTTClient}.
      */
     @Override
+    @SuppressWarnings("PMD.CloseResource")
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
         cancelConnectTask();
 
+        IMqttClient client = mqttClientInternal;
         try {
-            if (mqttClientInternal.isConnected()) {
+            if (client != null && client.isConnected()) {
                 LOGGER.debug("Disconnecting MQTT client");
                 // 0ms quiescence time, just send the disconnect packet immediately
-                mqttClientInternal.disconnect(0);
+                client.disconnect(0);
                 LOGGER.debug("MQTT client disconnected");
             }
         } catch (MqttException e) {
@@ -187,6 +197,14 @@ public class MQTTClient implements MessageClient<MqttMessage> {
             dataStore.close();
         } catch (MqttPersistenceException e) {
             LOGGER.atDebug().setCause(e).log("Unable to close mqtt client datastore");
+        }
+
+        try {
+            if (client != null) {
+                client.close();
+            }
+        } catch (MqttException e) {
+            LOGGER.atWarn().setCause(e).log("Unable to close MQTT client");
         }
     }
 
