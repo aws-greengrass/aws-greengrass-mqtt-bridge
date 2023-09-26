@@ -167,8 +167,15 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
         removeMappingAndSubscriptions();
         try {
+            if (connectFuture != null) {
+                connectFuture.cancel(true);
+            }
+
             if (mqttClientInternal.isConnected()) {
-                mqttClientInternal.disconnect();
+                LOGGER.debug("Disconnecting MQTT client");
+                // 0ms quiescence time, just send the disconnect packet immediately
+                mqttClientInternal.disconnect(0);
+                LOGGER.debug("MQTT client disconnected");
             }
             dataStore.close();
         } catch (MqttException e) {
