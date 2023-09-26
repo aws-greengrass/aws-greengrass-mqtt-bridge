@@ -20,6 +20,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -59,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @BridgeIntegrationTest
 public class ConfigTest {
@@ -187,7 +189,7 @@ public class ConfigTest {
 
         Topics routeOptions =
                 testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(
-                        CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS)
+                                CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS)
                         .lookupTopics("toIotCore");
         Topic retainAsPublished = routeOptions.lookup("retainAsPublished");
         assertTrue((boolean) retainAsPublished.getOnce());
@@ -201,7 +203,7 @@ public class ConfigTest {
         });
 
         testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig().lookupTopics(CONFIGURATION_CONFIG_KEY,
-                BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).lookupTopics("toIotCore").lookup("retainAsPublished")
+                        BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).lookupTopics("toIotCore").lookup("retainAsPublished")
                 .withValue(false);
         testContext.getKernel().getContext().waitForPublishQueueToClear();
         retainAsPublished = routeOptions.lookup("retainAsPublished");
@@ -385,5 +387,40 @@ public class ConfigTest {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
 
         assertTrue(bridgeErrored.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @TestWithMqtt5Broker
+    @WithKernel("config.yaml")
+    void GIVEN_bridge_WHEN_mqtt_version_toggled_THEN_clients_switched(Broker broker, ExtensionContext context) throws Exception {
+        MQTTClient v3Client = testContext.getLocalV3Client();
+        assertTrue(v3Client.getMqttClientInternal().isConnected());
+
+        // switch mqtt version from mqtt3 to mqtt5
+        testContext.getKernel().locate(MQTTBridge.SERVICE_NAME)
+                .getConfig()
+                .lookupTopics(CONFIGURATION_CONFIG_KEY)
+                .lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION)
+                .withValue("mqtt5");
+
+        // wait for clients to switch
+        assertThat("mqtt5 client active", () -> {
+            try {
+                testContext.getLocalV5Client();
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }, eventuallyEval(is(true)));
+
+        assertFalse(v3Client.getMqttClientInternal().isConnected());
+        try {
+            v3Client.getMqttClientInternal().connect();
+            fail("v3 client expected to be closed");
+        } catch (MqttException e) {
+            assertEquals(MqttException.REASON_CODE_CLIENT_CLOSED, e.getReasonCode());
+        }
+
+        assertThat("mqtt5 client connected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(true)));
     }
 }

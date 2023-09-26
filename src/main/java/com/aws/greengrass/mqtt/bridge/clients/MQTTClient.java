@@ -144,14 +144,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     void reset() {
-        if (mqttClientInternal.isConnected()) {
-            try {
-                mqttClientInternal.disconnect();
-            } catch (MqttException e) {
-                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
-                return;
-            }
-        }
+        disconnect(30_000L); // paho default
         connectAndSubscribe();
     }
 
@@ -169,6 +162,32 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         connectAndSubscribe();
     }
 
+    private void disconnect() {
+        // 0ms quiescence time, just send the disconnect packet immediately
+        disconnect(0);
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    private void disconnect(long quiesceTimeout) {
+        IMqttClient client = mqttClientInternal;
+        if (client == null) {
+            return;
+        }
+        try {
+            LOGGER.debug("Disconnecting MQTT client");
+            client.disconnect(quiesceTimeout);
+        } catch (MqttException e) {
+            if (MqttException.REASON_CODE_CLIENT_ALREADY_DISCONNECTED != e.getReasonCode()
+                    && MqttException.REASON_CODE_CLIENT_CLOSED != e.getReasonCode()) {
+                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
+                return;
+            }
+        }
+        // no need to unsubscribe because we connect with cleanSession=true
+        subscribedLocalMqttTopics.clear();
+        LOGGER.debug("MQTT client disconnected");
+    }
+
     /**
      * Stop the {@link MQTTClient}.
      */
@@ -177,22 +196,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
         cancelConnectTask();
-
-        IMqttClient client = mqttClientInternal;
-        try {
-            if (client != null && client.isConnected()) {
-                LOGGER.debug("Disconnecting MQTT client");
-                // 0ms quiescence time, just send the disconnect packet immediately
-                client.disconnect(0);
-                LOGGER.debug("MQTT client disconnected");
-            }
-        } catch (MqttException e) {
-            LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
-        } finally {
-            // no need to unsubscribe because we connect with cleanSession=true
-            subscribedLocalMqttTopics.clear();
-        }
-
+        disconnect();
         try {
             dataStore.close();
         } catch (MqttPersistenceException e) {
@@ -200,6 +204,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         try {
+            IMqttClient client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
@@ -297,43 +302,46 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
     }
 
-    private synchronized void doConnect() throws MqttException, KeyStoreException {
-        if (!mqttClientInternal.isConnected()) {
-            mqttClientInternal.connect(getConnectionOptions());
-            LOGGER.atInfo()
-                    .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                    .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
-                    .log("Connected to broker");
-        }
-    }
-
     private void reconnectAndResubscribe() {
         int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
 
         while (!mqttClientInternal.isConnected() && !Thread.currentThread().isInterrupted()) {
+            Exception error;
             try {
                 // TODO: Clean up this loop
-                doConnect();
-            } catch (MqttException | KeyStoreException e) {
+                mqttClientInternal.connect(getConnectionOptions());
+                break;
+            } catch (MqttException e) {
                 if (Utils.getUltimateCause(e) instanceof InterruptedException) {
                     // paho doesn't reset the interrupt flag
                     LOGGER.atDebug().log("Interrupted during reconnect");
                     Thread.currentThread().interrupt();
                     return;
                 }
-
-                LOGGER.atDebug().setCause(e)
-                        .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
-                try {
-                    Thread.sleep(waitBeforeRetry * 1000);
-                } catch (InterruptedException er) {
-                    Thread.currentThread().interrupt();
-                    LOGGER.atDebug().log("Interrupted during reconnect");
+                if (MqttException.REASON_CODE_CLIENT_CLOSED == e.getReasonCode()) {
                     return;
                 }
-                waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
+                error = e;
+            } catch (KeyStoreException e) {
+                error = e;
             }
+
+            LOGGER.atDebug().setCause(error)
+                    .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
+            try {
+                Thread.sleep(waitBeforeRetry * 1000);
+            } catch (InterruptedException er) {
+                Thread.currentThread().interrupt();
+                LOGGER.atDebug().log("Interrupted during reconnect");
+                return;
+            }
+            waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
         }
+
+        LOGGER.atInfo()
+                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .log("Connected to broker");
 
         resubscribe();
     }
