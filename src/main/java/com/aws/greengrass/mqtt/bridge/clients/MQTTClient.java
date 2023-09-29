@@ -146,8 +146,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     void reset() {
-        disconnect(30_000L); // paho default
-        connectAndSubscribeAsync();
+        disconnectAndSubscribeAsync();
     }
 
     /**
@@ -282,6 +281,22 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         return connOpts;
+    }
+
+    private void disconnectAndSubscribeAsync() {
+        LOGGER.atInfo()
+                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .log("Disconnecting and re-connecting to broker");
+        // client connected without session, need to resubscribe to all topics after connect
+        subscribedLocalMqttTopics.clear();
+        synchronized (connectTaskLock) {
+            cancelConnectTask();
+            connectFuture = executorService.submit(() -> {
+                disconnect(30_000L); // paho default
+                reconnectAndResubscribe();
+            });
+        }
     }
 
     private void connectAndSubscribeAsync() {
