@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests;
 
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
@@ -38,12 +37,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -61,8 +58,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class ConfigTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
     private static final long RECEIVE_PUBLISH_SECONDS = 2L;
-    private static final Supplier<UpdateBehaviorTree> MERGE_UPDATE_BEHAVIOR =
-            () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     BridgeIntegrationTestContext testContext;
 
@@ -178,50 +173,6 @@ public class ConfigTest {
                         .build());
         assertThrows(TimeoutException.class,
                 () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
-    }
-
-    @BridgeIntegrationTest(
-            withConfig = "config.yaml",
-            withBrokers = Broker.MQTT3)
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, InterruptedException.class);
-
-        Semaphore bridgeRestarted = new Semaphore(1);
-        bridgeRestarted.acquire();
-
-        testContext.getKernel().getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
-                bridgeRestarted.release();
-            }
-        });
-
-        Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(CONFIGURATION_CONFIG_KEY);
-
-        int numRestarts = 5;
-        for (int i = 0; i < numRestarts; i++) {
-            // change the configuration and wait for bridge to restart
-            config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, String.format("clientId%d", i)), MERGE_UPDATE_BEHAVIOR.get());
-            assertTrue(bridgeRestarted.tryAcquire(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        }
-    }
-
-    @BridgeIntegrationTest(
-            withConfig = "config.yaml",
-            withBrokers = Broker.MQTT3)
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_clientId_config_changes_THEN_bridge_reinstalls() throws Exception {
-        CountDownLatch bridgeRestarted = new CountDownLatch(1);
-        testContext.getKernel().getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
-                bridgeRestarted.countDown();
-            }
-        });
-
-        Topics config = testContext.getKernel().locate(MQTTBridge.SERVICE_NAME).getConfig()
-                .lookupTopics(CONFIGURATION_CONFIG_KEY);
-        config.updateFromMap(Utils.immutableMap(BridgeConfig.KEY_CLIENT_ID, "new_client_id"), MERGE_UPDATE_BEHAVIOR.get());
-
-        assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @BridgeIntegrationTest(

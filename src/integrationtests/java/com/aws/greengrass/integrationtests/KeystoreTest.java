@@ -9,13 +9,9 @@ import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateHelper;
 import com.aws.greengrass.clientdevices.auth.certificate.CertificateStore;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
-import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
-import com.aws.greengrass.lifecyclemanager.GreengrassService;
-import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
@@ -41,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -154,22 +149,8 @@ public class KeystoreTest {
         ignoreExceptionOfType(context, IllegalArgumentException.class);
         ignoreExceptionOfType(context, NullPointerException.class);
 
-        // break bridge
-        CountDownLatch bridgeIsBroken = new CountDownLatch(1);
-        GlobalStateChangeListener listener = (GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && service.getState().equals(State.BROKEN)) {
-                bridgeIsBroken.countDown();
-            }
-        };
-        Topic brokerUriTopic = testContext.getKernel().getConfig().lookup(
-                SERVICES_NAMESPACE_TOPIC,
-                MQTTBridge.SERVICE_NAME,
-                CONFIGURATION_CONFIG_KEY,
-                BridgeConfig.KEY_BROKER_URI
-        );
-        brokerUriTopic.withValue("garbage");
-        testContext.getKernel().getContext().addGlobalStateChangeListener(listener);
-        assertTrue(bridgeIsBroken.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        // shutdown the bridge
+        testContext.getFromContext(MQTTBridge.class).shutdown();
 
         CountDownLatch keyStoreUpdated = new CountDownLatch(1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
@@ -191,8 +172,8 @@ public class KeystoreTest {
                                 Date.from(Instant.now().plusSeconds(100)),
                                 "CA"))));
 
-        // shouldn't update
-        assertFalse(keyStoreUpdated.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        testContext.getKernel().getContext().waitForPublishQueueToClear();
+        assertFalse(keyStoreUpdated.await(5L, TimeUnit.SECONDS));
     }
 
     private CompletableFuture<Void> asyncAssertNumConnects(Integer numConnects) throws InterruptedException {

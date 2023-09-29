@@ -27,6 +27,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
 
     MqttCallback mqttCallback;
     String clientId;
+    String serverURI;
 
     @Getter
     List<String> subscriptionTopics; // TODO: Support QoS
@@ -38,6 +39,8 @@ public class FakePahoMqtt3Client implements IMqttClient {
     MqttConnectOptions connectOptions;
     @Getter
     int connectCount = 0;
+    @Getter
+    int disconnectCount = 0;
     final Object connectMonitor;
     boolean isConnected;
 
@@ -53,8 +56,9 @@ public class FakePahoMqtt3Client implements IMqttClient {
         }
     }
 
-    FakePahoMqtt3Client(String clientId) {
+    FakePahoMqtt3Client(String clientId, String serverURI) {
         this.clientId = clientId;
+        this.serverURI = serverURI;
         this.subscriptionTopics = new ArrayList<>();
         this.publishedMessages = new ArrayList<>();
         this.connectMonitor = new Object();
@@ -105,7 +109,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void connect() throws MqttSecurityException, MqttException {
+    public void connect() {
         isConnected = true;
         connectCount++;
         synchronized (connectMonitor) {
@@ -114,7 +118,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void connect(MqttConnectOptions mqttConnectOptions) throws MqttSecurityException, MqttException {
+    public void connect(MqttConnectOptions mqttConnectOptions) {
         this.connectOptions = mqttConnectOptions;
         connect();
     }
@@ -127,6 +131,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
 
     @Override
     public void disconnect() throws MqttException {
+        disconnectCount++;
         isConnected = false;
         // Reset subscriptions
         subscriptionTopics.clear();
@@ -153,7 +158,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void subscribe(String topicFilter) throws MqttException, MqttSecurityException {
+    public void subscribe(String topicFilter) throws MqttException {
         subscribe(topicFilter, 1);
     }
 
@@ -165,14 +170,14 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void subscribe(String topicFilter, int qos) throws MqttException {
+    public void subscribe(String topicFilter, int qos) {
         if (!subscriptionTopics.contains(topicFilter)) {
             subscriptionTopics.add(topicFilter);
         }
     }
 
     @Override
-    public void subscribe(String[] topicFilters, int[] qos) throws MqttException {
+    public void subscribe(String[] topicFilters, int[] qos) {
         if (topicFilters.length != qos.length) {
             throw new IllegalArgumentException("Topic filter and qos array lengths must match");
         }
@@ -182,77 +187,72 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void subscribe(String topicFilter, IMqttMessageListener iMqttMessageListener)
-            throws MqttException, MqttSecurityException {
+    public void subscribe(String topicFilter, IMqttMessageListener iMqttMessageListener) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public void subscribe(String[] topicFilters, IMqttMessageListener[] iMqttMessageListeners) throws MqttException {
+    public void subscribe(String[] topicFilters, IMqttMessageListener[] iMqttMessageListeners) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public void subscribe(String topicFilter, int qos, IMqttMessageListener iMqttMessageListener) throws MqttException {
+    public void subscribe(String topicFilter, int qos, IMqttMessageListener iMqttMessageListener) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public void subscribe(String[] topicFilters, int[] qos, IMqttMessageListener[] iMqttMessageListeners)
-            throws MqttException {
+    public void subscribe(String[] topicFilters, int[] qos, IMqttMessageListener[] iMqttMessageListeners) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String topicFilter) throws MqttException {
+    public IMqttToken subscribeWithResponse(String topicFilter) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String topicFilter, IMqttMessageListener iMqttMessageListener) throws MqttException {
+    public IMqttToken subscribeWithResponse(String topicFilter, IMqttMessageListener iMqttMessageListener) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String topicFilter, int qos) throws MqttException {
+    public IMqttToken subscribeWithResponse(String topicFilter, int qos) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String topicFilter, int qos, IMqttMessageListener iMqttMessageListener)
-            throws MqttException {
+    public IMqttToken subscribeWithResponse(String topicFilter, int qos, IMqttMessageListener iMqttMessageListener) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String[] topicFilters) throws MqttException {
+    public IMqttToken subscribeWithResponse(String[] topicFilters) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String[] topicFilters, IMqttMessageListener[] iMqttMessageListeners)
-            throws MqttException {
+    public IMqttToken subscribeWithResponse(String[] topicFilters, IMqttMessageListener[] iMqttMessageListeners) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String[] topicFilters, int[] qos) throws MqttException {
+    public IMqttToken subscribeWithResponse(String[] topicFilters, int[] qos) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public IMqttToken subscribeWithResponse(String[] topicFilters, int[] qos, IMqttMessageListener[] iMqttMessageListeners)
-            throws MqttException {
+    public IMqttToken subscribeWithResponse(String[] topicFilters, int[] qos, IMqttMessageListener[] iMqttMessageListeners) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
     @Override
-    public void unsubscribe(String topicFilter) throws MqttException {
+    public void unsubscribe(String topicFilter) {
         subscriptionTopics.remove(topicFilter);
     }
 
     @Override
-    public void unsubscribe(String[] topicFilters) throws MqttException {
+    public void unsubscribe(String[] topicFilters) {
         for (String topicFilter : topicFilters) {
             unsubscribe(topicFilter);
         }
@@ -265,7 +265,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void publish(String topic, MqttMessage mqttMessage) throws MqttException, MqttPersistenceException {
+    public void publish(String topic, MqttMessage mqttMessage) throws MqttException {
         publishedMessages.add(new TopicMessagePair(topic, mqttMessage));
     }
 
@@ -291,7 +291,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
 
     @Override
     public String getServerURI() {
-        throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
+        return serverURI;
     }
 
     @Override
@@ -311,7 +311,7 @@ public class FakePahoMqtt3Client implements IMqttClient {
     }
 
     @Override
-    public void messageArrivedComplete(int messageId, int qos) throws MqttException {
+    public void messageArrivedComplete(int messageId, int qos) {
         throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
     }
 
