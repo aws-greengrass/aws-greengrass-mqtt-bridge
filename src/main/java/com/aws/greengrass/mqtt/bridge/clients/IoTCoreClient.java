@@ -7,6 +7,7 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
@@ -259,5 +260,10 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     @Override
     public com.aws.greengrass.mqtt.bridge.model.MqttMessage convertMessage(Message message) {
         return (com.aws.greengrass.mqtt.bridge.model.MqttMessage) message.toMqtt();
+    }
+
+    @Override
+    public TopicMapping.TopicType getType() {
+        return TopicMapping.TopicType.IotCore;
     }
 }

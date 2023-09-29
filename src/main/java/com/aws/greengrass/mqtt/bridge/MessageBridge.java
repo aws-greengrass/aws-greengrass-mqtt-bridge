@@ -9,6 +9,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClients;
+import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -24,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
@@ -41,7 +44,8 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
-    private final Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
+    private final BridgeConfigReference bridgeConfig;
+    private final MessageClients messageClients;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
     private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
             = new ConcurrentHashMap<>();
@@ -52,17 +56,35 @@ public class MessageBridge {
     private Map<TopicMapping.TopicType, Map<String, List<TopicMapping.MappingEntry>>>
             perClientSourceDestinationMap = new HashMap<>();
 
+    private Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
+
     /**
      * Ctr for Message Bridge.
      *
      * @param topicMapping              topics mapping
-     * @param localMqttOptionsByTopic   mqtt5 route options
+     * @param bridgeConfig              bridge config
+     * @param messageClients            message clients
      */
-    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic) {
+    @Inject
+    public MessageBridge(TopicMapping topicMapping,
+                         BridgeConfigReference bridgeConfig,
+                         MessageClients messageClients) {
         this.topicMapping = topicMapping;
-        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.localMqttOptionsByTopic = localMqttOptionsByTopic;
+        this.bridgeConfig = bridgeConfig;
+        this.messageClients = messageClients;
+    }
 
+    /**
+     * Initialize the message bridge.
+     *
+     * @throws MessageClientException if unable to get message clients
+     */
+    public void initialize() throws MessageClientException {
+        // TODO replace messageClientMap entirely with messageClients
+        messageClients.getMessageClients().forEach(client -> messageClientMap.put(client.getType(), client));
+        this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
+        this.localMqttOptionsByTopic = bridgeConfig.get()
+                .getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt);
         processMappingAndSubscribe();
     }
 

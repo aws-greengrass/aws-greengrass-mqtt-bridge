@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqtt.bridge;
 
-import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -17,27 +16,20 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
-import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
-import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
-import com.aws.greengrass.mqtt.bridge.clients.PubSubClient;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClients;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.InvalidConfigurationException;
-import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
-import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.BatchedSubscriber;
 import lombok.Getter;
-import lombok.Setter;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
@@ -49,17 +41,12 @@ public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
     private final TopicMapping topicMapping;
-    @Setter // for tests
-    private MessageBridge messageBridge;
+    private final MessageBridge messageBridge;
     private final Kernel kernel;
     private final MQTTClientKeyStore mqttClientKeyStore;
-    private final LocalMqttClientFactory localMqttClientFactory;
     private final ConfigurationChangeHandler configurationChangeHandler;
     private final CertificateAuthorityChangeHandler certificateAuthorityChangeHandler;
-    @Getter // for tests
-    private MessageClient<MqttMessage> localMqttClient;
-    private final PubSubClient pubSubClient;
-    private final IoTCoreClient ioTCoreClient;
+    private final MessageClients messageClients;
     @Getter // for tests
     private final BridgeConfigReference bridgeConfig;
 
@@ -69,40 +56,26 @@ public class MQTTBridge extends PluginService {
      *
      * @param topics                 topics passed by the Nucleus
      * @param topicMapping           mapping of mqtt topics to iotCore/pubsub topics
-     * @param pubSubIPCAgent         IPC agent for pubsub
-     * @param iotMqttClient          mqtt client for iot core
+     * @param messageBridge          message bridge
      * @param kernel                 Greengrass kernel
      * @param mqttClientKeyStore     KeyStore for MQTT Client
-     * @param localMqttClientFactory local mqtt client factory
-     * @param executorService        Executor service
+     * @param messageClients         message clients
      * @param bridgeConfig           reference to bridge config
      */
     @Inject
-    public MQTTBridge(Topics topics, TopicMapping topicMapping, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                      MqttClient iotMqttClient, Kernel kernel, MQTTClientKeyStore mqttClientKeyStore,
-                      LocalMqttClientFactory localMqttClientFactory,
-                      ExecutorService executorService,
+    public MQTTBridge(Topics topics,
+                      TopicMapping topicMapping,
+                      MessageBridge messageBridge,
+                      Kernel kernel,
+                      MQTTClientKeyStore mqttClientKeyStore,
+                      MessageClients messageClients,
                       BridgeConfigReference bridgeConfig) {
-        this(topics, topicMapping, new MessageBridge(topicMapping, Collections.emptyMap()), pubSubIPCAgent,
-                iotMqttClient, kernel, mqttClientKeyStore, localMqttClientFactory, executorService, bridgeConfig);
-    }
-
-    // for testing
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    protected MQTTBridge(Topics topics, TopicMapping topicMapping, MessageBridge messageBridge,
-                         PubSubIPCEventStreamAgent pubSubIPCAgent, MqttClient iotMqttClient, Kernel kernel,
-                         MQTTClientKeyStore mqttClientKeyStore,
-                         LocalMqttClientFactory localMqttClientFactory,
-                         ExecutorService executorService,
-                         BridgeConfigReference bridgeConfig) {
         super(topics);
         this.topicMapping = topicMapping;
         this.kernel = kernel;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
-        this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
-        this.localMqttClientFactory = localMqttClientFactory;
+        this.messageClients = messageClients;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
         this.bridgeConfig = bridgeConfig;
@@ -118,8 +91,11 @@ public class MQTTBridge extends PluginService {
     @Override
     public void install() {
         configurationChangeHandler.listen();
-        messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
-                TopicMapping.TopicType.LocalMqtt));
+        try {
+            messageBridge.initialize();
+        } catch (MessageClientException e) {
+            serviceErrored(e);
+        }
     }
 
     @Override
@@ -132,21 +108,10 @@ public class MQTTBridge extends PluginService {
         }
 
         certificateAuthorityChangeHandler.start();
-
         try {
-            localMqttClient = localMqttClientFactory.createLocalMqttClient();
-            localMqttClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.LocalMqtt, localMqttClient);
-
-            pubSubClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.Pubsub, pubSubClient);
-
-            ioTCoreClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.IotCore, ioTCoreClient);
-
+            for (MessageClient<?> client : messageClients) {
+                client.start();
+            }
             reportState(State.RUNNING);
         } catch (MessageClientException e) {
             serviceErrored(e);
@@ -157,21 +122,7 @@ public class MQTTBridge extends PluginService {
     public void shutdown() {
         certificateAuthorityChangeHandler.stop();
         mqttClientKeyStore.shutdown();
-
-        messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
-        if (localMqttClient != null) {
-            localMqttClient.stop();
-        }
-
-        messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
-        if (pubSubClient != null) {
-            pubSubClient.stop();
-        }
-
-        messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
-        if (ioTCoreClient != null) {
-            ioTCoreClient.stop();
-        }
+        messageClients.forEach(MessageClient::stop);
     }
 
     public class CertificateAuthorityChangeHandler {

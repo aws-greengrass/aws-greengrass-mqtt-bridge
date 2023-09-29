@@ -7,14 +7,16 @@ package com.aws.greengrass.integrationtests.extensions;
 
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
-import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
 import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
+import com.aws.greengrass.mqtt.bridge.clients.MessageClients;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
-import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.Message;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -46,7 +48,7 @@ public class BridgeIntegrationTestContext {
     }
 
     public MQTTClient getLocalV3Client() {
-        MessageClient<MqttMessage> client = getFromContext(MQTTBridge.class).getLocalMqttClient();
+        MessageClient<?> client = getLocalClient();
         if (!(client instanceof MQTTClient)) {
             throw new RuntimeException("Excepted " + MQTTClient.class.getSimpleName()
                     + " but got " + client.getClass().getSimpleName());
@@ -55,12 +57,24 @@ public class BridgeIntegrationTestContext {
     }
 
     public LocalMqtt5Client getLocalV5Client() {
-        MessageClient<MqttMessage> client = getFromContext(MQTTBridge.class).getLocalMqttClient();
+        MessageClient<?> client = getLocalClient();
         if (!(client instanceof LocalMqtt5Client)) {
             throw new RuntimeException("Excepted " + MQTTClient.class.getSimpleName()
                     + " but got " + client.getClass().getSimpleName());
         }
         return (LocalMqtt5Client) client;
+    }
+
+    private MessageClient<? extends Message> getLocalClient() {
+        try {
+            return getFromContext(MessageClients.class).getMessageClients().stream()
+                    .filter(c -> c.getType().equals(TopicMapping.TopicType.LocalMqtt))
+                    .findFirst()
+                    .get();
+        } catch (MessageClientException e) {
+            fail(e);
+            return null;
+        }
     }
 
     public BridgeConfig getConfig() {

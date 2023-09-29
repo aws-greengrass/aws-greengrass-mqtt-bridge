@@ -16,7 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 
-public class LocalMqttClientFactory {
+public class LocalMqttClientFactory implements MessageClientFactory<MqttMessage> {
 
     private final BridgeConfigReference config;
     private final MQTTClientKeyStore mqttClientKeyStore;
@@ -48,6 +48,7 @@ public class LocalMqttClientFactory {
      * @return local mqtt client
      * @throws MessageClientException if unable to create client
      */
+    @Override
     public MessageClient<MqttMessage> createLocalMqttClient() throws MessageClientException {
         BridgeConfig config = this.config.get();
         if (config == null) {

@@ -4,6 +4,7 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
@@ -763,5 +764,10 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     @Override
     public MqttMessage convertMessage(Message message) {
         return (MqttMessage) message.toMqtt();
+    }
+
+    @Override
+    public TopicMapping.TopicType getType() {
+        return TopicMapping.TopicType.LocalMqtt;
     }
 }
