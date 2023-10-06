@@ -16,6 +16,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
@@ -32,8 +35,10 @@ import software.amazon.awssdk.crt.mqtt5.packets.PublishPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,15 +50,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -84,7 +93,7 @@ class LocalMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_client_WHEN_client_fails_to_start_during_resetTHEN_retry(ExtensionContext context) {
+    void GIVEN_client_WHEN_client_fails_to_start_during_reset_THEN_retry(ExtensionContext context) {
         ignoreExceptionOfType(context, MessageClientException.class);
         ignoreExceptionOfType(context, CrtRuntimeException.class);
         mockMqtt5Client.failToStart(2);
@@ -491,7 +500,62 @@ class LocalMqtt5ClientTest {
         assertThat("subscribed topics mock client", this::getMockSubscriptions, eventuallyEval(is(topics)));
         assertThat("subscribed topics local client", client::getSubscribedLocalMqttTopics, eventuallyEval(is(topics)));
     }
-    
+
+    @ParameterizedTest
+    @MethodSource("configChanges")
+    void GIVEN_client_WHEN_config_changes_THEN_client_is_reset(Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> changeConfig, boolean resetExpected) throws InterruptedException {
+        client.applyConfig(changeConfig.apply(client.getConfig()));
+        if (resetExpected) {
+            assertThat("client resets", () -> mockMqtt5Client.getNumDisconnects().get(), eventuallyEval(is(1)));
+        } else {
+            assertNull(client.getResetTask()); // implementation detail, but otherwise we'd need to do a wait
+        }
+    }
+
+    @Test
+    void GIVEN_client_WHEN_config_does_not_change_THEN_client_is_not_reset() {
+        client.applyConfig(client.getConfig());
+        assertNull(client.getResetTask()); // implementation detail, but otherwise we'd need to do a wait
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> configChanges() {
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> brokerUriChanges = config -> {
+            try {
+                return config.toBuilder().brokerUri(new URI("tcp://0.0.0.0:1883")).build();
+            } catch (URISyntaxException e) {
+                fail(e);
+                return null;
+            }
+        };
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> optionsByTopicChanges = config -> config.toBuilder().optionsByTopic(ImmutableMap.of("test", Mqtt5RouteOptions.builder().build())).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> clientIdChanges = config -> config.toBuilder().clientId("newClientId").build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> sessionExpiryInterval = config -> config.toBuilder().sessionExpiryInterval(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> maximumPacketSize = config -> config.toBuilder().maximumPacketSize(1234L).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> receiveMaximum = config -> config.toBuilder().receiveMaximum(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> ackTimeoutSeconds = config -> config.toBuilder().ackTimeoutSeconds(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> connAckTimeoutMs = config -> config.toBuilder().connAckTimeoutMs(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> pingTimeoutMs = config -> config.toBuilder().pingTimeoutMs(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> keepAliveTimeoutSeconds = config -> config.toBuilder().keepAliveTimeoutSeconds(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> maxReconnectDelayMs = config -> config.toBuilder().maxReconnectDelayMs(1234).build();
+        Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> minReconnectDelayMs = config -> config.toBuilder().minReconnectDelayMs(1234).build();
+
+        return Stream.of(
+                Arguments.of(brokerUriChanges, true),
+                Arguments.of(optionsByTopicChanges, false),
+                Arguments.of(clientIdChanges, true),
+                Arguments.of(sessionExpiryInterval, true),
+                Arguments.of(maximumPacketSize, true),
+                Arguments.of(receiveMaximum, true),
+                Arguments.of(ackTimeoutSeconds, true),
+                Arguments.of(connAckTimeoutMs, true),
+                Arguments.of(pingTimeoutMs, true),
+                Arguments.of(keepAliveTimeoutSeconds, true),
+                Arguments.of(maxReconnectDelayMs, true),
+                Arguments.of(minReconnectDelayMs, true)
+        );
+    }
+
     private Set<String> getMockSubscriptions() {
         return mockMqtt5Client.getSubscriptions().stream()
                 .map(SubscribePacket::getSubscriptions)

@@ -47,6 +47,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStoreException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -293,15 +294,9 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                         scheme,
                         context.getBrokerHost(),
                         "ssl".equalsIgnoreCase(scheme) ? context.getBrokerSSLPort() : context.getBrokerTCPPort()));
-
-        // wait for bridge to restart
-        CountDownLatch bridgeRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
-            if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.RUNNING)) {
-                bridgeRunning.countDown();
-            }
-        });
-        assertTrue(bridgeRunning.await(30L, TimeUnit.SECONDS));
+        // v5 client resets by itself, give time for disconnect to happen
+        // TODO find a more reliable way
+        Thread.sleep(Duration.ofSeconds(5).toMillis());
     }
 
     @SuppressWarnings("PMD.TooFewBranchesForASwitchStatement")

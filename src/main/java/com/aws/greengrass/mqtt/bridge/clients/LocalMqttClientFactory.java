@@ -7,7 +7,6 @@ package com.aws.greengrass.mqtt.bridge.clients;
 
 
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
-import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
@@ -56,28 +55,19 @@ public class LocalMqttClientFactory {
         switch (config.getMqttVersion()) {
             case MQTT5:
                 return new LocalMqtt5Client(
-                        LocalMqtt5Client.Config.builder()
-                                .brokerUri(config.getBrokerUri())
-                                .clientId(config.getClientId())
-                                .sessionExpiryInterval(config.getSessionExpiryInterval())
-                                .maximumPacketSize(config.getMaximumPacketSize())
-                                .receiveMaximum(config.getReceiveMaximum())
-                                .ackTimeoutSeconds(config.getAckTimeoutSeconds())
-                                .connAckTimeoutMs(config.getConnAckTimeoutMs())
-                                .pingTimeoutMs(config.getPingTimeoutMs())
-                                .keepAliveTimeoutSeconds(config.getKeepAliveTimeoutSeconds())
-                                .maxReconnectDelayMs(config.getMaxReconnectDelayMs())
-                                .minReconnectDelayMs(config.getMinReconnectDelayMs())
-                                .optionsByTopic(config.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt))
-                                .build(),
+                        LocalMqtt5Client.Config.fromBridgeConfig(config),
                         mqttClientKeyStore,
                         executorService,
                         ses
                 );
             case MQTT3: // fall-through
             default:
-                return new MQTTClient(config.getBrokerUri(), config.getClientId(),
-                        mqttClientKeyStore, executorService);
+                return new MQTTClient(
+                        config.getBrokerUri(),
+                        config.getClientId(),
+                        mqttClientKeyStore,
+                        executorService
+                );
         }
     }
 }

@@ -4,6 +4,7 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
+import com.aws.greengrass.mqtt.bridge.TopicMapping;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -140,6 +142,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     private static final Duration MAX_RESET_DELAY = Duration.ofMinutes(5);
     private final Object resetLock = new Object();
     private Duration resetDelay = DEFAULT_RESET_DELAY;
+    @Getter // for testing
     private Future<?> resetTask;
 
     /**
@@ -274,7 +277,7 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
     };
 
     @Data
-    @Builder
+    @Builder(toBuilder = true)
     public static class Config {
         URI brokerUri;
         Map<String, Mqtt5RouteOptions> optionsByTopic;
@@ -288,10 +291,65 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         long keepAliveTimeoutSeconds;
         long maxReconnectDelayMs;
         long minReconnectDelayMs;
+
+        /**
+         * Map from bridge configuration to client configuration.
+         *
+         * @param bridgeConfig component configuration
+         * @return client configuration
+         */
+        public static Config fromBridgeConfig(BridgeConfig bridgeConfig) {
+            return Config.builder()
+                    .brokerUri(bridgeConfig.getBrokerUri())
+                    .optionsByTopic(bridgeConfig.getMqtt5RouteOptionsForSource(TopicMapping.TopicType.LocalMqtt))
+                    .clientId(bridgeConfig.getClientId())
+                    .sessionExpiryInterval(bridgeConfig.getSessionExpiryInterval())
+                    .maximumPacketSize(bridgeConfig.getMaximumPacketSize())
+                    .receiveMaximum(bridgeConfig.getReceiveMaximum())
+                    .ackTimeoutSeconds(bridgeConfig.getAckTimeoutSeconds())
+                    .connAckTimeoutMs(bridgeConfig.getConnAckTimeoutMs())
+                    .pingTimeoutMs(bridgeConfig.getPingTimeoutMs())
+                    .keepAliveTimeoutSeconds(bridgeConfig.getKeepAliveTimeoutSeconds())
+                    .maxReconnectDelayMs(bridgeConfig.getMaxReconnectDelayMs())
+                    .minReconnectDelayMs(bridgeConfig.getMinReconnectDelayMs())
+                    .build();
+        }
+
+        /**
+         * Determine if {@link LocalMqtt5Client} needs a restart, based on configuration changes.
+         *
+         * @param prevConfig previous config
+         * @param newConfig  new config
+         * @return true if the client needs a restart to apply config changes
+         */
+        public static boolean resetRequired(Config prevConfig, Config newConfig) {
+            // not equals, excluding optionsByTopic
+            return prevConfig.getSessionExpiryInterval() != newConfig.getSessionExpiryInterval()
+                    || prevConfig.getReceiveMaximum() != newConfig.getReceiveMaximum()
+                    || prevConfig.getAckTimeoutSeconds() != newConfig.getAckTimeoutSeconds()
+                    || prevConfig.getConnAckTimeoutMs() != newConfig.getConnAckTimeoutMs()
+                    || prevConfig.getPingTimeoutMs() != newConfig.getPingTimeoutMs()
+                    || prevConfig.getKeepAliveTimeoutSeconds() != newConfig.getKeepAliveTimeoutSeconds()
+                    || prevConfig.getMaxReconnectDelayMs() != newConfig.getMaxReconnectDelayMs()
+                    || prevConfig.getMinReconnectDelayMs() != newConfig.getMinReconnectDelayMs()
+                    || !Objects.equals(prevConfig.getBrokerUri(), newConfig.getBrokerUri())
+                    || !Objects.equals(prevConfig.getClientId(), newConfig.getClientId())
+                    || !Objects.equals(prevConfig.getMaximumPacketSize(), newConfig.getMaximumPacketSize());
+        }
     }
 
-    void setConfig(@NonNull Config config) {
+    /**
+     * Apply new configuration to this client. Depending on what configurations changed, a
+     * {@link LocalMqtt5Client#reset()} may occur to apply them.
+     *
+     * @param config new configuration
+     */
+    public void applyConfig(@NonNull Config config) {
+        Config previousConfig = this.config;
         this.config = config;
+        if (Config.resetRequired(previousConfig, config)) {
+            scheduleResetTask();
+        }
     }
 
     /**
@@ -303,11 +361,11 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * @param ses                     scheduled executor service
      * @throws MessageClientException if unable to create client for the mqtt broker
      */
-    public LocalMqtt5Client(Config config,
+    public LocalMqtt5Client(@NonNull Config config,
                             MQTTClientKeyStore mqttClientKeyStore,
                             ExecutorService executorService,
                             ScheduledExecutorService ses) throws MessageClientException {
-        setConfig(config);
+        this.config = config;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         this.ses = ses;
@@ -315,13 +373,13 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
         this.client = clientSupplier.apply();
     }
 
-    LocalMqtt5Client(Config config,
+    LocalMqtt5Client(@NonNull Config config,
                      MQTTClientKeyStore mqttClientKeyStore,
                      ExecutorService executorService,
                      ScheduledExecutorService ses,
                      Mqtt5Client client)
             throws MessageClientException {
-        setConfig(config);
+        this.config = config;
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.executorService = executorService;
         this.ses = ses;
