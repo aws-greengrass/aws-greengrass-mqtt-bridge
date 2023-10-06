@@ -42,9 +42,23 @@ import javax.net.ssl.SSLSocketFactory;
 public class MQTTClient implements MessageClient<MqttMessage> {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
 
+    private static final RetryUtils.RetryConfig RETRY_CONFIG_MQTT_EXCEPTION =
+            RetryUtils.RetryConfig.builder()
+                    .initialRetryInterval(Duration.ofSeconds(1L))
+                    .maxRetryInterval(Duration.ofSeconds(120L))
+                    .maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Collections.singletonList(MqttException.class))
+                    .build();
+    private static final RetryUtils.RetryConfig RETRY_CONFIG_CONNECT =
+            RetryUtils.RetryConfig.builder()
+                    .initialRetryInterval(Duration.ofSeconds(1L))
+                    .maxRetryInterval(Duration.ofSeconds(120L))
+                    .maxAttempt(Integer.MAX_VALUE)
+                    // always attempt to retry
+                    .retryableExceptions(Collections.singletonList(Exception.class))
+                    .build();
+
     public static final String TOPIC = "topic";
-    private static final int MIN_WAIT_RETRY_IN_SECONDS = 1;
-    private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     @Getter // for testing
     @Setter
@@ -84,11 +98,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     };
 
     private final MQTTClientKeyStore mqttClientKeyStore;
-
-    private final RetryUtils.RetryConfig mqttExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1L))
-                    .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Collections.singletonList(MqttException.class)).build();
 
     private final MqttCallback mqttCallback = new MqttCallback() {
         @Override
@@ -271,6 +280,70 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
     }
 
+    private void connectAndSubscribeAsync() {
+        LOGGER.atInfo()
+                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .log("Connecting to broker");
+        // client connected without session, need to resubscribe to all topics after connect
+        subscribedLocalMqttTopics.clear();
+        synchronized (connectTaskLock) {
+            cancelConnectTask();
+            connectFuture = executorService.submit(this::connectAndSubscribe);
+        }
+    }
+
+    private void cancelConnectTask() {
+        synchronized (connectTaskLock) {
+            if (connectFuture != null) {
+                connectFuture.cancel(true);
+            }
+        }
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void connectAndSubscribe() {
+        try {
+            if (!RetryUtils.runWithRetry(RETRY_CONFIG_CONNECT, this::connect, "mqtt-client-connect", LOGGER)) {
+                return;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        } catch (Exception e) {
+            // will never happen
+            return;
+        }
+
+        LOGGER.atInfo()
+                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
+                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .log("Connected to broker");
+
+        updateSubscriptionsAsync();
+    }
+
+    private boolean connect() throws KeyStoreException, MqttException {
+        try {
+            mqttClientInternal.connect(getConnectionOptions());
+            return true;
+        } catch (MqttException e) {
+            if (Utils.getUltimateCause(e) instanceof InterruptedException) {
+                // paho doesn't reset the interrupt flag
+                LOGGER.atDebug().log("Interrupted during reconnect");
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            if (MqttException.REASON_CODE_CLIENT_CLOSED == e.getReasonCode()) {
+                return false;
+            }
+            if (MqttException.REASON_CODE_CLIENT_CONNECTED == e.getReasonCode()) {
+                return true;
+            }
+            throw e;
+        }
+    }
+
     private MqttConnectOptions getConnectionOptions() throws KeyStoreException {
         MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(true);
@@ -284,89 +357,22 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         return connOpts;
     }
 
-    private void connectAndSubscribeAsync() {
-        LOGGER.atInfo()
-                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
-                .log("Connecting to broker");
-        // client connected without session, need to resubscribe to all topics after connect
-        subscribedLocalMqttTopics.clear();
-        synchronized (connectTaskLock) {
-            cancelConnectTask();
-            connectFuture = executorService.submit(this::reconnectAndResubscribe);
-        }
-    }
-
-    private void cancelConnectTask() {
-        synchronized (connectTaskLock) {
-            if (connectFuture != null) {
-                connectFuture.cancel(true);
-            }
-        }
-    }
-
-    private void reconnectAndResubscribe() {
-        int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
-
-        while (!mqttClientInternal.isConnected() && !Thread.currentThread().isInterrupted()) {
-            Exception error;
-            try {
-                // TODO: Clean up this loop
-                mqttClientInternal.connect(getConnectionOptions());
-                break;
-            } catch (MqttException e) {
-                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
-                    // paho doesn't reset the interrupt flag
-                    LOGGER.atDebug().log("Interrupted during reconnect");
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                if (MqttException.REASON_CODE_CLIENT_CLOSED == e.getReasonCode()) {
-                    return;
-                }
-                error = e;
-            } catch (KeyStoreException e) {
-                error = e;
-            }
-
-            LOGGER.atDebug().setCause(error)
-                    .log("Unable to connect. Will be retried after {} seconds", waitBeforeRetry);
-            try {
-                Thread.sleep(waitBeforeRetry * 1000);
-            } catch (InterruptedException er) {
-                Thread.currentThread().interrupt();
-                LOGGER.atDebug().log("Interrupted during reconnect");
-                return;
-            }
-            waitBeforeRetry = Math.min(2 * waitBeforeRetry, MAX_WAIT_RETRY_IN_SECONDS);
-        }
-
-        LOGGER.atInfo()
-                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
-                .log("Connected to broker");
-
-        updateSubscriptionsAsync();
-    }
-
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void subscribeToTopics(Set<String> topics) {
-        // TODO: Support configurable qos
-        // retry until interrupted
-        topics.forEach(s -> {
+        for (String topic : topics) {
             try {
-                RetryUtils.runWithRetry(mqttExceptionRetryConfig, () -> {
-                    mqttClientInternal.subscribe(s);
-                    // useless return
+                RetryUtils.runWithRetry(RETRY_CONFIG_MQTT_EXCEPTION, () -> {
+                    mqttClientInternal.subscribe(topic);
                     return null;
                 }, "subscribe-mqtt-topic", LOGGER);
-                subscribedLocalMqttTopics.add(s);
+                subscribedLocalMqttTopics.add(topic);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                return;
             } catch (Exception e) {
-                LOGGER.atError().setCause(e).kv(TOPIC, s).log("Failed to subscribe");
+                LOGGER.atError().setCause(e).kv(TOPIC, topic).log("Failed to subscribe");
             }
-        });
+        }
     }
 
     @Override
