@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Utilities for accessing MQTT Bridge configuration.
@@ -333,21 +332,5 @@ public final class BridgeConfig {
             opts.put(mapping.getTopic(), mqtt5RouteOptions.get(route));
         }
         return opts;
-    }
-
-    /**
-     * Determine if the component needs to be reinstalled, based on configuration change.
-     *
-     * @param newConfig new configuration
-     * @return true if the component should be reinstalled
-     */
-    public boolean reinstallRequired(BridgeConfig newConfig) {
-        return !Objects.equals(getBrokerUri(), newConfig.getBrokerUri())
-                || !Objects.equals(getClientId(), newConfig.getClientId())
-                || !Objects.equals(getMqttVersion(), newConfig.getMqttVersion())
-                || !Objects.equals(getSessionExpiryInterval(), newConfig.getSessionExpiryInterval())
-                || !Objects.equals(getMaximumPacketSize(), newConfig.getMaximumPacketSize())
-                || !Objects.equals(getReceiveMaximum(), newConfig.getReceiveMaximum())
-                || !Objects.equals(getMqtt5RouteOptions(), newConfig.getMqtt5RouteOptions());
     }
 }

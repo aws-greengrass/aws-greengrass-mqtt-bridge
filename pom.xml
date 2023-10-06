@@ -3,16 +3,17 @@
   ~ Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
   ~ SPDX-License-Identifier: Apache-2.0
   -->
-
 <project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <groupId>com.aws.greengrass</groupId>
     <artifactId>mqtt-bridge</artifactId>
     <name>greengrass-mqtt-bridge</name>
-    <packaging>jar</packaging>
     <version>2.3.0-SNAPSHOT</version>
+
+    <packaging>jar</packaging>
 
     <licenses>
         <license>
@@ -133,12 +134,13 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>${maven.jar.plugin.version}</version>
                 <configuration>
                     <archive>
                         <manifestEntries>
@@ -150,16 +152,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                </configuration>
+                <version>${maven.compiler.plugin.version}</version>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.0.0</version>
+                <version>${build.helper.plugin.version}</version>
                 <executions>
                     <execution>
                         <id>add-integration-test-source</id>
@@ -192,7 +190,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.13.0</version>
+                <version>${maven.pmd.plugin.version}</version>
                 <configuration>
                     <!-- Current violations should not be exceeded. Try to decrease these over time -->
                     <maxAllowedViolations>0</maxAllowedViolations>
@@ -216,7 +214,7 @@
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.0.0</version>
+                <version>${spotbugs.plugin.version}</version>
                 <configuration>
                     <skip>${skipTests}</skip>
                     <effort>Max</effort>
@@ -237,12 +235,12 @@
             </plugin>
             <plugin>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>${maven.checkstyle.plugin.version}</version>
                 <dependencies>
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>
                         <artifactId>checkstyle</artifactId>
-                        <version>8.29</version>
+                        <version>${checkstyle.version}</version>
                     </dependency>
                 </dependencies>
                 <configuration>
@@ -264,7 +262,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M5</version>
+                <version>${maven.surefire.plugin.version}</version>
                 <configuration>
                     <skipTests>true</skipTests>
                     <trimStackTrace>false</trimStackTrace>
@@ -307,12 +305,12 @@
             </plugin>
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.0.0-M4</version>
+                <version>${maven.surefire.plugin.version}</version>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.5</version>
+                <version>${jacoco.maven.plugin.version}</version>
                 <configuration>
                     <excludes>
                         <exclude>**/*Exception*</exclude>
@@ -376,7 +374,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>${maven.shade.plugin.version}</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -410,15 +408,29 @@
         </plugins>
     </build>
     <properties>
+        <mqttbridgejar.name>aws.greengrass.clientdevices.mqtt.Bridge</mqttbridgejar.name>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+
+        <maven.checkstyle.plugin.version>3.3.0</maven.checkstyle.plugin.version>
+        <!-- latest compatible with Java 8-->
+        <checkstyle.version>9.3</checkstyle.version>
+        <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+        <maven.jar.plugin.version>3.3.0</maven.jar.plugin.version>
+        <!-- TODO upgrade -->
+        <maven.pmd.plugin.version>3.13.0</maven.pmd.plugin.version>
+        <maven.surefire.plugin.version>3.1.2</maven.surefire.plugin.version>
+        <maven.shade.plugin.version>3.5.1</maven.shade.plugin.version>
+        <jacoco.maven.plugin.version>0.8.10</jacoco.maven.plugin.version>
+        <spotbugs.plugin.version>4.7.3.6</spotbugs.plugin.version>
+        <build.helper.plugin.version>3.4.0</build.helper.plugin.version>
+
         <nucleus.version>2.10.0-SNAPSHOT</nucleus.version>
         <testcontainers.version>1.17.6</testcontainers.version>
         <junit.version>5.9.2</junit.version>
+
         <skipTests>false</skipTests>
-        <groups></groups>
-        <mqttbridgejar.name>aws.greengrass.clientdevices.mqtt.Bridge</mqttbridgejar.name>
     </properties>
     <distributionManagement>
         <snapshotRepository>
