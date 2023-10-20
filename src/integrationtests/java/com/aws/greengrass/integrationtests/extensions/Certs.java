@@ -49,7 +49,9 @@ public class Certs {
     private KeyStore serverKeyStore;
     private KeyStore serverTrustStore;
     private final MQTTClientKeyStore clientKeyStore;
+    @Getter
     private final Path keystorePath;
+    @Getter
     private final Path trustorePath;
 
     public Certs(MQTTClientKeyStore clientKeyStore,

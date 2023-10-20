@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.util.Pair;
 import lombok.Builder;
 import lombok.Setter;
@@ -73,6 +74,13 @@ public class KeystoreTest {
         testContext.getCerts().waitForBrokerToApplyStoreChanges();
         numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
+    }
+
+    @BridgeIntegrationTest(
+            withConfig = "mqtt3_config_ssl.yaml",
+            withBrokers = Broker.MQTT3, // TODO hivemq doesn't play nicely with v3 paho client for some reason
+            withLocalClientVersions = MqttVersion.MQTT3)
+    void GIVEN_bridge_with_ssl_WHEN_bridge_starts_THEN_client_connects_over_ssl() {
     }
 
     @BridgeIntegrationTest(

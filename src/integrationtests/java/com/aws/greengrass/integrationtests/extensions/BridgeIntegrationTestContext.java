@@ -51,7 +51,7 @@ public class BridgeIntegrationTestContext {
     public MQTTClient getLocalV3Client() {
         MessageClient<MqttMessage> client = getFromContext(MQTTBridge.class).getLocalMqttClient();
         if (!(client instanceof MQTTClient)) {
-            throw new RuntimeException("Excepted " + MQTTClient.class.getSimpleName()
+            throw new RuntimeException("Expected " + MQTTClient.class.getSimpleName()
                     + " but got " + client.getClass().getSimpleName());
         }
         return (MQTTClient) client;
@@ -60,7 +60,7 @@ public class BridgeIntegrationTestContext {
     public LocalMqtt5Client getLocalV5Client() {
         MessageClient<MqttMessage> client = getFromContext(MQTTBridge.class).getLocalMqttClient();
         if (!(client instanceof LocalMqtt5Client)) {
-            throw new RuntimeException("Excepted " + MQTTClient.class.getSimpleName()
+            throw new RuntimeException("Expected " + LocalMqtt5Client.class.getSimpleName()
                     + " but got " + client.getClass().getSimpleName());
         }
         return (LocalMqtt5Client) client;
