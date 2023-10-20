@@ -5,12 +5,10 @@
 
 package com.aws.greengrass.integrationtests;
 
+
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithAllBrokers;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
-import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
@@ -33,7 +31,6 @@ import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssert
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@BridgeIntegrationTest
 public class BridgeTest {
 
     /**
@@ -42,11 +39,10 @@ public class BridgeTest {
      */
     private static final long AWAIT_TIMEOUT_SECONDS = 2;
 
-    BridgeIntegrationTestContext context;
-
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_nolocal.yaml")
-    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_with_nolocal_WHEN_message_published_THEN_message_does_not_loop(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_local_to_iotcore_nolocal.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_with_nolocal_WHEN_message_published_THEN_message_does_not_loop(BridgeIntegrationTestContext context) throws Exception {
         Pair<CompletableFuture<Void>, Consumer<Publish>> iotCoreTopicSubscription
                 = asyncAssertOnConsumer(p -> {}, 0);
 
@@ -70,9 +66,10 @@ public class BridgeTest {
         assertThrows(TimeoutException.class, () -> iotCoreTopicSubscription.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
-    @TestWithAllBrokers
-    @WithKernel("mqtt3_local_and_iotcore.yaml")
-    void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_iotcore_message_received_THEN_message_bridged_to_local(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt3_local_and_iotcore.yaml",
+            withBrokers = {Broker.MQTT5, Broker.MQTT3})
+    void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_iotcore_message_received_THEN_message_bridged_to_local(BridgeIntegrationTestContext context) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toLocal")
                 .payload("message".getBytes(StandardCharsets.UTF_8))
@@ -101,9 +98,11 @@ public class BridgeTest {
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    @TestWithAllBrokers
-    @WithKernel("mqtt3_local_and_iotcore.yaml")
-    void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(Broker broker) throws Exception {
+
+    @BridgeIntegrationTest(
+            withConfig = "mqtt3_local_and_iotcore.yaml",
+            withBrokers = {Broker.MQTT5, Broker.MQTT3})
+    void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(BridgeIntegrationTestContext context) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
                 .payload("message".getBytes(StandardCharsets.UTF_8))
@@ -133,9 +132,10 @@ public class BridgeTest {
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_and_iotcore.yaml")
-    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_local_and_iotcore.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(BridgeIntegrationTestContext context) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
                 .payload("message".getBytes(StandardCharsets.UTF_8))
@@ -170,9 +170,10 @@ public class BridgeTest {
         subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
-    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_with_retain_flag(Broker broker)
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_local_to_iotcore_retain_as_published.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_with_retain_flag(BridgeIntegrationTestContext context)
             throws Exception {
         String topic = "topic/toIotCore";
         Set<String> topics = new HashSet<>();
@@ -219,9 +220,10 @@ public class BridgeTest {
         assertEquals(expectedMessage.isRetain(), msg.isRetain());
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_to_iotcore_retain_as_published.yaml")
-    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_without_retain_THEN_message_bridged_without_retain_flag(Broker broker)
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_local_to_iotcore_retain_as_published.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_and_local_mapping_with_retainAsPublished_WHEN_message_published_without_retain_THEN_message_bridged_without_retain_flag(BridgeIntegrationTestContext context)
             throws Exception {
         String topic = "topic/toIotCore";
         Set<String> topics = new HashSet<>();
@@ -267,9 +269,10 @@ public class BridgeTest {
         assertEquals(expectedMessage.isRetain(), msg.isRetain());
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_local_and_iotcore.yaml")
-    void GIVEN_mqtt5_and_local_mapping_without_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_without_retain_flag(Broker broker)
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_local_and_iotcore.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_and_local_mapping_without_retainAsPublished_WHEN_message_published_with_retain_THEN_message_bridged_without_retain_flag(BridgeIntegrationTestContext context)
             throws Exception {
         String topic = "topic/toIotCore";
         Set<String> topics = new HashSet<>();

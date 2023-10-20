@@ -15,6 +15,7 @@ import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -26,6 +27,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Data
 public class BridgeIntegrationTestContext {
     Broker broker;
+    MqttVersion clientVersion;
+    String configFile;
     Integer brokerSSLPort;
     Integer brokerTCPPort;
     String brokerHost;

@@ -13,9 +13,6 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
-import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
@@ -52,24 +49,25 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@BridgeIntegrationTest
 public class KeystoreTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
     BridgeIntegrationTestContext testContext;
 
     @Disabled("use for manual memory leak testing")
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_memory_does_not_leak(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_config_ssl.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_memory_does_not_leak() throws Exception {
         while (true) {
             testContext.getCerts().rotateClientCert();
             Thread.sleep(5000L);
         }
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_config_ssl.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_local_client_restarts() throws Exception {
         CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
         testContext.getCerts().rotateClientCert();
         testContext.getCerts().waitForBrokerToApplyStoreChanges();
@@ -77,9 +75,10 @@ public class KeystoreTest {
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt5_bridge_WHEN_ca_changes_THEN_local_client_restarts(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_config_ssl.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_mqtt5_bridge_WHEN_ca_changes_THEN_local_client_restarts() throws Exception {
         CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
         testContext.getCerts().rotateCA();
         testContext.getCerts().rotateServerCert();
@@ -89,10 +88,11 @@ public class KeystoreTest {
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_config_ssl.yaml",
+            withBrokers = Broker.MQTT5)
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_a_lot_THEN_local_client_is_connected(Broker broker) throws Exception {
+    void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_a_lot_THEN_local_client_is_connected() throws Exception {
         IntStream.range(0, 30).forEach(i -> {
             try {
                 testContext.getCerts().rotateClientCert();
@@ -104,9 +104,10 @@ public class KeystoreTest {
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_THEN_bridge_keystore_updated() throws Exception {
         Pair<CompletableFuture<Void>, Consumer<Void>> keystoreUpdated = asyncAssertOnConsumer(p -> {}, 1);
         MQTTClientKeyStore keyStore = testContext.getKernel().getContext().get(MQTTClientKeyStore.class);
         keyStore.listenToUpdates(() -> keystoreUpdated.getRight().accept(null));
@@ -138,14 +139,10 @@ public class KeystoreTest {
         keystoreUpdated.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_mqtt_bridge_with_ssl_WHEN_startup_THEN_success(Broker broker) {
-    }
-
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_after_shutdown_THEN_bridge_keystore_not_updated(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_mqtt_bridge_WHEN_cda_ca_conf_changed_after_shutdown_THEN_bridge_keystore_not_updated(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, IllegalArgumentException.class);
         ignoreExceptionOfType(context, NullPointerException.class);
 
