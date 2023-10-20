@@ -20,16 +20,25 @@ import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
+import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.mqttclient.MqttClient;
 import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
+import lombok.RequiredArgsConstructor;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
+import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.InvocationInterceptor;
+import org.junit.jupiter.api.extension.ParameterContext;
+import org.junit.jupiter.api.extension.ParameterResolutionException;
+import org.junit.jupiter.api.extension.ParameterResolver;
 import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
+import org.junit.platform.commons.util.AnnotationUtils;
 import org.slf4j.event.Level;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
@@ -48,7 +57,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStoreException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -64,7 +77,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
-public class BridgeIntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor {
+public class BridgeIntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor, TestTemplateInvocationContextProvider {
 
     private static final Logger logger = LogManager.getLogger(BridgeIntegrationTestExtension.class);
 
@@ -79,16 +92,96 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     MQTTClientKeyStore clientKeyStore = new InitOnceMqttClientKeyStore();
 
     @Override
-    public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext,
-                                    ExtensionContext extensionContext) throws Throwable {
-        initializeContext(extensionContext);
-        String configFile = getConfigFile(extensionContext);
-        if (configFile == null) {
-            invocation.proceed();
-            return;
+    public boolean supportsTestTemplate(ExtensionContext context) {
+        return context.getTestMethod().isPresent()
+                && AnnotationUtils.isAnnotated(context.getTestMethod().get(), BridgeIntegrationTest.class);
+    }
+
+    @Override
+    public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
+        BridgeIntegrationTest annotation = context.getRequiredTestMethod().getAnnotation(BridgeIntegrationTest.class);
+        String configFile = annotation.withConfig();
+        Broker[] brokerParams = annotation.withBrokers();
+        MqttVersion[] versionParams = annotation.withLocalClientVersions();
+        List<BridgeIntegrationTestInvocationContext> contexts = new ArrayList<>();
+
+        if (brokerParams.length == 0 && versionParams.length == 0) {
+            contexts.add(new BridgeIntegrationTestInvocationContext(null, null, configFile));
+        } else if (versionParams.length == 0) {
+            for (Broker brokerParam : brokerParams) {
+                contexts.add(new BridgeIntegrationTestInvocationContext(brokerParam, null, configFile));
+            }
+        } else if (brokerParams.length == 0) {
+            for (MqttVersion versionParam : versionParams) {
+                contexts.add(new BridgeIntegrationTestInvocationContext(null, versionParam, configFile));
+            }
+        } else {
+            for (Broker brokerParam : brokerParams) {
+                for (MqttVersion versionParam : versionParams) {
+                    contexts.add(new BridgeIntegrationTestInvocationContext(brokerParam, versionParam, configFile));
+                }
+            }
         }
-        startKernel(extensionContext, configFile);
-        invocation.proceed();
+
+        return contexts.stream().map(TestTemplateInvocationContext.class::cast);
+    }
+
+    @RequiredArgsConstructor
+    @SuppressWarnings("PMD.AvoidUncheckedExceptionsInSignatures")
+    class BridgeIntegrationTestParameterResolver implements ParameterResolver {
+        @Override
+        public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+            return parameterContext.getParameter().getType() == BridgeIntegrationTestContext.class;
+        }
+        @Override
+        public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+            return context;
+        }
+    }
+
+    @RequiredArgsConstructor
+    class BridgeIntegrationTestInvocationContext implements TestTemplateInvocationContext {
+        private final Broker broker;
+        private final MqttVersion clientVersion;
+        private final String configFile;
+
+        @Override
+        public String getDisplayName(int invocationIndex) {
+            // initialize the context for parameterized test, regardless if
+            // BridgeIntegrationTestContext is a param of the test itself.
+            // there didn't appear to be a better place to put this...
+            if (context == null) {
+                context = new BridgeIntegrationTestContext();
+                context.broker = broker;
+                context.clientVersion = clientVersion;
+                context.configFile = configFile;
+            }
+            return new BridgeIntegrationTestDisplayNameFormatter(broker, clientVersion, configFile).format();
+        }
+
+        @Override
+        public List<Extension> getAdditionalExtensions() {
+            return Collections.singletonList(new BridgeIntegrationTestParameterResolver());
+        }
+    }
+
+    @RequiredArgsConstructor
+    static class BridgeIntegrationTestDisplayNameFormatter {
+        private final Broker broker;
+        private final MqttVersion clientVersion;
+        private final String config;
+
+        @SuppressWarnings("PMD.UseStringBufferForStringAppends")
+        String format() {
+            String s = String.format("%s broker, %s local client",
+                    broker == null ? "No": broker.name(),
+                    clientVersion == null ? "default": clientVersion.name());
+            if (config != null) {
+                s += ", ";
+                s += config;
+            }
+            return s;
+        }
     }
 
     @Override
@@ -98,9 +191,9 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                                             ExtensionContext extensionContext) throws Throwable {
         initializeContext(extensionContext);
 
-        if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT3::equals)) {
+        if (context.broker == Broker.MQTT3) {
             configureContextForMqtt3Broker();
-        } else if (invocationContext.getArguments().stream().anyMatch(Broker.MQTT5::equals)) {
+        } else if (context.broker == Broker.MQTT5) {
             if (!isDockerAvailable()) {
                 logger.atWarn().log("Skipping parameterized test for MQTT5 broker, "
                         + "docker not available on platform");
@@ -108,25 +201,25 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 return;
             }
             configureContextForMqtt5Broker();
-        } else if (extensionContext.getRequiredTestMethod().getAnnotation(TestWithAllBrokers.class) != null
-                || extensionContext.getRequiredTestMethod().getAnnotation(TestWithMqtt3Broker.class) != null
-                || extensionContext.getRequiredTestMethod().getAnnotation(TestWithMqtt5Broker.class) != null) {
-            fail("Please add an argument of type " + Broker.class.getSimpleName()
-                    + " to parameterized test " + extensionContext.getRequiredTestMethod().getName()
-                    + ". It's required by IntegrationTestExtension to determine which broker to spin up");
         }
 
-        context.startBroker();
+        if (context.broker != null) {
+            context.startBroker();
+        }
 
-        String configFile = getConfigFile(extensionContext);
-        if (configFile == null) {
+        if (context.configFile == null || context.configFile.isEmpty()) {
             invocation.proceed();
             return;
         }
 
         // start kernel
-        startKernel(extensionContext, configFile);
+        startKernel(extensionContext, context.configFile);
         ignoreExceptionUltimateCauseOfType(extensionContext, ConnectException.class);
+
+        // if local client version is set in BridgeIntegrationTest annotation,
+        // make sure config reflects that.
+        overrideLocalClientVersion();
+
         // hack to set bridge to use mqtt5 broker after startup,
         // since testcontainers picks a dynamic broker port
         if (context.broker == Broker.MQTT5) {
@@ -145,8 +238,10 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             };
         }
 
-        // TODO support for offline scenarios?
-        waitForClientsToConnect();
+        if (context.broker != null) {
+            // TODO support for offline scenarios?
+            waitForClientsToConnect();
+        }
 
         invocation.proceed();
     }
@@ -165,7 +260,6 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     }
 
     private void initializeContext(ExtensionContext extensionContext) {
-        context = new BridgeIntegrationTestContext();
         injectContext(extensionContext, context);
 
         // ignore exceptions that can happen during disconnects
@@ -205,7 +299,6 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         v3Broker = new Server();
         context.setBrokerHost("localhost");
         context.setBrokerTCPPort(brokerPort);
-        context.setBroker(Broker.MQTT3);
         context.startBroker = () -> {
             try {
                 v3Broker.startServer(brokerConf);
@@ -232,8 +325,6 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                 .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
                 .withExposedPorts(8883, 1883)
                 .withLogLevel(Level.DEBUG);
-
-        context.setBroker(Broker.MQTT5);
         context.startBroker = () -> {
             v5Broker.start();
             context.setBrokerHost(v5Broker.getHost());
@@ -241,11 +332,6 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             context.setBrokerTCPPort(v5Broker.getMappedPort(1883));
         };
         context.stopBroker = v5Broker::stop;
-    }
-
-    private String getConfigFile(ExtensionContext extensionContext) {
-        WithKernel annotation = extensionContext.getRequiredTestMethod().getAnnotation(WithKernel.class);
-        return annotation == null ? null : annotation.value();
     }
 
     private void injectContext(ExtensionContext extensionContext, BridgeIntegrationTestContext context) {
@@ -281,6 +367,15 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             assertTrue(bridgeRunning.await(30L, TimeUnit.SECONDS));
         } finally {
             kernel.getContext().removeGlobalStateChangeListener(listener);
+        }
+    }
+
+    private void overrideLocalClientVersion() throws ServiceLoadException {
+        if (context.clientVersion != null) {
+            context.getKernel().locate(MQTTBridge.SERVICE_NAME)
+                    .getConfig()
+                    .lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION)
+                    .withValue(context.clientVersion.name());
         }
     }
 

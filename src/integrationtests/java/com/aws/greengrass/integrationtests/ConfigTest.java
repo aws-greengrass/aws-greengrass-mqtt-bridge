@@ -11,9 +11,6 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTest;
 import com.aws.greengrass.integrationtests.extensions.BridgeIntegrationTestContext;
 import com.aws.greengrass.integrationtests.extensions.Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt3Broker;
-import com.aws.greengrass.integrationtests.extensions.TestWithMqtt5Broker;
-import com.aws.greengrass.integrationtests.extensions.WithKernel;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
@@ -61,7 +58,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@BridgeIntegrationTest
 public class ConfigTest {
     private static final long AWAIT_TIMEOUT_SECONDS = 30L;
     private static final long RECEIVE_PUBLISH_SECONDS = 2L;
@@ -70,9 +66,10 @@ public class ConfigTest {
 
     BridgeIntegrationTestContext testContext;
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_config_ssl.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_config_ssl.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_config_changes_consecutively_THEN_bridge_reinstalls_once(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
 
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
@@ -96,9 +93,11 @@ public class ConfigTest {
         assertEquals(1, numRestarts.get());
     }
 
-    @TestWithMqtt5Broker
-    @WithKernel("mqtt5_connect_options.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_connect_options_set_in_config_THEN_local_client_uses_configured_values(Broker broker, ExtensionContext context)
+
+    @BridgeIntegrationTest(
+            withConfig = "mqtt5_connect_options.yaml",
+            withBrokers = Broker.MQTT5)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_connect_options_set_in_config_THEN_local_client_uses_configured_values()
             throws Exception {
         long expectedSessionExpiryInterval = 10;
         long expectedMaximumPacketSize = 100;
@@ -181,9 +180,10 @@ public class ConfigTest {
                 () -> largeMessageHandler.getLeft().get(RECEIVE_PUBLISH_SECONDS, TimeUnit.SECONDS));
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_multiple_serialized_config_changes_occur_THEN_bridge_reinstalls_multiple_times(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InterruptedException.class);
 
         Semaphore bridgeRestarted = new Semaphore(1);
@@ -206,9 +206,10 @@ public class ConfigTest {
         }
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_clientId_config_changes_THEN_bridge_reinstalls(Broker broker) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_clientId_config_changes_THEN_bridge_reinstalls() throws Exception {
         CountDownLatch bridgeRestarted = new CountDownLatch(1);
         testContext.getKernel().getContext().addGlobalStateChangeListener((GreengrassService service, State was, State newState) -> {
             if (service.getName().equals(MQTTBridge.SERVICE_NAME) && newState.equals(State.NEW)) {
@@ -223,9 +224,10 @@ public class ConfigTest {
         assertTrue(bridgeRestarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mqttTopicMapping_updated_THEN_mapping_updated(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, MqttException.class);
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
@@ -254,9 +256,10 @@ public class ConfigTest {
         assertFalse(bridgeRestarted.await(2, TimeUnit.SECONDS));
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config_with_mapping.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated(Broker broker, ExtensionContext context) {
+    @BridgeIntegrationTest(
+            withConfig = "config_with_mapping.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_valid_mapping_provided_in_config_THEN_mapping_populated(ExtensionContext context) {
         ignoreExceptionOfType(context, MqttException.class);
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
@@ -292,9 +295,10 @@ public class ConfigTest {
         assertEquals(expectedRouteOptions, actualRouteOptions);
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_empty_mqttTopicMapping_updated_THEN_mapping_not_updated(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, MqttException.class);
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
@@ -308,9 +312,10 @@ public class ConfigTest {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config_with_mapping.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config_with_mapping.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_mapping_updated_with_empty_THEN_mapping_removed(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, MqttException.class);
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
@@ -324,9 +329,10 @@ public class ConfigTest {
         assertThat(topicMapping.getMapping().size(), is(equalTo(0)));
     }
 
-    @TestWithMqtt3Broker
-    @WithKernel("config.yaml")
-    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated(Broker broker, ExtensionContext context) throws Exception {
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT3)
+    void GIVEN_Greengrass_with_mqtt_bridge_WHEN_invalid_mqttTopicMapping_updated_THEN_mapping_not_updated(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InvalidFormatException.class);
 
         TopicMapping topicMapping = testContext.getKernel().getContext().get(TopicMapping.class);
@@ -359,10 +365,11 @@ public class ConfigTest {
         assertTrue(bridgeErrored.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
+    @BridgeIntegrationTest(
+            withConfig = "config.yaml",
+            withBrokers = Broker.MQTT5)
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    @TestWithMqtt5Broker
-    @WithKernel("config.yaml")
-    void GIVEN_bridge_WHEN_mqtt_version_toggled_THEN_clients_switched(Broker broker, ExtensionContext context) throws Exception {
+    void GIVEN_bridge_WHEN_mqtt_version_toggled_THEN_clients_switched() throws Exception {
         MQTTClient v3Client = testContext.getLocalV3Client();
         assertTrue(v3Client.getMqttClientInternal().isConnected());
 
