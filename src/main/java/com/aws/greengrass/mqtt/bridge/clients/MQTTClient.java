@@ -163,8 +163,16 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     private void disconnect() {
-        // 0ms quiescence time, just send the disconnect packet immediately
-        disconnect(0);
+        if (!mqttClientInternal.isConnected()) {
+            return;
+        }
+        try {
+            // 0ms quiescence time, just send the disconnect packet immediately
+            // 10000 is default paho disconnect timeout
+            mqttClientInternal.disconnectForcibly(0, 10_000L);
+        } catch (MqttException e) {
+            LOGGER.atWarn().cause(e).log("Unable to disconnect forcibly");
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -203,12 +211,25 @@ public class MQTTClient implements MessageClient<MqttMessage> {
             LOGGER.atDebug().setCause(e).log("Unable to close mqtt client datastore");
         }
 
+        IMqttClient client = null;
         try {
-            IMqttClient client = mqttClientInternal;
+            client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
         } catch (MqttException e) {
+            // TODO clean up
+            // connect task didn't finish in time, try again
+            if (e.getReasonCode() == MqttException.REASON_CODE_CONNECT_IN_PROGRESS
+                    || e.getReasonCode() == MqttException.REASON_CODE_CLIENT_CONNECTED) {
+                disconnect();
+                try {
+                    client.close();
+                } catch (MqttException ex) {
+                    LOGGER.atWarn().setCause(ex).log("Unable to close MQTT client");
+                }
+                return;
+            }
             LOGGER.atWarn().setCause(e).log("Unable to close MQTT client");
         }
     }
