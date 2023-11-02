@@ -163,9 +163,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     }
 
     private void disconnect() {
-        if (!mqttClientInternal.isConnected()) {
-            return;
-        }
         try {
             // 0ms quiescence time, don't wait for DISCONNECT
             mqttClientInternal.disconnectForcibly(0, 1L);
@@ -203,7 +200,11 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     public void stop() {
         IMqttClient client = mqttClientInternal;
         if (client != null) {
-            client.setCallback(null); // clear callbacks to prevent accidental reconnection
+            try {
+                client.setCallback(null); // clear callbacks to prevent accidental reconnection
+            } catch (NullPointerException e) {
+                e.printStackTrace();
+            }
         }
 
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
