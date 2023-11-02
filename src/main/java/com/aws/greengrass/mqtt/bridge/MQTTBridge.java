@@ -50,6 +50,10 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TO
 public class MQTTBridge extends PluginService {
     public static final String SERVICE_NAME = "aws.greengrass.clientdevices.mqtt.Bridge";
 
+    // ensure lifecycle methods execute serially
+    // to ensure clients are shutdown
+    private final Object lifecycleLock = new Object();
+
     private final TopicMapping topicMapping;
     @Setter // for tests
     private MessageBridge messageBridge;
@@ -119,60 +123,66 @@ public class MQTTBridge extends PluginService {
 
     @Override
     public void install() {
-        configurationChangeHandler.listen();
-        messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
-                TopicMapping.TopicType.LocalMqtt));
+        synchronized (lifecycleLock) {
+            configurationChangeHandler.listen();
+            messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
+                    TopicMapping.TopicType.LocalMqtt));
+        }
     }
 
     @Override
     public void startup() {
-        try {
-            mqttClientKeyStore.init();
-        } catch (KeyStoreException | CertificateGenerationException e) {
-            serviceErrored(e);
-            return;
-        }
+        synchronized (lifecycleLock) {
+            try {
+                mqttClientKeyStore.init();
+            } catch (KeyStoreException | CertificateGenerationException e) {
+                serviceErrored(e);
+                return;
+            }
 
-        certificateAuthorityChangeHandler.start();
+            certificateAuthorityChangeHandler.start();
 
-        try {
-            localMqttClient = localMqttClientFactory.createLocalMqttClient();
-            localMqttClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.LocalMqtt, localMqttClient);
+            try {
+                localMqttClient = localMqttClientFactory.createLocalMqttClient();
+                localMqttClient.start();
+                messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                        TopicMapping.TopicType.LocalMqtt, localMqttClient);
 
-            pubSubClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.Pubsub, pubSubClient);
+                pubSubClient.start();
+                messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                        TopicMapping.TopicType.Pubsub, pubSubClient);
 
-            ioTCoreClient.start();
-            messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
-                    TopicMapping.TopicType.IotCore, ioTCoreClient);
+                ioTCoreClient.start();
+                messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(
+                        TopicMapping.TopicType.IotCore, ioTCoreClient);
 
-            reportState(State.RUNNING);
-        } catch (MessageClientException e) {
-            serviceErrored(e);
+                reportState(State.RUNNING);
+            } catch (MessageClientException e) {
+                serviceErrored(e);
+            }
         }
     }
 
     @Override
     public void shutdown() {
-        certificateAuthorityChangeHandler.stop();
-        mqttClientKeyStore.shutdown();
+        synchronized (lifecycleLock) {
+            certificateAuthorityChangeHandler.stop();
+            mqttClientKeyStore.shutdown();
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
-        if (localMqttClient != null) {
-            localMqttClient.stop();
-        }
+            messageBridge.removeMessageClient(TopicMapping.TopicType.LocalMqtt);
+            if (localMqttClient != null) {
+                localMqttClient.stop();
+            }
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
-        if (pubSubClient != null) {
-            pubSubClient.stop();
-        }
+            messageBridge.removeMessageClient(TopicMapping.TopicType.Pubsub);
+            if (pubSubClient != null) {
+                pubSubClient.stop();
+            }
 
-        messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
-        if (ioTCoreClient != null) {
-            ioTCoreClient.stop();
+            messageBridge.removeMessageClient(TopicMapping.TopicType.IotCore);
+            if (ioTCoreClient != null) {
+                ioTCoreClient.stop();
+            }
         }
     }
 
