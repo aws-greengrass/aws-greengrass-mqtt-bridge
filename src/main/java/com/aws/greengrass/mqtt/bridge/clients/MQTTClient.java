@@ -198,15 +198,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void stop() {
-        IMqttClient client = mqttClientInternal;
-        if (client != null) {
-            try {
-                client.setCallback(null); // clear callbacks to prevent accidental reconnection
-            } catch (NullPointerException e) {
-                e.printStackTrace();
-            }
-        }
-
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
 
         cancelConnectTask();
@@ -219,6 +210,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         try {
+            IMqttClient client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
