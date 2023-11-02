@@ -167,9 +167,8 @@ public class MQTTClient implements MessageClient<MqttMessage> {
             return;
         }
         try {
-            // 0ms quiescence time, just send the disconnect packet immediately
-            // 10000 is default paho disconnect timeout
-            mqttClientInternal.disconnectForcibly(0, 10_000L);
+            // 0ms quiescence time, don't wait for DISCONNECT
+            mqttClientInternal.disconnectForcibly(0, 1L);
         } catch (MqttException e) {
             LOGGER.atWarn().cause(e).log("Unable to disconnect forcibly");
         }
@@ -202,34 +201,24 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     @Override
     @SuppressWarnings("PMD.CloseResource")
     public void stop() {
+        mqttClientInternal.setCallback(null); // clear callbacks to prevent accidental reconnection
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
+
         cancelConnectTask();
         disconnect();
+
         try {
             dataStore.close();
         } catch (MqttPersistenceException e) {
             LOGGER.atDebug().setCause(e).log("Unable to close mqtt client datastore");
         }
 
-        IMqttClient client = null;
         try {
-            client = mqttClientInternal;
+            IMqttClient client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
         } catch (MqttException e) {
-            // TODO clean up
-            // connect task didn't finish in time, try again
-            if (e.getReasonCode() == MqttException.REASON_CODE_CONNECT_IN_PROGRESS
-                    || e.getReasonCode() == MqttException.REASON_CODE_CLIENT_CONNECTED) {
-                disconnect();
-                try {
-                    client.close();
-                } catch (MqttException ex) {
-                    LOGGER.atWarn().setCause(ex).log("Unable to close MQTT client");
-                }
-                return;
-            }
             LOGGER.atWarn().setCause(e).log("Unable to close MQTT client");
         }
     }
