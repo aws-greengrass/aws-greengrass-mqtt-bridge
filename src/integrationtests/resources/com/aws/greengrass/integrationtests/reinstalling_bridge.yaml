@@ -1,0 +1,20 @@
+services:
+    aws.greengrass.Nucleus:
+        configuration:
+            logging:
+                level: "DEBUG"
+    aws.greengrass.clientdevices.mqtt.ReinstallingBridge:
+        configuration:
+            brokerUri: 'tcp://localhost:8883'
+            mqttTopicMapping:
+                toIotCore:
+                    topic: topic/toIotCore
+                    source: LocalMqtt
+                    target: IotCore
+                toLocal:
+                    topic: topic/toLocal
+                    source: IotCore
+                    target: LocalMqtt
+    main:
+        dependencies:
+            - aws.greengrass.clientdevices.mqtt.ReinstallingBridge

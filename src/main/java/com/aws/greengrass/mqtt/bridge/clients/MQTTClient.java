@@ -17,6 +17,7 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -88,7 +89,9 @@ public class MQTTClient implements MessageClient<MqttMessage> {
                     .maxRetryInterval(Duration.ofSeconds(120L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Collections.singletonList(MqttException.class)).build();
 
-    private final MqttCallback mqttCallback = new MqttCallback() {
+    @Getter // for testing
+    @Setter
+    private MqttCallback mqttCallback = new MqttCallback() {
         @Override
         public void connectionLost(Throwable cause) {
             LOGGER.atDebug().setCause(cause).log("MQTT client disconnected, reconnecting...");

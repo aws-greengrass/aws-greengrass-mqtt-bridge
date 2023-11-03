@@ -118,14 +118,14 @@ public class MQTTBridge extends PluginService {
     }
 
     @Override
-    public void install() {
+    public synchronized void install() {
         configurationChangeHandler.listen();
         messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
                 TopicMapping.TopicType.LocalMqtt));
     }
 
     @Override
-    public void startup() {
+    public synchronized void startup() {
         try {
             mqttClientKeyStore.init();
         } catch (KeyStoreException | CertificateGenerationException e) {
@@ -156,7 +156,7 @@ public class MQTTBridge extends PluginService {
     }
 
     @Override
-    public void shutdown() {
+    public synchronized void shutdown() {
         certificateAuthorityChangeHandler.stop();
         mqttClientKeyStore.shutdown();
 
