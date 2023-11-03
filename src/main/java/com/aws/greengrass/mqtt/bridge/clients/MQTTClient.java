@@ -162,9 +162,22 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         connectAndSubscribe();
     }
 
-    private void disconnect() {
-        // 0ms quiescence time, just send the disconnect packet immediately
-        disconnect(0);
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE", "PMD.CloseResource"})
+    private void disconnectForcibly() {
+        IMqttClient client = mqttClientInternal;
+        if (client == null) {
+            return;
+        }
+        try {
+            long doNotQuiesce = 0L;
+            long doNotWaitForDisconnectPacket = 1L; // since 0L means no timeout
+            client.disconnectForcibly(doNotQuiesce, doNotWaitForDisconnectPacket);
+        } catch (MqttException e) {
+            LOGGER.atWarn().cause(e).log("Unable to disconnect forcibly");
+        } catch (NullPointerException ignore) {
+            // can happen if disconnectForcibly is called after the client is closed.
+            // since we're already disconnected, this is not a real error
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -192,11 +205,25 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * Stop the {@link MQTTClient}.
      */
     @Override
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
+
+        IMqttClient client = mqttClientInternal;
+        try {
+            if (client != null) {
+                // ensure that client cannot reconnect again
+                // if callbacks would trigger for whatever reason
+                client.setCallback(null);
+            }
+        } catch (NullPointerException ignore) {
+            // can happen if client is closed.
+            // ignoring as it is not a real error
+        }
+
         cancelConnectTask();
-        disconnect();
+        disconnectForcibly();
+
         try {
             dataStore.close();
         } catch (MqttPersistenceException e) {
@@ -204,7 +231,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         try {
-            IMqttClient client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
