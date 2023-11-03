@@ -201,9 +201,19 @@ public class MQTTClient implements MessageClient<MqttMessage> {
      * Stop the {@link MQTTClient}.
      */
     @Override
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
+
+        IMqttClient client = mqttClientInternal;
+        try {
+            // ensure that client cannot reconnect again
+            // if callbacks would trigger for whatever reason
+            client.setCallback(null);
+        } catch (NullPointerException ignore) {
+            // can happen if client is closed.
+            // ignoring as it is not a real error
+        }
 
         cancelConnectTask();
         disconnectForcibly();
@@ -215,7 +225,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         try {
-            IMqttClient client = mqttClientInternal;
             if (client != null) {
                 client.close();
             }
