@@ -207,9 +207,9 @@ public class MQTTClient implements MessageClient<MqttMessage> {
 
         IMqttClient client = mqttClientInternal;
         try {
-            // ensure that client cannot reconnect again
-            // if callbacks would trigger for whatever reason
             if (client != null) {
+                // ensure that client cannot reconnect again
+                // if callbacks would trigger for whatever reason
                 client.setCallback(null);
             }
         } catch (NullPointerException ignore) {
