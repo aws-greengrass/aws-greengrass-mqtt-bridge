@@ -164,10 +164,14 @@ public class MQTTClient implements MessageClient<MqttMessage> {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
     private void disconnectForcibly() {
+        IMqttClient client = mqttClientInternal;
+        if (client == null) {
+            return;
+        }
         try {
             long doNotQuiesce = 0L;
             long doNotWaitForDisconnectPacket = 1L; // since 0L means no timeout
-            mqttClientInternal.disconnectForcibly(doNotQuiesce, doNotWaitForDisconnectPacket);
+            client.disconnectForcibly(doNotQuiesce, doNotWaitForDisconnectPacket);
         } catch (MqttException e) {
             LOGGER.atWarn().cause(e).log("Unable to disconnect forcibly");
         } catch (NullPointerException ignore) {
