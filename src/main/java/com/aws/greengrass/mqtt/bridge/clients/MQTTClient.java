@@ -162,12 +162,17 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         connectAndSubscribe();
     }
 
-    private void disconnect() {
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
+    private void disconnectForcibly() {
         try {
-            // 0ms quiescence time, don't wait for DISCONNECT
-            mqttClientInternal.disconnectForcibly(0, 1L);
+            long doNotQuiesce = 0L;
+            long doNotWaitForDisconnectPacket = 1L; // since 0L means no timeout
+            mqttClientInternal.disconnectForcibly(doNotQuiesce, doNotWaitForDisconnectPacket);
         } catch (MqttException e) {
             LOGGER.atWarn().cause(e).log("Unable to disconnect forcibly");
+        } catch (NullPointerException ignore) {
+            // can happen if disconnectForcibly is called after the client is closed.
+            // since we're already disconnected, this is not a real error
         }
     }
 
@@ -201,7 +206,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
 
         cancelConnectTask();
-        disconnect();
+        disconnectForcibly();
 
         try {
             dataStore.close();
