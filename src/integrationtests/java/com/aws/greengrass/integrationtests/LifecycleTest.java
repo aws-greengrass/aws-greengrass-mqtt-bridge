@@ -59,7 +59,7 @@ import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventually
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 
 // not using @BridgeIntegrationTest because we're using a custom MQTTBridge service
@@ -120,9 +120,7 @@ class LifecycleTest {
     private static void launchKernel(Kernel kernel, ExtensionContext extensionContext, String configFileName) {
         System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         URL configFile = extensionContext.getRequiredTestClass().getResource(configFileName);
-        if (configFile == null) {
-            fail("Config file " + configFileName + " not found");
-        }
+        assertNotNull(configFile);
         kernel.parseArgs("-i", configFile.toString());
         kernel.launch();
     }
