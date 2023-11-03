@@ -162,7 +162,7 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         connectAndSubscribe();
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE", "PMD.CloseResource"})
     private void disconnectForcibly() {
         IMqttClient client = mqttClientInternal;
         if (client == null) {
