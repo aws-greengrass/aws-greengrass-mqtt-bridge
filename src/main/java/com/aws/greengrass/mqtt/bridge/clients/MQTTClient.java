@@ -209,7 +209,9 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         try {
             // ensure that client cannot reconnect again
             // if callbacks would trigger for whatever reason
-            client.setCallback(null);
+            if (client != null) {
+                client.setCallback(null);
+            }
         } catch (NullPointerException ignore) {
             // can happen if client is closed.
             // ignoring as it is not a real error
