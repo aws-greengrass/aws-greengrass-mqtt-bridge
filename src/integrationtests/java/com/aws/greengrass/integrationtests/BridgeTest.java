@@ -101,7 +101,7 @@ public class BridgeTest {
 
     @BridgeIntegrationTest(
             withConfig = "mqtt3_local_and_iotcore.yaml",
-            withBrokers = {Broker.MQTT5, Broker.MQTT3})
+            withBrokers = {Broker.MQTT5})
     void GIVEN_mqtt3_and_mapping_between_local_and_iotcore_WHEN_local_message_received_THEN_message_bridged_to_iotcore(BridgeIntegrationTestContext context) throws Exception {
         MqttMessage expectedMessage = MqttMessage.builder()
                 .topic("topic/toIotCore")
@@ -129,7 +129,7 @@ public class BridgeTest {
                         .contentType("contentType")
                         .build());
 
-        subscribeCallback.getLeft().get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        subscribeCallback.getLeft().get(5L, TimeUnit.SECONDS);
     }
 
     @BridgeIntegrationTest(

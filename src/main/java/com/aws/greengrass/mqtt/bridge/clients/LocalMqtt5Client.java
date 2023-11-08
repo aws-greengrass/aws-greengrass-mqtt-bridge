@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_NO_LOCAL;
 
 @SuppressWarnings("PMD.CloseResource")
-public class LocalMqtt5Client implements MessageClient<MqttMessage> {
+public class LocalMqtt5Client implements MessageClient<MqttMessage>, Configurable {
 
     private static final Logger LOGGER = LogManager.getLogger(LocalMqtt5Client.class);
 
@@ -334,11 +334,16 @@ public class LocalMqtt5Client implements MessageClient<MqttMessage> {
      * Apply new configuration to this client. Depending on what configurations changed, a
      * {@link LocalMqtt5Client#reset()} may occur to apply them.
      *
-     * @param config new configuration
+     * @param bridgeConfig new bridge configuration
      */
-    public void applyConfig(@NonNull Config config) {
+    @Override
+    public void applyConfig(@NonNull BridgeConfig bridgeConfig) {
+        applyConfig(Config.fromBridgeConfig(bridgeConfig));
+    }
+
+    void applyConfig(Config newConfig) {
         Config previousConfig = this.config;
-        this.config = config;
+        this.config = newConfig;
         if (Config.resetRequired(previousConfig, config)) {
             scheduleResetTask();
         }

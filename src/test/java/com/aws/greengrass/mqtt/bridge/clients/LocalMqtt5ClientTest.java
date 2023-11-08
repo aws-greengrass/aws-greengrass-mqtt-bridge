@@ -503,7 +503,7 @@ class LocalMqtt5ClientTest {
 
     @ParameterizedTest
     @MethodSource("configChanges")
-    void GIVEN_client_WHEN_config_changes_THEN_client_is_reset(Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> changeConfig, boolean resetExpected) throws InterruptedException {
+    void GIVEN_client_WHEN_config_changes_THEN_client_is_reset(Function<LocalMqtt5Client.Config, LocalMqtt5Client.Config> changeConfig, boolean resetExpected) {
         client.applyConfig(changeConfig.apply(client.getConfig()));
         if (resetExpected) {
             assertThat("client resets", () -> mockMqtt5Client.getNumDisconnects().get(), eventuallyEval(is(1)));

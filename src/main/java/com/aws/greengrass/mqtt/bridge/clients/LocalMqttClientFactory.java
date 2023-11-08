@@ -63,8 +63,7 @@ public class LocalMqttClientFactory {
             case MQTT3: // fall-through
             default:
                 return new MQTTClient(
-                        config.getBrokerUri(),
-                        config.getClientId(),
+                        config,
                         mqttClientKeyStore,
                         executorService
                 );

@@ -8,29 +8,40 @@ package com.aws.greengrass.mqtt.bridge.clients;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.CrashableSupplier;
+import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import javax.net.ssl.SSLSocketFactory;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -38,22 +49,23 @@ import static org.mockito.Mockito.when;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
+@SuppressWarnings("PMD.CloseResource")
 public class MQTTClientTest {
 
-    private static final URI ENCRYPTED_URI = URI.create("ssl://localhost:8883");
-    private static final String CLIENT_ID = "mqtt-bridge-1234";
-
-    private FakePahoMqtt3Client fakeMqttClient;
+    private static final MQTTClient.Config CONFIG = MQTTClient.Config.builder()
+            .clientId("mqtt-bridge-1234")
+            .brokerUri(URI.create("ssl://localhost:8883"))
+            .build();
+    FakePahoMqtt3Client fakeMqttClient;
+    private final CrashableSupplier<IMqttClient, MqttException> clientFactory = () -> {
+                fakeMqttClient = new FakePahoMqtt3Client(CONFIG.getClientId(), CONFIG.getBrokerUri().toString());
+                return fakeMqttClient;
+    };
 
     @Mock
     private MQTTClientKeyStore mockMqttClientKeyStore;
 
     private final ExecutorService ses = TestUtils.synchronousExecutorService();
-
-    @BeforeEach
-    void setup() {
-        fakeMqttClient = new FakePahoMqtt3Client(CLIENT_ID);
-    }
 
     @AfterEach
     void tearDown() {
@@ -62,7 +74,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_start_THEN_clientConnects() throws MessageClientException {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -71,7 +83,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_stop_THEN_clientUnsubscribes() throws MessageClientException {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -94,7 +106,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_updateSubscriptions_THEN_subscriptionsUpdated() throws MessageClientException {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -143,7 +155,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_subscribedMqttClient_WHEN_mqttMessageReceived_THEN_messageRoutedToHandler() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -172,7 +184,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_publish_THEN_routedToBroker() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -192,7 +204,7 @@ public class MQTTClientTest {
 
     @Test
     void GIVEN_mqttClient_WHEN_connectionLost_THEN_clientReconnectsAndResubscribes() throws Exception {
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -212,7 +224,7 @@ public class MQTTClientTest {
     @Test
     void GIVEN_mqttClient_WHEN_caRotates_THEN_connectsWithUpdatedSslContext() throws Exception {
         MQTTClientKeyStore mockKeyStore = mock(MQTTClientKeyStore.class);
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -221,7 +233,7 @@ public class MQTTClientTest {
 
         // This code assumes reset synchronously disconnects. This will need to be revisited if
         // this assumption changes and this test starts failing
-        mqttClient.reset();
+        mqttClient.reset(false);
         fakeMqttClient.waitForConnect(1000);
 
         assertThat(fakeMqttClient.getConnectOptions().getSocketFactory(), is(mockSocketFactory));
@@ -234,7 +246,7 @@ public class MQTTClientTest {
         SSLSocketFactory mockSocketFactory2 = mock(SSLSocketFactory.class);
         when(mockMqttClientKeyStore.getSSLSocketFactory()).thenReturn(mockSocketFactory1);
 
-        MQTTClient mqttClient = new MQTTClient(ENCRYPTED_URI, CLIENT_ID, mockMqttClientKeyStore, ses, fakeMqttClient);
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
         mqttClient.start();
         fakeMqttClient.waitForConnect(1000);
 
@@ -249,5 +261,50 @@ public class MQTTClientTest {
         assertThat(fakeMqttClient.isConnected(), is(true));
         connectOptions = fakeMqttClient.getConnectOptions();
         assertThat(connectOptions.getSocketFactory(), is(mockSocketFactory2));
+    }
+
+    @ParameterizedTest
+    @MethodSource("configChanges")
+    void GIVEN_client_WHEN_config_changes_THEN_client_is_reset(Function<MQTTClient.Config, MQTTClient.Config> changeConfig, boolean resetExpected) throws MessageClientException, InterruptedException {
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
+        mqttClient.start();
+        mqttClient.applyConfig(changeConfig.apply(MQTTClient.Config.builder().build()));
+        FakePahoMqtt3Client fakeMqttClient = this.fakeMqttClient;
+        mqttClient.reset(true);
+        if (resetExpected) {
+            assertThat("client resets", () -> fakeMqttClient.disconnectCount, eventuallyEval(is(1)));
+        } else {
+            Thread.sleep(1000L);
+            assertEquals(1, fakeMqttClient.connectCount);
+            assertEquals(0, fakeMqttClient.disconnectCount);
+        }
+    }
+
+    @Test
+    void GIVEN_client_WHEN_config_does_not_change_THEN_client_is_not_reset() throws MessageClientException, InterruptedException {
+        MQTTClient mqttClient = new MQTTClient(CONFIG, mockMqttClientKeyStore, ses, clientFactory);
+        mqttClient.start();
+        mqttClient.applyConfig(mqttClient.getConfig());
+        Thread.sleep(1000L);
+        assertEquals(1, fakeMqttClient.connectCount);
+        assertEquals(0, fakeMqttClient.disconnectCount);
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> configChanges() {
+        Function<MQTTClient.Config, MQTTClient.Config> brokerUriChanges = config -> {
+            try {
+                return config.toBuilder().brokerUri(new URI("tcp://0.0.0.0:1883")).build();
+            } catch (URISyntaxException e) {
+                fail(e);
+                return null;
+            }
+        };
+        Function<MQTTClient.Config, MQTTClient.Config> clientIdChanges = config -> config.toBuilder().clientId("newClientId").build();
+
+        return Stream.of(
+                Arguments.of(brokerUriChanges, true),
+                Arguments.of(clientIdChanges, true)
+        );
     }
 }

@@ -15,6 +15,8 @@ import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -33,6 +35,7 @@ import java.security.KeyStoreException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -40,7 +43,8 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import javax.net.ssl.SSLSocketFactory;
 
-public class MQTTClient implements MessageClient<MqttMessage> {
+@SuppressWarnings("PMD.CloseResource")
+public class MQTTClient implements MessageClient<MqttMessage>, Configurable {
     private static final Logger LOGGER = LogManager.getLogger(MQTTClient.class);
 
     public static final String TOPIC = "topic";
@@ -48,9 +52,6 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private static final int MAX_WAIT_RETRY_IN_SECONDS = 120;
 
     private Consumer<MqttMessage> messageHandler;
-    private final URI brokerUri;
-    private final String clientId;
-
     private final MqttClientPersistence dataStore;
     private final ExecutorService executorService;
     private final Object subscribeLock = new Object();
@@ -67,12 +68,12 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private final MQTTClientKeyStore.UpdateListener onKeyStoreUpdate = new MQTTClientKeyStore.UpdateListener() {
         @Override
         public void onCAUpdate() {
-            if (mqttClientInternal == null) {
+            if (!started()) {
                 LOGGER.atDebug().log("Client not yet initialized, skipping reset");
                 return;
             }
             LOGGER.atInfo().log("New CA certificate available, reconnecting client");
-            reset();
+            reset(false);
         }
 
         @Override
@@ -114,40 +115,110 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
     };
 
+    @Getter // for testing
+    volatile Config config;
+    volatile Config pendingConfig;
+
+    @Data
+    @Builder(toBuilder = true)
+    public static class Config {
+        URI brokerUri;
+        String clientId;
+
+        /**
+         * Map from bridge configuration to client configuration.
+         *
+         * @param bridgeConfig component configuration
+         * @return client configuration
+         */
+        public static Config fromBridgeConfig(BridgeConfig bridgeConfig) {
+            return Config.builder()
+                    .brokerUri(bridgeConfig.getBrokerUri())
+                    .clientId(bridgeConfig.getClientId())
+                    .build();
+        }
+    }
+
+    /**
+     * Apply new configuration to this client. Client will reset.
+     *
+     * @param bridgeConfig new bridge configuration
+     */
+    @Override
+    public void applyConfig(@NonNull BridgeConfig bridgeConfig) {
+        applyConfig(Config.fromBridgeConfig(bridgeConfig));
+    }
+
+    void applyConfig(Config newConfig) {
+        if (Objects.equals(this.config, newConfig)) {
+            return;
+        }
+        // config will be picked up the next time an mqtt client is created
+        this.pendingConfig = newConfig;
+        if (!started()) {
+            return;
+        }
+        reset(true);
+    }
+
+    private boolean started() {
+        return mqttClientInternal != null;
+    }
+
     /**
      * Construct an MQTTClient.
      *
-     * @param brokerUri          broker uri
-     * @param clientId           client id
+     * @param bridgeConfig       bridge config
      * @param mqttClientKeyStore KeyStore for MQTT Client
      * @param executorService    Executor service
      */
-    public MQTTClient(@NonNull URI brokerUri,
-                      @NonNull String clientId,
+    public MQTTClient(@NonNull BridgeConfig bridgeConfig,
                       MQTTClientKeyStore mqttClientKeyStore,
                       ExecutorService executorService) {
-        this.brokerUri = brokerUri;
-        this.clientId = clientId;
+        this.config = Config.fromBridgeConfig(bridgeConfig);
         this.dataStore = new MemoryPersistence();
-        this.clientFactory = () -> new MqttClient(brokerUri.toString(), clientId, dataStore);
+        this.clientFactory = () -> {
+            if (this.pendingConfig != null) {
+                this.config = this.pendingConfig;
+            }
+            MqttClient client = new MqttClient(config.getBrokerUri().toString(), config.getClientId(), dataStore);
+            client.setCallback(mqttCallback);
+            return client;
+        };
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         this.executorService = executorService;
     }
 
-    protected MQTTClient(@NonNull URI brokerUri, @NonNull String clientId, MQTTClientKeyStore mqttClientKeyStore,
-                         ExecutorService executorService, IMqttClient mqttClient) {
-        this.brokerUri = brokerUri;
-        this.clientId = clientId;
-        this.clientFactory = () -> mqttClient;
+    protected MQTTClient(Config config,
+                         MQTTClientKeyStore mqttClientKeyStore,
+                         ExecutorService executorService,
+                         CrashableSupplier<IMqttClient, MqttException> clientFactory) {
+        this.config = config;
+        this.clientFactory = () -> {
+            if (this.pendingConfig != null) {
+                this.config = this.pendingConfig;
+            }
+            IMqttClient client = clientFactory.apply();
+            client.setCallback(mqttCallback);
+            return client;
+        };
         this.dataStore = new MemoryPersistence();
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.mqttClientKeyStore.listenToUpdates(onKeyStoreUpdate);
         this.executorService = executorService;
     }
 
-    void reset() {
-        disconnect(30_000L); // paho default
+    synchronized void reset(boolean recreateClient) {
+        disconnectForcibly();
+        if (recreateClient) {
+            try {
+                this.mqttClientInternal = clientFactory.apply();
+            } catch (MqttException e) {
+                LOGGER.atError().cause(e).log("unable to recreate MQTT client using new configuration, "
+                        + "falling back to old configuration");
+            }
+        }
         connectAndSubscribe();
     }
 
@@ -161,11 +232,10 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         } catch (MqttException e) {
             throw new MessageClientException("Unable to create MQTTClient", e);
         }
-        mqttClientInternal.setCallback(mqttCallback);
         connectAndSubscribe();
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE", "PMD.CloseResource"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
     private void disconnectForcibly() {
         IMqttClient client = mqttClientInternal;
         if (client == null) {
@@ -183,32 +253,11 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
     }
 
-    @SuppressWarnings("PMD.CloseResource")
-    private void disconnect(long quiesceTimeout) {
-        IMqttClient client = mqttClientInternal;
-        if (client == null) {
-            return;
-        }
-        try {
-            LOGGER.debug("Disconnecting MQTT client");
-            client.disconnect(quiesceTimeout);
-        } catch (MqttException e) {
-            if (MqttException.REASON_CODE_CLIENT_ALREADY_DISCONNECTED != e.getReasonCode()
-                    && MqttException.REASON_CODE_CLIENT_CLOSED != e.getReasonCode()) {
-                LOGGER.atError().setCause(e).log("Failed to disconnect MQTT client");
-                return;
-            }
-        }
-        // no need to unsubscribe because we connect with cleanSession=true
-        subscribedLocalMqttTopics.clear();
-        LOGGER.debug("MQTT client disconnected");
-    }
-
     /**
      * Stop the {@link MQTTClient}.
      */
     @Override
-    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingNPE"})
     public void stop() {
         mqttClientKeyStore.unsubscribeFromUpdates(onKeyStoreUpdate);
 
@@ -299,19 +348,17 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(true);
         connOpts.setMaxInflight(1000);
-
-        if ("ssl".equalsIgnoreCase(brokerUri.getScheme())) {
+        if ("ssl".equalsIgnoreCase(config.getBrokerUri().getScheme())) {
             SSLSocketFactory ssf = mqttClientKeyStore.getSSLSocketFactory();
             connOpts.setSocketFactory(ssf);
         }
-
         return connOpts;
     }
 
     private void connectAndSubscribe() {
         LOGGER.atInfo()
-                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                 .log("Connecting to broker");
         reconnectAndResubscribeAsync();
     }
@@ -334,11 +381,12 @@ public class MQTTClient implements MessageClient<MqttMessage> {
     private void reconnectAndResubscribe() {
         int waitBeforeRetry = MIN_WAIT_RETRY_IN_SECONDS;
 
-        while (!mqttClientInternal.isConnected() && !Thread.currentThread().isInterrupted()) {
+        IMqttClient client = mqttClientInternal;
+        while (!client.isConnected() && !Thread.currentThread().isInterrupted()) {
             Exception error;
             try {
                 // TODO: Clean up this loop
-                mqttClientInternal.connect(getConnectionOptions());
+                client.connect(getConnectionOptions());
                 break;
             } catch (MqttException e) {
                 if (Utils.getUltimateCause(e) instanceof InterruptedException) {
@@ -368,8 +416,8 @@ public class MQTTClient implements MessageClient<MqttMessage> {
         }
 
         LOGGER.atInfo()
-                .kv(BridgeConfig.KEY_BROKER_URI, brokerUri)
-                .kv(BridgeConfig.KEY_CLIENT_ID, clientId)
+                .kv(BridgeConfig.KEY_BROKER_URI, config.getBrokerUri())
+                .kv(BridgeConfig.KEY_CLIENT_ID, config.getClientId())
                 .log("Connected to broker");
 
         resubscribe();

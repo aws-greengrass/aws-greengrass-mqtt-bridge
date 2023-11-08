@@ -30,7 +30,7 @@ public class FakePahoMqtt3ClientTest {
 
     @BeforeEach
     void setup() {
-        fakeMQTTClient = new FakePahoMqtt3Client("clientId");
+        fakeMQTTClient = new FakePahoMqtt3Client("clientId", "uri");
     }
 
     @Test
