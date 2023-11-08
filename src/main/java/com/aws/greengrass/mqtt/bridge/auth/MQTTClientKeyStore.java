@@ -13,17 +13,24 @@ import com.aws.greengrass.clientdevices.auth.exception.CertificateGenerationExce
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
+import com.aws.greengrass.util.EncryptionUtils;
 import lombok.Getter;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -202,5 +209,41 @@ public class MQTTClientKeyStore {
         } catch (NoSuchAlgorithmException | UnrecoverableKeyException | KeyManagementException e) {
             throw new KeyStoreException("Unable to create SocketFactory from KeyStore", e);
         }
+    }
+
+
+    /**
+     * Retrieve the cert under alias {@link MQTTClientKeyStore#KEY_ALIAS} from the keystore.
+     *
+     * @return cert in pem format
+     * @throws KeyStoreException            if keystore isn't initialized
+     * @throws CertificateEncodingException if unable to encode certificate
+     * @throws IOException                  if unable to encode certificate
+     */
+    public String getCertPem() throws KeyStoreException, CertificateEncodingException, IOException {
+        Certificate certificateData = keyStore.getCertificate(KEY_ALIAS);
+        return EncryptionUtils.encodeToPem("CERTIFICATE", certificateData.getEncoded());
+    }
+
+    /**
+     * Retrieve the key under alias {@link MQTTClientKeyStore#KEY_ALIAS} from the keystore.
+     *
+     * @return key in pem format
+     * @throws UnrecoverableKeyException if key cannot be recovered
+     * @throws KeyStoreException         if keystore isn't initialized
+     * @throws NoSuchAlgorithmException  if the key algo can't be found
+     * @throws IOException               if key cannot be parsed or encoded
+     */
+    public String getKeyPem() throws UnrecoverableKeyException, KeyStoreException,
+            NoSuchAlgorithmException, IOException {
+        // aws-c-io requires PKCS#1 key encoding for non-linux
+        // https://github.com/awslabs/aws-c-io/issues/260
+        // once this is resolved we can remove the conversion
+        Key key = keyStore.getKey(KEY_ALIAS, DEFAULT_KEYSTORE_PASSWORD);
+        PrivateKeyInfo pkInfo = PrivateKeyInfo.getInstance(key.getEncoded());
+        ASN1Encodable privateKeyPKCS1ASN1Encodable = pkInfo.parsePrivateKey();
+        ASN1Primitive privateKeyPKCS1ASN1 = privateKeyPKCS1ASN1Encodable.toASN1Primitive();
+        byte[] privateKeyPKCS1 = privateKeyPKCS1ASN1.getEncoded();
+        return EncryptionUtils.encodeToPem("RSA PRIVATE KEY", privateKeyPKCS1);
     }
 }
