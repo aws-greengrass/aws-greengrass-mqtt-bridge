@@ -19,10 +19,11 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
+import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.mqttclient.MqttClient;
-import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
@@ -73,10 +74,14 @@ import java.util.stream.Stream;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class BridgeIntegrationTestExtension implements AfterTestExecutionCallback, InvocationInterceptor, TestTemplateInvocationContextProvider {
 
     private static final Logger logger = LogManager.getLogger(BridgeIntegrationTestExtension.class);
@@ -89,7 +94,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
 
     Server v3Broker;
 
-    MQTTClientKeyStore clientKeyStore = new InitOnceMqttClientKeyStore();
+    MQTTClientKeyStore clientKeyStore;
 
     @Override
     public boolean supportsTestTemplate(ExtensionContext context) {
@@ -118,6 +123,9 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         } else {
             for (Broker brokerParam : brokerParams) {
                 for (MqttVersion versionParam : versionParams) {
+                    if (versionParam == MqttVersion.MQTT5 && brokerParam == Broker.MQTT3) {
+                        continue;
+                    }
                     contexts.add(new BridgeIntegrationTestInvocationContext(brokerParam, versionParam, configFile));
                 }
             }
@@ -150,12 +158,10 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
             // initialize the context for parameterized test, regardless if
             // BridgeIntegrationTestContext is a param of the test itself.
             // there didn't appear to be a better place to put this...
-            if (context == null) {
-                context = new BridgeIntegrationTestContext();
-                context.broker = broker;
-                context.clientVersion = clientVersion;
-                context.configFile = configFile;
-            }
+            context = new BridgeIntegrationTestContext();
+            context.broker = broker;
+            context.clientVersion = clientVersion;
+            context.configFile = configFile;
             return new BridgeIntegrationTestDisplayNameFormatter(broker, clientVersion, configFile).format();
         }
 
@@ -190,6 +196,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                                             ReflectiveInvocationContext<Method> invocationContext,
                                             ExtensionContext extensionContext) throws Throwable {
         initializeContext(extensionContext);
+        configureCertificates();
 
         if (context.broker == Broker.MQTT3) {
             configureContextForMqtt3Broker();
@@ -246,6 +253,16 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         invocation.proceed();
     }
 
+    private Certs configureCertificates() throws KeyStoreException {
+        Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
+        Path serverTruststorePath = context.getRootDir().resolve("truststore.jks");
+        clientKeyStore = new InitOnceMqttClientKeyStore();
+        Certs certs = new Certs(clientKeyStore, serverKeystorePath, serverTruststorePath);
+        certs.initialize();
+        context.certs = certs;
+        return certs;
+    }
+
     @Override
     public void afterTestExecution(ExtensionContext extensionContext) {
         if (kernel != null) {
@@ -293,14 +310,22 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
     }
 
     private void configureContextForMqtt3Broker() {
-        int brokerPort = 8883;
-        IConfig brokerConf = new MemoryConfig(new Properties());
-        brokerConf.setProperty(BrokerConstants.PORT_PROPERTY_NAME, String.valueOf(brokerPort));
+        int sslPort = 8883;
+        int tcpPort = 1883;
         v3Broker = new Server();
         context.setBrokerHost("localhost");
-        context.setBrokerTCPPort(brokerPort);
+        context.setBrokerSSLPort(sslPort);
+        context.setBrokerTCPPort(tcpPort);
         context.startBroker = () -> {
             try {
+                IConfig brokerConf = new MemoryConfig(new Properties());
+                brokerConf.setProperty(IConfig.SSL_PORT_PROPERTY_NAME, String.valueOf(sslPort));
+                brokerConf.setProperty(IConfig.PORT_PROPERTY_NAME, String.valueOf(tcpPort));
+                brokerConf.setProperty(IConfig.JKS_PATH_PROPERTY_NAME, context.certs.getKeystorePath().toAbsolutePath().toString());
+                brokerConf.setProperty(IConfig.KEY_STORE_PASSWORD_PROPERTY_NAME, context.certs.getServerKeystorePassword());
+                brokerConf.setProperty(IConfig.KEY_MANAGER_PASSWORD_PROPERTY_NAME, context.certs.getServerKeystorePassword());
+                brokerConf.setProperty(IConfig.ENABLE_TELEMETRY_NAME, "false");
+                brokerConf.setProperty(IConfig.PERSISTENCE_ENABLED_PROPERTY_NAME, "false");
                 v3Broker.startServer(brokerConf);
             } catch (IOException e) {
                 fail(e);
@@ -309,20 +334,13 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
         context.stopBroker = v3Broker::stopServer;
     }
 
-    private void configureContextForMqtt5Broker() throws KeyStoreException {
-        Path serverKeystorePath = context.getRootDir().resolve("hivemq.jks");
-        Path serverTruststorePath = context.getRootDir().resolve("truststore.jks");
-
-        Certs certs = new Certs(clientKeyStore, serverKeystorePath, serverTruststorePath);
-        certs.initialize();
-        context.certs = certs;
-
+    private void configureContextForMqtt5Broker() {
         v5Broker = new HiveMQContainer(
                 DockerImageName.parse("hivemq/hivemq-ce").withTag("2023.2"))
-                .withFileSystemBind(serverKeystorePath.toAbsolutePath().toString(), "/opt/hivemq/hivemq.jks", BindMode.READ_ONLY)
-                .withFileSystemBind(serverTruststorePath.toAbsolutePath().toString(), "/opt/hivemq/truststore.jks", BindMode.READ_ONLY)
+                .withFileSystemBind(context.certs.getKeystorePath().toAbsolutePath().toString(), "/opt/hivemq/hivemq.jks", BindMode.READ_ONLY)
+                .withFileSystemBind(context.certs.getTrustorePath().toAbsolutePath().toString(), "/opt/hivemq/truststore.jks", BindMode.READ_ONLY)
                 .withHiveMQConfig(MountableFile.forClasspathResource("hivemq/config.xml"))
-                .withEnv("SERVER_JKS_PASSWORD", certs.getServerKeystorePassword())
+                .withEnv("SERVER_JKS_PASSWORD", context.certs.getServerKeystorePassword())
                 .withExposedPorts(8883, 1883)
                 .withLogLevel(Level.DEBUG);
         context.startBroker = () -> {
@@ -376,6 +394,12 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                     .getConfig()
                     .lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION)
                     .withValue(context.clientVersion.name());
+            Class<?> expectedMessageClient = context.clientVersion == MqttVersion.MQTT5
+                    ? LocalMqtt5Client.class : MQTTClient.class;
+            assertThat("local client version switched",
+                    () -> context.getFromContext(MQTTBridge.class).getLocalMqttClient().getClass()
+                            .isAssignableFrom(expectedMessageClient),
+                    eventuallyEval(is(true)));
         }
     }
 

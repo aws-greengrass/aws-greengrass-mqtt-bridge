@@ -26,7 +26,6 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
-import io.moquette.BrokerConstants;
 import io.moquette.broker.Server;
 import io.moquette.broker.config.IConfig;
 import io.moquette.broker.config.MemoryConfig;
@@ -127,7 +126,8 @@ class LifecycleTest {
 
     private static Server startMoquette() throws IOException {
         IConfig brokerConf = new MemoryConfig(new Properties());
-        brokerConf.setProperty(BrokerConstants.PORT_PROPERTY_NAME, String.valueOf(8883));
+        brokerConf.setProperty(IConfig.PORT_PROPERTY_NAME, String.valueOf(8883));
+        brokerConf.setProperty(IConfig.ENABLE_TELEMETRY_NAME, "false");
         Server moquette = new Server();
         moquette.startServer(brokerConf);
         return moquette;

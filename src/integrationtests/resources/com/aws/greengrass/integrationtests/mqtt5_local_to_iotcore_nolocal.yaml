@@ -1,7 +1,7 @@
 services:
   aws.greengrass.clientdevices.mqtt.Bridge:
     configuration:
-      brokerUri: 'tcp://localhost:8883'
+      brokerUri: 'tcp://localhost:1883'
       mqtt5RouteOptions:
         toIotCore:
           noLocal: true
