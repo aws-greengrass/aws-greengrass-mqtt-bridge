@@ -12,8 +12,8 @@ import com.aws.greengrass.mqtt.bridge.clients.MessageClientException;
 import com.aws.greengrass.mqtt.bridge.model.Message;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
+import com.aws.greengrass.mqttclient.MqttTopic;
 import com.aws.greengrass.util.Utils;
-import org.eclipse.paho.client.mqttv3.MqttTopic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -136,7 +136,7 @@ public class MessageBridge {
             };
 
             srcDestMapping.entrySet().stream()
-                    .filter(mapping -> MqttTopic.isMatched(mapping.getKey(), fullSourceTopic))
+                    .filter(mapping -> MqttTopic.topicIsSupersetOf(mapping.getKey(), fullSourceTopic))
                     .map(Map.Entry::getValue)
                     .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
         }
