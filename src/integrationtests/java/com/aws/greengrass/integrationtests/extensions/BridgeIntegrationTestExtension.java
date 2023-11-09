@@ -19,8 +19,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt3Client;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
-import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.MqttVersion;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -395,7 +395,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                     .lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION)
                     .withValue(context.clientVersion.name());
             Class<?> expectedMessageClient = context.clientVersion == MqttVersion.MQTT5
-                    ? LocalMqtt5Client.class : MQTTClient.class;
+                    ? LocalMqtt5Client.class : LocalMqtt3Client.class;
             assertThat("local client version switched",
                     () -> context.getFromContext(MQTTBridge.class).getLocalMqttClient().getClass()
                             .isAssignableFrom(expectedMessageClient),
@@ -432,7 +432,7 @@ public class BridgeIntegrationTestExtension implements AfterTestExecutionCallbac
                             break;
                         case MQTT3:
                             waitForClientToConnect(
-                                    context.getLocalV3Client().getMqttClientInternal()::isConnected, error);
+                                    context.getLocalV3Client()::isConnected, error);
                             break;
                     }
                     localClientConnected.countDown();

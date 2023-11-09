@@ -9,8 +9,8 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt3Client;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt5Client;
-import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.clients.MessageClient;
 import com.aws.greengrass.mqtt.bridge.clients.MockMqttClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
@@ -48,13 +48,13 @@ public class BridgeIntegrationTestContext {
         return getFromContext(IoTCoreClient.class);
     }
 
-    public MQTTClient getLocalV3Client() {
+    public LocalMqtt3Client getLocalV3Client() {
         MessageClient<MqttMessage> client = getFromContext(MQTTBridge.class).getLocalMqttClient();
-        if (!(client instanceof MQTTClient)) {
-            throw new RuntimeException("Expected " + MQTTClient.class.getSimpleName()
+        if (!(client instanceof LocalMqtt3Client)) {
+            throw new RuntimeException("Expected " + LocalMqtt3Client.class.getSimpleName()
                     + " but got " + client.getClass().getSimpleName());
         }
-        return (MQTTClient) client;
+        return (LocalMqtt3Client) client;
     }
 
     public LocalMqtt5Client getLocalV5Client() {

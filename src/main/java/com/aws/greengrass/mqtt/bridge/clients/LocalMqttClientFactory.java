@@ -62,7 +62,7 @@ public class LocalMqttClientFactory {
                 );
             case MQTT3: // fall-through
             default:
-                return new MQTTClient(
+                return new LocalMqtt3Client(
                         config,
                         mqttClientKeyStore,
                         executorService

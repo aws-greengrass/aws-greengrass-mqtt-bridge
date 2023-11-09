@@ -15,6 +15,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.mqtt.bridge.BridgeConfig;
 import com.aws.greengrass.mqtt.bridge.MQTTBridge;
 import com.aws.greengrass.mqtt.bridge.TopicMapping;
+import com.aws.greengrass.mqtt.bridge.clients.LocalMqtt3Client;
 import com.aws.greengrass.mqtt.bridge.clients.MQTTClient;
 import com.aws.greengrass.mqtt.bridge.model.BridgeConfigReference;
 import com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions;
@@ -321,8 +322,8 @@ public class ConfigTest {
             withBrokers = Broker.MQTT5)
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     void GIVEN_bridge_WHEN_mqtt_version_toggled_THEN_clients_switched() throws Exception {
-        MQTTClient v3Client = testContext.getLocalV3Client();
-        assertTrue(v3Client.getMqttClientInternal().isConnected());
+        LocalMqtt3Client v3Client = testContext.getLocalV3Client();
+        assertTrue(v3Client.isConnected());
 
         // switch mqtt version from mqtt3 to mqtt5
         testContext.getKernel().locate(MQTTBridge.SERVICE_NAME)
@@ -341,14 +342,7 @@ public class ConfigTest {
             }
         }, eventuallyEval(is(true)));
 
-        assertFalse(v3Client.getMqttClientInternal().isConnected());
-        try {
-            v3Client.getMqttClientInternal().connect();
-            fail("v3 client expected to be closed");
-        } catch (MqttException e) {
-            assertEquals(MqttException.REASON_CODE_CLIENT_CLOSED, e.getReasonCode());
-        }
-
+        assertFalse(v3Client.isConnected());
         assertThat("mqtt5 client connected", () -> testContext.getLocalV5Client().getClient().getIsConnected(), eventuallyEval(is(true)));
     }
 }

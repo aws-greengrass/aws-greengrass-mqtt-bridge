@@ -100,9 +100,9 @@ public class BridgeIntegrationTestExtensionTest {
         assertTrue(brokerIsListening.get());
         context.stopBroker();
         assertThat("broker stopped listening", brokerIsListening, eventuallyEval(is(false)));
-        assertThat("local client is disconnected", () -> context.getLocalV3Client().getMqttClientInternal().isConnected(), eventuallyEval(is(false)));
+        assertThat("local client is disconnected", () -> context.getLocalV3Client().isConnected(), eventuallyEval(is(false)));
         context.startBroker();
         assertThat("broker is listening", brokerIsListening, eventuallyEval(is(true)));
-        assertThat("local client reconnects", () -> context.getLocalV3Client().getMqttClientInternal().isConnected(), eventuallyEval(is(true)));
+        assertThat("local client reconnects", () -> context.getLocalV3Client().isConnected(), eventuallyEval(is(true)));
     }
 }
