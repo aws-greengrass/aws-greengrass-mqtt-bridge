@@ -7,7 +7,7 @@
   "ComponentPublisher": "{COMPONENT_PUBLISHER}",
   "ComponentDependencies": {
     "aws.greengrass.clientdevices.Auth": {
-      "VersionRequirement": ">=2.2.0 <2.3.0",
+      "VersionRequirement": ">=2.2.0 <2.5.0",
       "DependencyType": "HARD"
     }
   },
