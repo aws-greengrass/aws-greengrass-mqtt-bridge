@@ -66,7 +66,8 @@ public class KeystoreTest {
     void GIVEN_mqtt5_bridge_WHEN_client_cert_changes_THEN_local_client_restarts() throws Exception {
         CompletableFuture<Void> numConnects = asyncAssertNumConnects(1);
         testContext.getCerts().rotateClientCert();
-        testContext.getCerts().waitForBrokerToApplyStoreChanges();
+        testContext.stopBroker();
+        testContext.startBroker();
         numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }
@@ -86,7 +87,8 @@ public class KeystoreTest {
         testContext.getCerts().rotateCA();
         testContext.getCerts().rotateServerCert();
         testContext.getCerts().rotateClientCert();
-        testContext.getCerts().waitForBrokerToApplyStoreChanges();
+        testContext.stopBroker();
+        testContext.startBroker();
         numConnects.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertTrue(testContext.getLocalV5Client().getClient().getIsConnected());
     }

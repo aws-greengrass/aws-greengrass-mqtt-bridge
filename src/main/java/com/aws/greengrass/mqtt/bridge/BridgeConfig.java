@@ -74,7 +74,7 @@ public final class BridgeConfig {
     public static final int DEFAULT_RECEIVE_MAXIMUM = 100;
     public static final Long DEFAULT_MAXIMUM_PACKET_SIZE = null;
     public static final long DEFAULT_SESSION_EXPIRY_INTERVAL = MAX_SESSION_EXPIRY_INTERVAL;
-    private static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
+    public static final long DEFAULT_ACK_TIMEOUT_SECONDS = 60L;
     private static final long DEFAULT_CONNACK_TIMEOUT_MS = Duration.ofSeconds(20).toMillis();
     private static final long DEFAULT_PING_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();
     private static final long DEFAULT_KEEP_ALIVE_TIMEOUT_SECONDS = Duration.ofSeconds(60).getSeconds();
