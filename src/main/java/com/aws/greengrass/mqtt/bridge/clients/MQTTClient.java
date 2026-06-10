@@ -124,6 +124,8 @@ public class MQTTClient implements MessageClient<MqttMessage>, Configurable {
     public static class Config {
         URI brokerUri;
         String clientId;
+        @Builder.Default
+        long ackTimeoutSeconds = BridgeConfig.DEFAULT_ACK_TIMEOUT_SECONDS;
 
         /**
          * Map from bridge configuration to client configuration.
@@ -135,6 +137,7 @@ public class MQTTClient implements MessageClient<MqttMessage>, Configurable {
             return Config.builder()
                     .brokerUri(bridgeConfig.getBrokerUri())
                     .clientId(bridgeConfig.getClientId())
+                    .ackTimeoutSeconds(bridgeConfig.getAckTimeoutSeconds())
                     .build();
         }
     }
@@ -182,6 +185,7 @@ public class MQTTClient implements MessageClient<MqttMessage>, Configurable {
                 this.config = this.pendingConfig;
             }
             MqttClient client = new MqttClient(config.getBrokerUri().toString(), config.getClientId(), dataStore);
+            client.setTimeToWait(config.getAckTimeoutSeconds() * 1000L);
             client.setCallback(mqttCallback);
             return client;
         };
@@ -200,6 +204,9 @@ public class MQTTClient implements MessageClient<MqttMessage>, Configurable {
                 this.config = this.pendingConfig;
             }
             IMqttClient client = clientFactory.apply();
+            if (client instanceof MqttClient) {
+                ((MqttClient) client).setTimeToWait(this.config.getAckTimeoutSeconds() * 1000L);
+            }
             client.setCallback(mqttCallback);
             return client;
         };
