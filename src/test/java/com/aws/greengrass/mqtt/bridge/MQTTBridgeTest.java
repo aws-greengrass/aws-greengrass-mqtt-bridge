@@ -13,6 +13,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.clientdevices.auth.ClientDevicesAuthService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.mqtt.bridge.auth.MQTTClientKeyStore;
 import com.aws.greengrass.mqtt.bridge.clients.IoTCoreClient;
 import com.aws.greengrass.mqtt.bridge.clients.LocalMqttClientFactory;
@@ -32,12 +33,14 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -46,7 +49,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -76,6 +81,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
 
         try (Context context = new Context()) {
+            stubKernelContext(mockKernel, context);
             Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
             config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                     .dflt("tcp://localhost:8883");
@@ -166,6 +172,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
 
         try (Context context = new Context()) {
+            stubKernelContext(mockKernel, context);
             Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
             config.lookup(CONFIGURATION_CONFIG_KEY, BridgeConfig.KEY_BROKER_URI)
                     .dflt("tcp://localhost:8883");
@@ -207,6 +214,7 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
         MessageBridge mockMessageBridge = mock(MessageBridge.class);
         Kernel mockKernel = mock(Kernel.class);
         MQTTClientKeyStore mockMqttClientKeyStore = mock(MQTTClientKeyStore.class);
+        stubKernelContext(mockKernel, context);
         LocalMqttClientFactory localMqttClientFactory = new FakeMqttClientFactory();
 
         Topics config = Topics.of(context, CONFIGURATION_CONFIG_KEY, null);
@@ -275,6 +283,28 @@ public class MQTTBridgeTest extends GGServiceTestUtil {
                     return (MqttMessage) message.toMqtt();
                 }
             };
+        }
+    }
+
+    private void stubKernelContext(Kernel mockKernel, Context context) {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        setShutdownInitiated(kernelLifecycle, false);
+        if (mockingDetails(context).isMock()) {
+            lenient().when(context.get(KernelLifecycle.class)).thenReturn(kernelLifecycle);
+        } else {
+            context.put(KernelLifecycle.class, kernelLifecycle);
+        }
+        lenient().when(mockKernel.getContext()).thenReturn(context);
+    }
+
+    private static void setShutdownInitiated(KernelLifecycle lifecycle, boolean value) {
+        // IoTCoreClient reads this field reflectively; mocks skip field initializers, so set it here
+        try {
+            Field shutdownInitiatedField = KernelLifecycle.class.getDeclaredField("isShutdownInitiated");
+            shutdownInitiatedField.setAccessible(true);
+            shutdownInitiatedField.set(lifecycle, new AtomicBoolean(value));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
         }
     }
 }

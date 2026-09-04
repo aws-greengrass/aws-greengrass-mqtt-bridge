@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqtt.bridge.model.Message;
@@ -22,6 +24,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -32,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -56,6 +60,7 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     @Getter // for testing
     private final MqttClient iotMqttClient;
     private final ExecutorService executorService;
+    private final Kernel kernel;
 
     private final Consumer<Publish> iotCoreCallback = (message) -> {
         String topic = message.getTopic();
@@ -93,11 +98,13 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
      *
      * @param iotMqttClient for interacting with IoT Core
      * @param executorService for tasks asynchronously
+     * @param kernel Greengrass kernel, used to detect Nucleus shutdown
      */
     @Inject
-    public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService) {
+    public IoTCoreClient(MqttClient iotMqttClient, ExecutorService executorService, Kernel kernel) {
         this.iotMqttClient = iotMqttClient;
         this.executorService = executorService;
+        this.kernel = kernel;
         // onConnect handler required to handle case when bridge starts offline
         iotMqttClient.addToCallbackEvents(connectionCallbacks::onConnectionResumed, connectionCallbacks);
     }
@@ -119,8 +126,32 @@ public class IoTCoreClient implements MessageClient<com.aws.greengrass.mqtt.brid
     }
 
     private void removeMappingAndSubscriptions() {
-        unsubscribeAll();
+        if (isNucleusShuttingDown()) {
+            // The connection is about to close and IoT Core removes the session's subscriptions
+            // server-side. Skip the blocking unsubscribe, whose completion may never be delivered
+            // once CRT teardown races Nucleus shutdown (JVM shutdown hooks run concurrently).
+            LOGGER.atDebug().kv("mapping", subscribedIotCoreTopics)
+                    .log("Nucleus is shutting down, skipping unsubscribe from IoT Core topics");
+        } else {
+            unsubscribeAll();
+        }
         subscribedIotCoreTopics.clear();
+    }
+
+    private boolean isNucleusShuttingDown() {
+        // KernelLifecycle#getIsShutdownInitiated() only exists on nucleus 2.12.3+. Read the field
+        // reflectively (present since 2.0) so the bridge keeps working against older nucleus versions.
+        try {
+            KernelLifecycle lifecycle = kernel.getContext().get(KernelLifecycle.class);
+            Field shutdownInitiatedField = KernelLifecycle.class.getDeclaredField("isShutdownInitiated");
+            shutdownInitiatedField.setAccessible(true);
+            Object value = shutdownInitiatedField.get(lifecycle);
+            return value instanceof AtomicBoolean && ((AtomicBoolean) value).get();
+        } catch (ReflectiveOperationException | SecurityException e) {
+            LOGGER.atWarn().setCause(e)
+                    .log("Unable to determine Nucleus shutdown state, falling back to unsubscribing");
+            return false;
+        }
     }
 
     private void unsubscribeAll() {

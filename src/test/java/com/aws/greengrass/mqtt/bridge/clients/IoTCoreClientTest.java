@@ -5,19 +5,26 @@
 
 package com.aws.greengrass.mqtt.bridge.clients;
 
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -25,13 +32,46 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IoTCoreClientTest {
 
+    Context context = new Context();
     MockMqttClient mockMqttClient = new MockMqttClient(false);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
-    IoTCoreClient iotCoreClient = new IoTCoreClient(mockMqttClient.getMqttClient(), executorService);
+    IoTCoreClient iotCoreClient =
+            new IoTCoreClient(mockMqttClient.getMqttClient(), executorService, mockKernel(context, false));
+
+    @AfterEach
+    void tearDown() throws Exception {
+        context.close();
+    }
+
+    private static Kernel mockKernel(Context context, boolean shutdownInitiated) {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        setShutdownInitiated(kernelLifecycle, shutdownInitiated);
+        context.put(KernelLifecycle.class, kernelLifecycle);
+
+        Kernel kernel = mock(Kernel.class);
+        lenient().when(kernel.getContext()).thenReturn(context);
+        return kernel;
+    }
+
+    private static void setShutdownInitiated(KernelLifecycle lifecycle, boolean value) {
+        // IoTCoreClient reads this field reflectively; mocks skip field initializers, so set it here
+        try {
+            Field shutdownInitiatedField = KernelLifecycle.class.getDeclaredField("isShutdownInitiated");
+            shutdownInitiatedField.setAccessible(true);
+            shutdownInitiatedField.set(lifecycle, new AtomicBoolean(value));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     @Test
     void GIVEN_client_with_no_subscriptions_WHEN_update_subscriptions_THEN_topics_subscribed() {
@@ -82,6 +122,29 @@ public class IoTCoreClientTest {
 
         assertThat("iot core client unsubscribed", () -> iotCoreClient.getSubscribedIotCoreTopics().isEmpty(), eventuallyEval(is(true)));
         assertThat("spooler client unsubscribed", () -> mockMqttClient.getSubscriptions().isEmpty(), eventuallyEval(is(true)));
+    }
+
+    @Test
+    void GIVEN_client_with_subscriptions_WHEN_stopped_during_nucleus_shutdown_THEN_wire_unsubscribe_skipped()
+            throws Exception {
+        IoTCoreClient client =
+                new IoTCoreClient(mockMqttClient.getMqttClient(), executorService, mockKernel(context, true));
+        Set<String> topics = new HashSet<>();
+        topics.add("iotcore/topic");
+        topics.add("iotcore/topic2");
+
+        client.updateSubscriptions(topics, message -> {});
+
+        // verify subscriptions were made
+        assertThat("subscribed topics iot core client", () -> client.getSubscribedIotCoreTopics(), eventuallyEval(is(topics)));
+        assertThat("subscribed topics spooler client", () -> mockMqttClient.getSubscriptions().stream().map(Subscribe::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+
+        client.stop();
+
+        // local state cleared without unsubscribing over the wire
+        assertThat("iot core client cleared", () -> client.getSubscribedIotCoreTopics().isEmpty(), eventuallyEval(is(true)));
+        assertThat("no wire unsubscribe issued", () -> mockMqttClient.getSubscriptions().stream().map(Subscribe::getTopic).collect(Collectors.toSet()), eventuallyEval(is(topics)));
+        verify(mockMqttClient.getMqttClient(), never()).unsubscribe(any(Unsubscribe.class));
     }
 
     @Test
