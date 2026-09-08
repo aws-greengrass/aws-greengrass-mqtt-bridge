@@ -102,7 +102,7 @@ public class MQTTBridge extends PluginService {
         this.mqttClientKeyStore = mqttClientKeyStore;
         this.messageBridge = messageBridge;
         this.pubSubClient = new PubSubClient(pubSubIPCAgent);
-        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService);
+        this.ioTCoreClient = new IoTCoreClient(iotMqttClient, executorService, kernel);
         this.localMqttClientFactory = localMqttClientFactory;
         this.configurationChangeHandler = new ConfigurationChangeHandler();
         this.certificateAuthorityChangeHandler = new CertificateAuthorityChangeHandler();
