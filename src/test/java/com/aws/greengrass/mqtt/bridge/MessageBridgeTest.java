@@ -28,7 +28,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -552,7 +554,7 @@ public class MessageBridgeTest {
         mapping.updateMapping(mappingToUpdate);
 
         Map<String, Mqtt5RouteOptions> options = new HashMap<>();
-        options.put("topics/toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
         byte[] payload = "message".getBytes();
 
         MessageBridge messageBridge = new MessageBridge(mapping, options);
@@ -582,7 +584,7 @@ public class MessageBridgeTest {
         mapping.updateMapping(mappingToUpdate);
 
         Map<String, Mqtt5RouteOptions> options = new HashMap<>();
-        options.put("topics/toLocal", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
         byte[] payload = "message".getBytes();
 
         MessageBridge messageBridge = new MessageBridge(mapping, options);
@@ -600,6 +602,215 @@ public class MessageBridgeTest {
                 Matchers.is(Matchers.equalTo("topics/toLocal")));
         Assertions.assertArrayEquals(payload, messageLocalMqttCaptor.getAllValues().get(0).getPayload());
         Assertions.assertEquals(false, messageLocalMqttCaptor.getAllValues().get(0).isRetain());
+    }
+
+    @Test
+    void GIVEN_single_level_wildcard_mapping_with_retain_as_published_WHEN_retained_message_THEN_bridged_with_retain_flag()
+            throws MessageClientException {
+        MqttMessage published = bridgeRetainedLocalMessageToIotCore(
+                new TopicMapping.MappingEntry("robots/+/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore),
+                Mqtt5RouteOptions.builder().retainAsPublished(true).build(),
+                "robots/r1/battery");
+
+        assertThat(published.getTopic(), Matchers.is(Matchers.equalTo("robots/r1/battery")));
+        Assertions.assertTrue(published.isRetain());
+    }
+
+    @Test
+    void GIVEN_multi_level_wildcard_mapping_with_retain_as_published_WHEN_retained_message_THEN_bridged_with_retain_flag()
+            throws MessageClientException {
+        MqttMessage published = bridgeRetainedLocalMessageToIotCore(
+                new TopicMapping.MappingEntry("robots/#", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore),
+                Mqtt5RouteOptions.builder().retainAsPublished(true).build(),
+                "robots/r1/battery");
+
+        assertThat(published.getTopic(), Matchers.is(Matchers.equalTo("robots/r1/battery")));
+        Assertions.assertTrue(published.isRetain());
+    }
+
+    @Test
+    void GIVEN_mapping_with_target_topic_prefix_and_retain_as_published_WHEN_retained_message_THEN_bridged_with_retain_flag()
+            throws MessageClientException {
+        MqttMessage published = bridgeRetainedLocalMessageToIotCore(
+                new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "site1/"),
+                Mqtt5RouteOptions.builder().retainAsPublished(true).build(),
+                "robots/r1/battery");
+
+        assertThat(published.getTopic(), Matchers.is(Matchers.equalTo("site1/robots/r1/battery")));
+        Assertions.assertTrue(published.isRetain());
+    }
+
+    @Test
+    void GIVEN_wildcard_mapping_without_route_options_WHEN_retained_message_THEN_bridged_without_retain_flag()
+            throws MessageClientException {
+        MqttMessage published = bridgeRetainedLocalMessageToIotCore(
+                new TopicMapping.MappingEntry("robots/+/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore),
+                null,
+                "robots/r1/battery");
+
+        Assertions.assertFalse(published.isRetain());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void GIVEN_overlapping_mappings_with_different_retain_as_published_WHEN_retained_message_THEN_each_route_uses_own_option()
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        mapping.updateMapping(Utils.immutableMap(
+                "allRobots", new TopicMapping.MappingEntry("robots/#", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "all/"),
+                "r1Battery", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "r1/")));
+
+        Map<String, Mqtt5RouteOptions> options = new HashMap<>();
+        options.put("allRobots", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("r1Battery", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore,
+                mockIotCoreClient);
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic("robots/r1/battery")
+                .payload("message".getBytes()).retain(true).build());
+
+        ArgumentCaptor<MqttMessage> messageIotCoreCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockIotCoreClient, times(2)).publish(messageIotCoreCaptor.capture());
+        Map<String, Boolean> retainByTopic = messageIotCoreCaptor.getAllValues().stream()
+                .collect(Collectors.toMap(MqttMessage::getTopic, MqttMessage::isRetain));
+        Assertions.assertEquals(Utils.immutableMap("all/robots/r1/battery", true, "r1/robots/r1/battery", false),
+                retainByTopic);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void GIVEN_mappings_sharing_topic_filter_with_different_retain_as_published_WHEN_retained_message_THEN_each_route_uses_own_option()
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        mapping.updateMapping(Utils.immutableMap(
+                "plain", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore),
+                "backup", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "backup/"),
+                "audit", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore, "audit/")));
+
+        // backup has no route options
+        Map<String, Mqtt5RouteOptions> options = new HashMap<>();
+        options.put("plain", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("audit", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore,
+                mockIotCoreClient);
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic("robots/r1/battery")
+                .payload("message".getBytes()).retain(true).build());
+
+        ArgumentCaptor<MqttMessage> messageIotCoreCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockIotCoreClient, times(3)).publish(messageIotCoreCaptor.capture());
+        Map<String, Boolean> retainByTopic = messageIotCoreCaptor.getAllValues().stream()
+                .collect(Collectors.toMap(MqttMessage::getTopic, MqttMessage::isRetain));
+        Assertions.assertEquals(Utils.immutableMap("robots/r1/battery", true, "backup/robots/r1/battery", false,
+                "audit/robots/r1/battery", false), retainByTopic);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void GIVEN_route_options_updated_WHEN_retained_message_THEN_latest_retain_as_published_applied()
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        mapping.updateMapping(Utils.immutableMap(
+                "route", new TopicMapping.MappingEntry("robots/+/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore)));
+
+        AtomicReference<Map<String, Mqtt5RouteOptions>> options = new AtomicReference<>(Collections.emptyMap());
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options::get);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore,
+                mockIotCoreClient);
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        MqttMessage message = MqttMessage.builder().topic("robots/r1/battery")
+                .payload("message".getBytes()).retain(true).build();
+
+        messageHandlerLocalMqttCaptor.getValue().accept(message);
+        options.set(Utils.immutableMap("route", Mqtt5RouteOptions.builder().retainAsPublished(true).build()));
+        messageHandlerLocalMqttCaptor.getValue().accept(message);
+
+        ArgumentCaptor<MqttMessage> messageIotCoreCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockIotCoreClient, times(2)).publish(messageIotCoreCaptor.capture());
+        Assertions.assertFalse(messageIotCoreCaptor.getAllValues().get(0).isRetain());
+        Assertions.assertTrue(messageIotCoreCaptor.getAllValues().get(1).isRetain());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void GIVEN_iotcore_source_mapping_sharing_topic_with_local_retain_route_WHEN_retained_message_THEN_bridged_without_retain_flag()
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        mapping.updateMapping(Utils.immutableMap(
+                "toCloud", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.LocalMqtt,
+                        TopicMapping.TopicType.IotCore),
+                "toLocal", new TopicMapping.MappingEntry("robots/r1/battery", TopicMapping.TopicType.IotCore,
+                        TopicMapping.TopicType.LocalMqtt)));
+
+        // retainAsPublished is only supported for LocalMqtt sources, so it's ignored on the IotCore route
+        Map<String, Mqtt5RouteOptions> options = new HashMap<>();
+        options.put("toCloud", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        options.put("toLocal", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore,
+                mockIotCoreClient);
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerIotCoreCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockIotCoreClient, times(1)).updateSubscriptions(any(), messageHandlerIotCoreCaptor.capture());
+        messageHandlerIotCoreCaptor.getValue().accept(MqttMessage.builder().topic("robots/r1/battery")
+                .payload("message".getBytes()).retain(true).build());
+
+        ArgumentCaptor<MqttMessage> messageLocalMqttCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockLocalClient, times(1)).publish(messageLocalMqttCaptor.capture());
+        Assertions.assertFalse(messageLocalMqttCaptor.getValue().isRetain());
+    }
+
+    @SuppressWarnings("unchecked")
+    private MqttMessage bridgeRetainedLocalMessageToIotCore(TopicMapping.MappingEntry mappingEntry,
+                                                            Mqtt5RouteOptions routeOptions, String publishTopic)
+            throws MessageClientException {
+        TopicMapping mapping = new TopicMapping();
+        mapping.updateMapping(Utils.immutableMap("route", mappingEntry));
+
+        Map<String, Mqtt5RouteOptions> options = new HashMap<>();
+        if (routeOptions != null) {
+            options.put("route", routeOptions);
+        }
+
+        MessageBridge messageBridge = new MessageBridge(mapping, options);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.LocalMqtt,
+                mockLocalClient);
+        messageBridge.addOrReplaceMessageClientAndUpdateSubscriptions(TopicMapping.TopicType.IotCore,
+                mockIotCoreClient);
+        ArgumentCaptor<Consumer<MqttMessage>> messageHandlerLocalMqttCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockLocalClient, times(1)).updateSubscriptions(any(), messageHandlerLocalMqttCaptor.capture());
+        messageHandlerLocalMqttCaptor.getValue().accept(MqttMessage.builder().topic(publishTopic)
+                .payload("message".getBytes()).retain(true).build());
+
+        ArgumentCaptor<MqttMessage> messageIotCoreCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mockIotCoreClient, times(1)).publish(messageIotCoreCaptor.capture());
+        return messageIotCoreCaptor.getValue();
     }
 
     static class FakeMqttMessageClient implements MessageClient<MqttMessage> {

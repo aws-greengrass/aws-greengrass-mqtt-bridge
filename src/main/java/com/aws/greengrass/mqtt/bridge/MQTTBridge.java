@@ -119,8 +119,7 @@ public class MQTTBridge extends PluginService {
     @Override
     public synchronized void install() {
         configurationChangeHandler.listen();
-        messageBridge = new MessageBridge(this.topicMapping, bridgeConfig.get().getMqtt5RouteOptionsForSource(
-                TopicMapping.TopicType.LocalMqtt));
+        messageBridge = new MessageBridge(this.topicMapping, () -> bridgeConfig.get().getMqtt5RouteOptionsByRoute());
     }
 
     @Override

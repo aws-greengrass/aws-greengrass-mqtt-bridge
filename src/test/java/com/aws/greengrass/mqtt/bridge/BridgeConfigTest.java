@@ -501,6 +501,44 @@ class BridgeConfigTest {
     }
 
     @Test
+    void GIVEN_config_with_routes_sharing_topic_WHEN_get_route_options_by_route_THEN_options_returned_per_route() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt5");
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString()),
+                        "m2",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString(), "targetTopicPrefix", "backup/")));
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
+                Utils.immutableMap(
+                        "m1", Utils.immutableMap("retainAsPublished",  "true"),
+                        "m2", Utils.immutableMap("retainAsPublished",  "false")));
+
+        Map<String, Mqtt5RouteOptions> expectedOpts = new HashMap<>();
+        expectedOpts.put("m1", Mqtt5RouteOptions.builder().retainAsPublished(true).build());
+        expectedOpts.put("m2", Mqtt5RouteOptions.builder().retainAsPublished(false).build());
+        assertEquals(expectedOpts, BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsByRoute());
+    }
+
+    @Test
+    void GIVEN_config_mqtt_3_WHEN_get_route_options_by_route_THEN_no_options_returned() throws InvalidConfigurationException {
+        topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt3");
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_TOPIC_MAPPING).replaceAndWait(
+                Utils.immutableMap(
+                        "m1",
+                        Utils.immutableMap("topic", "mqtt/topic", "source", TopicMapping.TopicType.LocalMqtt.toString(), "target", TopicMapping.TopicType.IotCore.toString())));
+
+        topics.lookupTopics(BridgeConfig.KEY_MQTT_5_ROUTE_OPTIONS).replaceAndWait(
+                Utils.immutableMap(
+                        "m1", Utils.immutableMap("retainAsPublished",  "true")));
+
+        assertEquals(Collections.emptyMap(), BridgeConfig.fromTopics(topics).getMqtt5RouteOptionsByRoute());
+    }
+
+    @Test
     void GIVEN_config_mqtt_3_WHEN_get_route_options_for_source_THEN_no_options_returned() throws InvalidConfigurationException {
         topics.lookup(BridgeConfig.KEY_MQTT, BridgeConfig.KEY_VERSION).dflt("mqtt3");
 
