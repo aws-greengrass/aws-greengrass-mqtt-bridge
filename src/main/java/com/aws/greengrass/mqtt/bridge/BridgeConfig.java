@@ -307,6 +307,20 @@ public final class BridgeConfig {
     }
 
     /**
+     * Get mqtt5 route options, grouped by route name.
+     *
+     * <p>If bridge is not configured for mqtt5, no options will be returned.
+     *
+     * @return route options by route name
+     */
+    public Map<String, Mqtt5RouteOptions> getMqtt5RouteOptionsByRoute() {
+        if (mqttVersion != MqttVersion.MQTT5) {
+            return Collections.emptyMap();
+        }
+        return mqtt5RouteOptions;
+    }
+
+    /**
      * Get mqtt5 route options for a {@link com.aws.greengrass.mqtt.bridge.TopicMapping.TopicType},
      * grouped by topic names.
      *

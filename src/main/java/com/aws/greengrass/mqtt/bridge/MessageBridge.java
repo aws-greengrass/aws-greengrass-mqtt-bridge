@@ -15,15 +15,14 @@ import com.aws.greengrass.mqtt.bridge.model.MqttMessage;
 import com.aws.greengrass.mqttclient.MqttTopic;
 import com.aws.greengrass.util.Utils;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static com.aws.greengrass.mqtt.bridge.model.Mqtt5RouteOptions.DEFAULT_RETAIN_AS_PUBLISHED;
 
@@ -41,27 +40,40 @@ public class MessageBridge {
     private static final String LOG_KEY_RESOLVED_TARGET_TOPIC = "resolvedTargetTopic";
 
     private final TopicMapping topicMapping;
-    private final Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic;
+    // Read on every message, so route option changes apply without reinstalling the bridge
+    private final Supplier<Map<String, Mqtt5RouteOptions>> mqtt5RouteOptionsByRoute;
     // A map from type of message client to the clients. For example, LocalMqtt -> MQTTClient
     private final Map<TopicMapping.TopicType, MessageClient<? extends Message>> messageClientMap
             = new ConcurrentHashMap<>();
     // A map from type of source to its mapping. The mapping is actually mapping from topic name to its destinations
-    // (destination topic + type). This data structure may change once we introduce complex routing mechanism.
+    // (route name -> destination topic + type). This data structure may change once we introduce complex routing
+    // mechanism.
     // Example:
-    // LocalMqtt -> {"/sourceTopic", [<TopicMapping>, <TopicMapping>]}
-    private Map<TopicMapping.TopicType, Map<String, List<TopicMapping.MappingEntry>>>
+    // LocalMqtt -> {"/sourceTopic", {"route1": <TopicMapping>, "route2": <TopicMapping>}}
+    private Map<TopicMapping.TopicType, Map<String, Map<String, TopicMapping.MappingEntry>>>
             perClientSourceDestinationMap = new HashMap<>();
 
     /**
      * Ctr for Message Bridge.
      *
      * @param topicMapping              topics mapping
-     * @param localMqttOptionsByTopic   mqtt5 route options
+     * @param mqtt5RouteOptionsByRoute  mqtt5 route options, keyed by route name
      */
-    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> localMqttOptionsByTopic) {
+    public MessageBridge(TopicMapping topicMapping, Map<String, Mqtt5RouteOptions> mqtt5RouteOptionsByRoute) {
+        this(topicMapping, () -> mqtt5RouteOptionsByRoute);
+    }
+
+    /**
+     * Ctr for Message Bridge.
+     *
+     * @param topicMapping              topics mapping
+     * @param mqtt5RouteOptionsByRoute  supplier of the current mqtt5 route options, keyed by route name
+     */
+    public MessageBridge(TopicMapping topicMapping,
+                         Supplier<Map<String, Mqtt5RouteOptions>> mqtt5RouteOptionsByRoute) {
         this.topicMapping = topicMapping;
         this.topicMapping.listenToUpdates(this::processMappingAndSubscribe);
-        this.localMqttOptionsByTopic = localMqttOptionsByTopic;
+        this.mqtt5RouteOptionsByRoute = mqtt5RouteOptionsByRoute;
 
         processMappingAndSubscribe();
     }
@@ -100,10 +112,11 @@ public class MessageBridge {
             return;
         }
 
-        Map<String, List<TopicMapping.MappingEntry>> srcDestMapping = perClientSourceDestinationMap.get(sourceType);
+        Map<String, Map<String, TopicMapping.MappingEntry>> srcDestMapping =
+                perClientSourceDestinationMap.get(sourceType);
 
         if (srcDestMapping != null) {
-            final Consumer<TopicMapping.MappingEntry> processDestination = mapping -> {
+            final BiConsumer<String, TopicMapping.MappingEntry> processDestination = (route, mapping) -> {
                 MessageClient<? extends Message> client = messageClientMap.get(mapping.getTarget());
                 // If the mapped topic string is empty string, we forward the message to the same topic as the
                 // source topic.
@@ -121,7 +134,7 @@ public class MessageBridge {
                             .log("Message client not found for target type");
                 } else {
                     try {
-                        publishMessage(client, targetTopic, message);
+                        publishMessage(client, targetTopic, message, isRetainAsPublished(route, mapping));
                         LOGGER.atDebug().kv(LOG_KEY_SOURCE_TYPE, sourceType).kv(LOG_KEY_SOURCE_TOPIC, fullSourceTopic)
                                 .kv(LOG_KEY_TARGET_TYPE, mapping.getTarget())
                                 .kv(LOG_KEY_TARGET_TOPIC, mapping.getTargetTopic())
@@ -138,16 +151,16 @@ public class MessageBridge {
             srcDestMapping.entrySet().stream()
                     .filter(mapping -> MqttTopic.topicIsSupersetOf(mapping.getKey(), fullSourceTopic))
                     .map(Map.Entry::getValue)
-                    .forEach(perTopicDestinationList -> perTopicDestinationList.forEach(processDestination));
+                    .forEach(perTopicDestinations -> perTopicDestinations.forEach(processDestination));
         }
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends Message> void publishMessage(MessageClient<T> client, String topic, Message message)
-            throws MessageClientException {
+    private <T extends Message> void publishMessage(MessageClient<T> client, String topic, Message message,
+                                                    boolean retainAsPublished) throws MessageClientException {
         T msg = client.convertMessage(message);
 
-        if (!isRetainAsPublished(topic) && msg instanceof MqttMessage) {
+        if (!retainAsPublished && msg instanceof MqttMessage) {
             MqttMessage mqttMsg = (MqttMessage) msg;
             mqttMsg = mqttMsg.toBuilder().topic(topic).retain(false).build();
             client.publish((T) mqttMsg);
@@ -157,8 +170,12 @@ public class MessageBridge {
         }
     }
 
-    private boolean isRetainAsPublished(String topic) {
-        return Optional.ofNullable(localMqttOptionsByTopic.get(topic))
+    private boolean isRetainAsPublished(String route, TopicMapping.MappingEntry mapping) {
+        // retainAsPublished is only supported for routes where the source is LocalMqtt
+        if (mapping.getSource() != TopicMapping.TopicType.LocalMqtt) {
+            return DEFAULT_RETAIN_AS_PUBLISHED;
+        }
+        return Optional.ofNullable(mqtt5RouteOptionsByRoute.get().get(route))
                 .map(Mqtt5RouteOptions::isRetainAsPublished)
                 .orElse(DEFAULT_RETAIN_AS_PUBLISHED);
     }
@@ -167,18 +184,18 @@ public class MessageBridge {
         Map<String, TopicMapping.MappingEntry> mapping = topicMapping.getMapping();
         LOGGER.atDebug().kv("topicMapping", mapping).log("Processing mapping");
 
-        Map<TopicMapping.TopicType, Map<String, List<TopicMapping.MappingEntry>>>
+        Map<TopicMapping.TopicType, Map<String, Map<String, TopicMapping.MappingEntry>>>
                 perClientSourceDestinationMapTemp = new HashMap<>();
 
         mapping.forEach((key, mappingEntry) -> {
             // Ensure mapping for client type
-            Map<String, List<TopicMapping.MappingEntry>> sourceDestinationMap =
+            Map<String, Map<String, TopicMapping.MappingEntry>> sourceDestinationMap =
                     perClientSourceDestinationMapTemp.computeIfAbsent(mappingEntry.getSource(), k -> new HashMap<>());
 
             // Add destinations for each source topic
             // TODO: Support more types of topic mapping.
-            sourceDestinationMap.computeIfAbsent(mappingEntry.getTopic(), k -> new ArrayList<>())
-                    .add(mappingEntry);
+            sourceDestinationMap.computeIfAbsent(mappingEntry.getTopic(), k -> new HashMap<>())
+                    .put(key, mappingEntry);
         });
 
         perClientSourceDestinationMap = perClientSourceDestinationMapTemp;
@@ -189,7 +206,7 @@ public class MessageBridge {
 
     private synchronized void updateSubscriptionsForClient(TopicMapping.TopicType clientType,
                                                            MessageClient<? extends Message> messageClient) {
-        Map<String, List<TopicMapping.MappingEntry>> srcDestMapping =
+        Map<String, Map<String, TopicMapping.MappingEntry>> srcDestMapping =
                 perClientSourceDestinationMap.get(clientType);
 
         Set<String> topicsToSubscribe;

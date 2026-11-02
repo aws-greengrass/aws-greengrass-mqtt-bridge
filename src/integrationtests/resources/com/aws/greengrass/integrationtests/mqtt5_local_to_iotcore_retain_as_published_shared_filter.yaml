@@ -1,0 +1,22 @@
+services:
+  aws.greengrass.clientdevices.mqtt.Bridge:
+    configuration:
+      brokerUri: 'tcp://localhost:1883'
+      mqtt5RouteOptions:
+        plainToIotCore:
+          retainAsPublished: true
+      mqttTopicMapping:
+        plainToIotCore:
+          topic: shared/toIotCore
+          source: LocalMqtt
+          target: IotCore
+        backupToIotCore:
+          topic: shared/toIotCore
+          source: LocalMqtt
+          target: IotCore
+          targetTopicPrefix: backup/
+      mqtt:
+        version: "mqtt5"
+  main:
+    dependencies:
+      - aws.greengrass.clientdevices.mqtt.Bridge
